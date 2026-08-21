@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Tango">
+    <title>Tango - Logikrätsel</title>
+
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+    <link rel="stylesheet" href="./css/main.css">
+    <script>
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            var container = document.getElementById('debugErrorBanner');
+            var msgEl = document.getElementById('debugErrorText');
+            if (container && msgEl) {
+                container.style.display = 'block';
+                msgEl.textContent = 'Fehler: ' + msg + ' (Zeile ' + lineNo + ')';
+            }
+            return false;
+        };
+        window.addEventListener('unhandledrejection', function(e) {
+            var container = document.getElementById('debugErrorBanner');
+            var msgEl = document.getElementById('debugErrorText');
+            if (container && msgEl) {
+                container.style.display = 'block';
+                msgEl.textContent = 'Promise Fehler: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+            }
+        });
+    </script>
+</head>
+<body class="theme-dark">
+    <!-- On-screen Error Banner for Diagnostics -->
+    <div id="debugErrorBanner" style="display:none; position:fixed; top:0; left:0; right:0; background:#dc2626; color:#ffffff; padding:10px 14px; font-family:sans-serif; font-size:13px; z-index:99999; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+        <strong style="display:block; margin-bottom:2px;">⚠️ Anwendungsfehler:</strong>
+        <span id="debugErrorText"></span>
+    </div>
+    <!-- Confetti Canvas -->
+    <canvas id="confettiCanvas"></canvas>
+
+    <div id="appRoot">
+        <!-- Header -->
+        <header class="app-header">
+            <button id="btnMenu" class="header-btn" aria-label="Menü">☰</button>
+            <div class="header-title-container">
+                <span id="levelTitle" class="header-title">Level 1</span>
+                <div class="header-status">
+                    <span id="gameTimer">00:00</span>
+                </div>
+            </div>
+            <button id="btnRestart" class="header-btn" aria-label="Neustart">↻</button>
+        </header>
+
+        <!-- Tutorial Banner (nur im Tutorial aktiv) -->
+        <div id="tutorialBanner" class="tutorial-banner">
+            <h3 id="tutTitle">1. Sonne ☀️ & Mond 🌙</h3>
+            <div id="tutSubtitle" class="tut-subtitle">Grundlagen</div>
+            <div id="tutMathPrinciple" class="tut-math-badge" style="display:none; margin: 6px 0; padding: 4px 8px; background: rgba(56, 189, 248, 0.15); border: 1px solid var(--accent-moon); color: var(--accent-moon); border-radius: var(--radius-sm); font-family: monospace; font-size: 0.78rem;"></div>
+            <div id="tutDesc" class="tut-desc">Tippe auf das Feld, um eine Sonne oder einen Mond zu setzen.</div>
+        </div>
+
+        <!-- Spielbereich / Gitter -->
+        <main class="game-area">
+            <div id="boardContainer" class="board-container">
+                <!-- Gitter wird dynamisch gerendert -->
+            </div>
+        </main>
+
+        <!-- Keypad Selector Bar (falls im Keypad-Modus) -->
+        <div id="gameKeypad" class="game-keypad">
+            <button id="keypadSun" class="keypad-btn" aria-label="Sonne">☀️</button>
+            <button id="keypadMoon" class="keypad-btn" aria-label="Mond">🌙</button>
+            <button id="keypadClear" class="keypad-btn" aria-label="Löschen">✕</button>
+        </div>
+
+        <!-- Aktionsleiste Unten -->
+        <footer class="action-bar">
+            <button id="btnUndo" class="action-btn">
+                <span class="btn-icon">↩</span>
+                <span data-i18n="btn_undo">Rückgängig</span>
+            </button>
+            <button id="btnRedo" class="action-btn">
+                <span class="btn-icon">↪</span>
+                <span data-i18n="btn_redo">Wiederholen</span>
+            </button>
+            <button id="btnNotes" class="action-btn">
+                <span class="btn-icon">✏️</span>
+                <span data-i18n="btn_notes">Notizen</span>
+            </button>
+            <button id="btnHint" class="action-btn">
+                <span class="btn-icon">💡</span>
+                <span data-i18n="btn_hint">Hinweis</span>
+            </button>
+        </footer>
+    </div>
+
+    <!-- ==================== MODALS ==================== -->
+
+    <!-- Hauptmenü Modal -->
+    <div id="menuModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="app_title">Tango Logikrätsel</h2>
+                <button id="btnCloseMenu" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <button id="navTutorial" class="primary-btn" data-i18n="nav_tutorial">📖 Tutorial (Grundlagen)</button>
+                <button id="navTutorialPro" class="secondary-btn" data-i18n="nav_tutorial_pro">🎓 Tutorial Pro (Mathe-Tricks)</button>
+                <button id="navCampaign" class="secondary-btn" data-i18n="nav_campaign">🏆 Kampagne</button>
+                <button id="navDaily" class="secondary-btn" data-i18n="nav_daily">📅 Tägliches Rätsel</button>
+                <button id="navFree" class="secondary-btn" data-i18n="nav_free">🎲 Freies Spiel</button>
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 6px 0;">
+                <button id="btnRules" class="secondary-btn" data-i18n="rules_header">📜 Spielregeln</button>
+                <button id="btnStats" class="secondary-btn" data-i18n="nav_stats">📊 Statistiken</button>
+                <button id="btnSettings" class="secondary-btn" data-i18n="nav_settings">⚙️ Einstellungen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sieg Modal -->
+    <div id="victoryModal" class="modal-overlay">
+        <div class="modal-card" style="text-align: center;">
+            <div style="font-size: 3.5rem; margin-bottom: 8px;">🎉</div>
+            <h2 class="modal-title" data-i18n="victory_title">Glückwunsch!</h2>
+            <p data-i18n="victory_msg">Du hast dieses Rätsel erfolgreich gelöst!</p>
+            <div id="victoryExplanation" style="display:none; background: var(--accent-sun-bg); border: 1px solid var(--accent-sun); color: var(--text-primary); padding: 10px 14px; border-radius: var(--radius-md); font-size: 0.92rem; margin: 10px 0; text-align: left; line-height: 1.4;"></div>
+            <div style="display: flex; justify-content: space-around; background: var(--cell-bg); padding: 12px; border-radius: var(--radius-md); margin: 10px 0;">
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);" data-i18n="status_time">Zeit</div>
+                    <div id="victoryTime" style="font-size: 1.3rem; font-weight: 700;">00:00</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);" data-i18n="status_moves">Züge</div>
+                    <div id="victoryMoves" style="font-size: 1.3rem; font-weight: 700;">0</div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btnVictoryNext" class="primary-btn" data-i18n="btn_continue">Weiter</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hinweis Modal -->
+    <div id="hintModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="hint_title">Logischer Hinweis</h2>
+                <button id="btnCloseHint" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="hintText" style="line-height: 1.5; font-size: 1rem;">...</div>
+            </div>
+            <div class="modal-actions">
+                <button id="btnHintApply" class="primary-btn" data-i18n="hint_button_apply">Zug ausführen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spielregeln Modal -->
+    <div id="rulesModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="rules_header">Spielregeln</h2>
+                <button id="btnCloseRules" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body" style="font-size: 0.9rem;">
+                <div>
+                    <h4 style="color: var(--accent-sun);" data-i18n="rule_1_title">1. Keine 3er-Reihen</h4>
+                    <p data-i18n="rule_1_desc">Höchstens zwei gleiche Symbole (☀️☀️ oder 🌙🌙) dürfen waagerecht oder senkrecht aufeinanderfolgen.</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--accent-sun);" data-i18n="rule_2_title">2. Gleiche Anzahl</h4>
+                    <p data-i18n="rule_2_desc">Jede Zeile und Spalte enthält exakt gleich viele Sonnen wie Monde.</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--accent-equal);" data-i18n="rule_3_title">3. Gleichheitszeichen =</h4>
+                    <p data-i18n="rule_3_desc">Verbundene Nachbarfelder müssen dasselbe Symbol besitzen (beide ☀️ oder beide 🌙).</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--accent-opposite);" data-i18n="rule_4_title">4. Gegenteilszeichen ×</h4>
+                    <p data-i18n="rule_4_desc">Verbundene Nachbarfelder müssen unterschiedliche Symbole besitzen (eine ☀️, ein 🌙).</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--accent-sun);" data-i18n="rule_5_title">5. Eindeutigkeit</h4>
+                    <p data-i18n="rule_5_desc">Keine zwei Zeilen und keine zwei Spalten dürfen vollständig identisch sein.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Einstellungen Modal -->
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="settings_title">Einstellungen</h2>
+                <button id="btnCloseSettings" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="setting_theme">Farbdesign</span>
+                    <select id="settingThemeSelect" class="setting-select">
+                        <option value="dark" data-i18n="setting_theme_dark">Modern Dark</option>
+                        <option value="amoled" data-i18n="setting_theme_amoled">AMOLED Schwarz</option>
+                        <option value="light" data-i18n="setting_theme_light">Hell / Clean</option>
+                        <option value="wood" data-i18n="setting_theme_wood">Warmes Holz</option>
+                        <option value="cyberpunk" data-i18n="setting_theme_cyberpunk">Cyberpunk Neon</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="setting_sound">Soundeffekte</span>
+                    <label class="switch">
+                        <input type="checkbox" id="settingSoundToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="setting_vibration">Haptisches Feedback</span>
+                    <label class="switch">
+                        <input type="checkbox" id="settingVibrationToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="setting_auto_check">Fehler sofort hervorheben</span>
+                    <label class="switch">
+                        <input type="checkbox" id="settingAutoCheckToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="setting_input_mode">Eingabemodus</span>
+                    <select id="settingInputSelect" class="setting-select">
+                        <option value="cycle" data-i18n="setting_input_cycle">Direkt (1× ☀️ / 2× & Halten 🌙 / 3× Löschen)</option>
+                        <option value="keypad" data-i18n="setting_input_keypad">Symbolleiste</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistiken Modal -->
+    <div id="statsModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="stats_title">Deine Statistiken</h2>
+                <button id="btnCloseStats" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_total_played">Gespielte Rätsel</span>
+                    <span id="statPlayed" style="font-weight: 700;">0</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_total_won">Gelöste Rätsel</span>
+                    <span id="statWon" style="font-weight: 700;">0</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_win_rate">Erfolgsquote</span>
+                    <span id="statWinRate" style="font-weight: 700;">0%</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_best_time">Bestzeit</span>
+                    <span id="statBestTime" style="font-weight: 700;">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Levelauswahl Modal -->
+    <div id="levelSelectModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="nav_campaign">Levelauswahl</h2>
+                <button onclick="document.getElementById('levelSelectModal').style.display='none'" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="levelGridList" class="level-grid">
+                    <!-- Levelbuttons werden generiert -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Freies Spiel Modal -->
+    <div id="freePlayModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="nav_free">Freies Spiel</h2>
+                <button id="btnCloseFreePlay" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-row">
+                    <span class="setting-label">Gittergröße</span>
+                    <select id="freePlaySizeSelect" class="setting-select">
+                        <option value="4">4 × 4 (Schnell)</option>
+                        <option value="6" selected>6 × 6 (Klassisch)</option>
+                        <option value="8">8 × 8 (Groß)</option>
+                        <option value="10">10 × 10 (Gigant)</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">Schwierigkeitsgrad</span>
+                    <select id="freePlayDiffSelect" class="setting-select">
+                        <option value="easy">Einfach</option>
+                        <option value="medium" selected>Mittel</option>
+                        <option value="hard">Schwer</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btnStartFreePlay" class="primary-btn" data-i18n="btn_start">Starten</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/bundle.js"></script>
+</body>
+</html>
