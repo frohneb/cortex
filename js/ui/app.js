@@ -38,6 +38,24 @@ export class TangoApp {
     }
 
     init() {
+        // Globaler Fehler-Handler
+        window.addEventListener('error', (e) => {
+            const container = document.getElementById('debugErrorBanner');
+            const msgEl = document.getElementById('debugErrorText');
+            if (container && msgEl) {
+                container.style.display = 'block';
+                msgEl.textContent = `Fehler: ${e.message || e}`;
+            }
+        });
+        window.addEventListener('unhandledrejection', (e) => {
+            const container = document.getElementById('debugErrorBanner');
+            const msgEl = document.getElementById('debugErrorText');
+            if (container && msgEl) {
+                container.style.display = 'block';
+                msgEl.textContent = `Promise Fehler: ${e.reason?.message || e.reason}`;
+            }
+        });
+
         this.loadSettings();
         this.applyTheme(this.currentTheme);
         animations.init(document.getElementById('confettiCanvas'));
@@ -169,6 +187,7 @@ export class TangoApp {
             }
         });
         document.getElementById('btnCloseHint').addEventListener('click', () => this.toggleModal('hintModal', false));
+        document.getElementById('btnCloseLevelSelect')?.addEventListener('click', () => this.toggleModal('levelSelectModal', false));
 
         // Settings Dialog Listener
         document.getElementById('settingThemeSelect')?.addEventListener('change', (e) => this.applyTheme(e.target.value));
