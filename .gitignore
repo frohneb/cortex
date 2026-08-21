@@ -7,3 +7,5 @@ cmdline-tools-extracted/
 android-sdk/
 build_apk_temp/
 Tango.apk
+*.idsig
+android/.gradle/
