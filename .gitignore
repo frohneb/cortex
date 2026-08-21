@@ -1,3 +1,9 @@
 __pycache__/
 *.pyc
 .DS_Store
+tango.keystore
+cmdline-tools.zip
+cmdline-tools-extracted/
+android-sdk/
+build_apk_temp/
+Tango.apk
