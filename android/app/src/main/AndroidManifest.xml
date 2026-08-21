@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.tango.game">
+    package="com.tango.game"
+    android:versionCode="3"
+    android:versionName="1.0.2">
 
-    <!-- Sicherheit: Keine Permissions benötigt (100% offline, kein Netzwerk, keine Sensoren) -->
+    <uses-sdk
+        android:minSdkVersion="24"
+        android:targetSdkVersion="34" />
+
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Tango"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"

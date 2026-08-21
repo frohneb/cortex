@@ -193,6 +193,7 @@ export class TangoApp {
         document.getElementById('settingThemeSelect')?.addEventListener('change', (e) => this.applyTheme(e.target.value));
         document.getElementById('settingSoundToggle')?.addEventListener('change', (e) => audio.setSound(e.target.checked));
         document.getElementById('settingVibrationToggle')?.addEventListener('change', (e) => audio.setVibration(e.target.checked));
+        document.getElementById('settingVibStrengthSelect')?.addEventListener('change', (e) => audio.setVibrationStrength(e.target.value));
         document.getElementById('settingAutoCheckToggle')?.addEventListener('change', (e) => {
             this.autoCheck = e.target.checked;
             localStorage.setItem('tango_auto_check', this.autoCheck);
@@ -202,6 +203,24 @@ export class TangoApp {
             this.inputMode = e.target.value;
             localStorage.setItem('tango_input_mode', this.inputMode);
             this.updateKeypadVisibility();
+        });
+        document.getElementById('settingLanguageSelect')?.addEventListener('change', (e) => {
+            setLang(e.target.value);
+            this.updateI18n();
+        });
+        document.getElementById('btnResetProgress')?.addEventListener('click', () => {
+            if (confirm(t('setting_reset_confirm'))) {
+                try {
+                    localStorage.removeItem('tango_stats');
+                    localStorage.removeItem('tango_campaign_completed');
+                    localStorage.removeItem('tango_campaign_stars');
+                    localStorage.removeItem('tango_daily_completed');
+                    localStorage.removeItem('tango_daily_streak');
+                } catch (e) {}
+                this.toggleModal('settingsModal', false);
+                audio.playClear();
+                alert(getLang() === 'de' ? 'Fortschritt erfolgreich zurückgesetzt!' : 'Progress successfully reset!');
+            }
         });
     }
 
@@ -383,7 +402,7 @@ export class TangoApp {
         this.isNoteMode = !this.isNoteMode;
         const btn = document.getElementById('btnNotes');
         if (btn) btn.classList.toggle('active', this.isNoteMode);
-        audio.vibrate(10);
+        audio.vibrate(30);
     }
 
     updateKeypadVisibility() {
@@ -564,7 +583,6 @@ export class TangoApp {
             this.engine.setCellValue(r, c, MOON);
             this.movesCount++;
             audio.playMoon();
-            audio.vibrate([25, 40]);
         }
 
         this.renderGrid();
@@ -846,11 +864,17 @@ export class TangoApp {
         const vibToggle = document.getElementById('settingVibrationToggle');
         if (vibToggle) vibToggle.checked = audio.vibrationEnabled;
 
+        const vibStrengthSel = document.getElementById('settingVibStrengthSelect');
+        if (vibStrengthSel) vibStrengthSel.value = audio.vibrationStrength;
+
         const chkToggle = document.getElementById('settingAutoCheckToggle');
         if (chkToggle) chkToggle.checked = this.autoCheck;
 
         const inpSel = document.getElementById('settingInputSelect');
         if (inpSel) inpSel.value = this.inputMode;
+
+        const langSel = document.getElementById('settingLanguageSelect');
+        if (langSel) langSel.value = getLang();
 
         this.toggleModal('settingsModal', true);
     }

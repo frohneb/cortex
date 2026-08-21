@@ -205,6 +205,15 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <div class="setting-row" id="settingVibStrengthRow">
+                    <span class="setting-label" data-i18n="setting_vibration_strength">Vibrationsstärke</span>
+                    <select id="settingVibStrengthSelect" class="setting-select">
+                        <option value="medium" selected data-i18n="setting_vib_medium">Standard (Empfohlen)</option>
+                        <option value="strong" data-i18n="setting_vib_strong">Kräftig</option>
+                        <option value="ultra" data-i18n="setting_vib_ultra">Ultra kräftig</option>
+                        <option value="soft" data-i18n="setting_vib_soft">Sanft</option>
+                    </select>
+                </div>
                 <div class="setting-row">
                     <span class="setting-label" data-i18n="setting_auto_check">Fehler sofort hervorheben</span>
                     <label class="switch">
@@ -215,9 +224,22 @@
                 <div class="setting-row">
                     <span class="setting-label" data-i18n="setting_input_mode">Eingabemodus</span>
                     <select id="settingInputSelect" class="setting-select">
-                        <option value="cycle" data-i18n="setting_input_cycle">Direkt (1× ☀️ / 2× & Halten 🌙 / 3× Löschen)</option>
-                        <option value="keypad" data-i18n="setting_input_keypad">Symbolleiste</option>
+                        <option value="cycle" data-i18n="setting_input_cycle">Direkt (1× ☀️ / 2× 🌙 / 3× ✕)</option>
+                        <option value="keypad" data-i18n="setting_input_keypad">Symbolleiste (Keypad)</option>
                     </select>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="setting_language">Sprache</span>
+                    <select id="settingLanguageSelect" class="setting-select">
+                        <option value="de">Deutsch</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+                <div class="setting-row" style="padding-top: 12px; border-bottom: none;">
+                    <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
+                </div>
+                <div class="settings-version-info" style="text-align:center; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08); font-size:12px; opacity:0.65;">
+                    Tango App <span id="appVersionBadge">v1.0.2</span> • 100% Offline &amp; Werbefrei
                 </div>
             </div>
         </div>

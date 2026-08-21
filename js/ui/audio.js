@@ -8,6 +8,7 @@ export class AudioManager {
         this.ctx = null;
         this.enabled = true;
         this.vibrationEnabled = true;
+        this.vibrationStrength = 'medium'; // Standardmäßig auf Standard gesetzt
 
         // Lade Einstellungen
         try {
@@ -16,6 +17,9 @@ export class AudioManager {
 
             const savedVib = localStorage.getItem('tango_vibration');
             if (savedVib !== null) this.vibrationEnabled = savedVib === 'true';
+
+            const savedVibStr = localStorage.getItem('tango_vibration_strength');
+            if (savedVibStr !== null) this.vibrationStrength = savedVibStr;
         } catch (e) {
             console.warn('localStorage in audio.js nicht zugreifbar:', e);
         }
@@ -47,10 +51,39 @@ export class AudioManager {
         } catch (e) {}
     }
 
-    vibrate(pattern = 15) {
+    setVibrationStrength(strength) {
+        this.vibrationStrength = strength;
+        try {
+            localStorage.setItem('tango_vibration_strength', strength);
+        } catch (e) {}
+        this.vibrate(40);
+    }
+
+    getVibrationMultiplier() {
+        switch (this.vibrationStrength) {
+            case 'ultra': return 2.2;
+            case 'strong': return 1.5;
+            case 'soft': return 0.5;
+            case 'medium':
+            default: return 1.0;
+        }
+    }
+
+    vibrate(pattern = 70) {
         if (this.vibrationEnabled && 'vibrate' in navigator) {
             try {
-                navigator.vibrate(pattern);
+                const mult = this.getVibrationMultiplier();
+                let scaledPattern;
+                if (typeof pattern === 'number') {
+                    scaledPattern = Math.max(30, Math.round(pattern * mult));
+                } else if (Array.isArray(pattern)) {
+                    scaledPattern = pattern.map((val, idx) => {
+                        return (idx % 2 === 0) ? Math.max(30, Math.round(val * mult)) : val;
+                    });
+                } else {
+                    scaledPattern = pattern;
+                }
+                navigator.vibrate(scaledPattern);
             } catch (e) {
                 // Ignore if not permitted
             }
@@ -78,7 +111,7 @@ export class AudioManager {
 
         osc.start(now);
         osc.stop(now + 0.12);
-        this.vibrate(10);
+        this.vibrate(70);
     }
 
     playMoon() {
@@ -102,7 +135,7 @@ export class AudioManager {
 
         osc.start(now);
         osc.stop(now + 0.15);
-        this.vibrate(15);
+        this.vibrate(95);
     }
 
     playClear() {
@@ -124,7 +157,7 @@ export class AudioManager {
 
         osc.start(now);
         osc.stop(now + 0.05);
-        this.vibrate(5);
+        this.vibrate(50);
     }
 
     playHint() {
@@ -150,7 +183,7 @@ export class AudioManager {
             osc.start(now + idx * 0.06);
             osc.stop(now + idx * 0.06 + 0.25);
         });
-        this.vibrate([15, 30, 15]);
+        this.vibrate([70, 50, 90]);
     }
 
     playError() {
@@ -174,7 +207,7 @@ export class AudioManager {
 
         osc.start(now);
         osc.stop(now + 0.2);
-        this.vibrate([40, 20, 40]);
+        this.vibrate([100, 50, 100, 50, 100]);
     }
 
     playVictory() {
@@ -208,7 +241,7 @@ export class AudioManager {
             osc.stop(now + c.time + c.dur);
         });
 
-        this.vibrate([30, 50, 30, 50, 80]);
+        this.vibrate([80, 50, 90, 50, 120, 60, 200]);
     }
 }
 

@@ -80,8 +80,9 @@ if os.path.exists(APK_PATH):
         shell=True, capture_output=True, text=True
     )
     perm_lines = [l for l in res.stdout.strip().split('\n') if 'uses-permission' in l.lower()]
-    check("Keine Android-Permissions deklariert", len(perm_lines) == 0,
-          f"Gefundene Permissions: {perm_lines}")
+    dangerous_perms = [l for l in perm_lines if 'vibrate' not in l.lower()]
+    check("Keine gefaehrlichen Android-Permissions (nur VIBRATE)", len(dangerous_perms) == 0,
+          f"Gefundene Permissions: {dangerous_perms}")
 
     res = subprocess.run(
         f'"{AAPT}" dump xmltree "{APK_PATH}" AndroidManifest.xml',

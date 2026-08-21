@@ -82,8 +82,11 @@ def build_apk():
             'css/main.css',
             'js/bundle.js',
             'assets/favicon.svg',
+            'assets/favicon.png',
             'assets/icons/icon-192.svg',
-            'assets/icons/icon-512.svg'
+            'assets/icons/icon-192.png',
+            'assets/icons/icon-512.svg',
+            'assets/icons/icon-512.png'
         ]
         for rel_path in assets_to_include:
             full_path = os.path.join(BASE_DIR, rel_path)

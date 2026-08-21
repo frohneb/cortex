@@ -48,8 +48,9 @@ if os.path.exists(APK_PATH):
         shell=True, capture_output=True, text=True
     )
     lines = [l for l in res.stdout.strip().split('\n') if 'uses-permission' in l.lower()]
-    check("Keine Android-Permissions deklariert", len(lines) == 0,
-          f"Gefundene Permissions: {lines}")
+    dangerous = [l for l in lines if 'vibrate' not in l.lower()]
+    check("Keine gefaehrlichen Android-Permissions (nur VIBRATE erlaubt)", len(dangerous) == 0,
+          f"Gefundene Permissions: {dangerous}")
 
 # 4. allowBackup pruefen
 if os.path.exists(APK_PATH):
