@@ -85,23 +85,65 @@ export class TangoEngine {
         }
 
         const prevVal = this.grid[r][c];
-        if (prevVal === val) return false;
+        const prevNotes = new Set(this.notes[r][c]);
+
+        // Keine Änderung und keine Notizen zu löschen -> abbrechen
+        if (prevVal === val && prevNotes.size === 0) return false;
 
         this.undoStack.push({
             type: 'cell',
             r, c,
             prevVal,
             nextVal: val,
-            prevNotes: new Set(this.notes[r][c])
+            prevNotes
         });
         this.redoStack = [];
 
         this.grid[r][c] = val;
-        // Beim Setzen einer festen Zelle Notizen leeren
-        if (val !== EMPTY) {
-            this.notes[r][c].clear();
-        }
+        // Im normalen Spielmodus Notizen der Zelle immer leeren
+        this.notes[r][c].clear();
         return true;
+    }
+
+    /**
+     * Schaltet Notizen einer Zelle durch:
+     * Keine Notiz -> ☀️ (Sonne) -> 🌙 (Mond) -> ☀️🌙 (Beide) -> Leer (Löschen)
+     */
+    cycleNoteValue(r, c) {
+        if (this.locked[r][c]) return null;
+
+        // Falls ein fester Wert vorhanden war, diesen leeren
+        if (this.grid[r][c] !== EMPTY) {
+            this.setCellValue(r, c, EMPTY);
+        }
+
+        const cellNotes = this.notes[r][c];
+        const prevNotes = new Set(cellNotes);
+        const hasSun = cellNotes.has(SUN);
+        const hasMoon = cellNotes.has(MOON);
+
+        let nextNotes = new Set();
+        if (!hasSun && !hasMoon) {
+            nextNotes.add(SUN);
+        } else if (hasSun && !hasMoon) {
+            nextNotes.add(MOON);
+        } else if (!hasSun && hasMoon) {
+            nextNotes.add(SUN);
+            nextNotes.add(MOON);
+        } else {
+            // Beide aktiv -> Löschen (leere Notizen)
+            nextNotes = new Set();
+        }
+
+        this.notes[r][c] = new Set(nextNotes);
+        this.undoStack.push({
+            type: 'note',
+            r, c,
+            prevNotes,
+            nextNotes: new Set(nextNotes)
+        });
+        this.redoStack = [];
+        return nextNotes;
     }
 
     /**

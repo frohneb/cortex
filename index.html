@@ -36,6 +36,21 @@
             <button id="btnRestart" class="header-btn" aria-label="Neustart">↻</button>
         </header>
 
+        <!-- Tägliche Erinnerung Banner (erscheint wenn Tagesrätsel fällig & nicht gelöst) -->
+        <div id="dailyReminderBanner" class="daily-reminder-banner" style="display: none;">
+            <div class="reminder-content">
+                <span class="reminder-icon">📅</span>
+                <div class="reminder-text">
+                    <strong data-i18n="reminder_banner_title">Tagesrätsel wartet!</strong>
+                    <span data-i18n="reminder_banner_desc">Löse dein heutiges Rätsel für deine Serie.</span>
+                </div>
+            </div>
+            <div class="reminder-actions">
+                <button id="btnPlayDailyFromReminder" class="primary-btn btn-xs" data-i18n="reminder_btn_play">Spielen</button>
+                <button id="btnCloseDailyReminder" class="reminder-close-btn" aria-label="Schließen">✕</button>
+            </div>
+        </div>
+
         <!-- Tutorial Banner (nur im Tutorial aktiv) -->
         <div id="tutorialBanner" class="tutorial-banner">
             <h3 id="tutTitle">1. Sonne ☀️ & Mond 🌙</h3>
@@ -53,8 +68,12 @@
 
         <!-- Keypad Selector Bar (falls im Keypad-Modus) -->
         <div id="gameKeypad" class="game-keypad">
-            <button id="keypadSun" class="keypad-btn" aria-label="Sonne">☀️</button>
-            <button id="keypadMoon" class="keypad-btn" aria-label="Mond">🌙</button>
+            <button id="keypadSun" class="keypad-btn" aria-label="Sonne">
+                <svg class="tango-symbol tango-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2" fill="currentColor"/><g stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="1.6" x2="12" y2="3.8"/><line x1="12" y1="20.2" x2="12" y2="22.4"/><line x1="1.6" y1="12" x2="3.8" y2="12"/><line x1="20.2" y1="12" x2="22.4" y2="12"/><line x1="4.6" y1="4.6" x2="6.2" y2="6.2"/><line x1="17.8" y1="17.8" x2="19.4" y2="19.4"/><line x1="4.6" y1="19.4" x2="6.2" y2="17.8"/><line x1="17.8" y1="6.2" x2="19.4" y2="4.6"/></g></svg>
+            </button>
+            <button id="keypadMoon" class="keypad-btn" aria-label="Mond">
+                <svg class="tango-symbol tango-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 12.5A9.5 9.5 0 1 1 11.5 2.5a7.5 7.5 0 0 0 10 10z" fill="currentColor"/></svg>
+            </button>
             <button id="keypadClear" class="keypad-btn" aria-label="Löschen">✕</button>
         </div>
 
@@ -81,23 +100,209 @@
 
     <!-- ==================== MODALS ==================== -->
 
-    <!-- Hauptmenü Modal -->
+    <!-- Hauptmenü Hub Modal mit Tabs -->
     <div id="menuModal" class="modal-overlay">
-        <div class="modal-card">
+        <div class="modal-card menu-hub-card">
             <div class="modal-header">
-                <h2 class="modal-title" data-i18n="app_title">Tango Logikrätsel</h2>
+                <div class="menu-hub-title-box">
+                    <span class="menu-hub-icon">☀️🌙</span>
+                    <h2 class="modal-title" data-i18n="app_title">Tango</h2>
+                </div>
                 <button id="btnCloseMenu" class="modal-close-btn">✕</button>
             </div>
-            <div class="modal-body">
-                <button id="navTutorial" class="primary-btn" data-i18n="nav_tutorial">📖 Tutorial (Grundlagen)</button>
-                <button id="navTutorialPro" class="secondary-btn" data-i18n="nav_tutorial_pro">🎓 Tutorial Pro (Mathe-Tricks)</button>
-                <button id="navCampaign" class="secondary-btn" data-i18n="nav_campaign">🏆 Kampagne</button>
-                <button id="navDaily" class="secondary-btn" data-i18n="nav_daily">📅 Tägliches Rätsel</button>
-                <button id="navFree" class="secondary-btn" data-i18n="nav_free">🎲 Freies Spiel</button>
-                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 6px 0;">
-                <button id="btnRules" class="secondary-btn" data-i18n="rules_header">📜 Spielregeln</button>
-                <button id="btnStats" class="secondary-btn" data-i18n="nav_stats">📊 Statistiken</button>
-                <button id="btnSettings" class="secondary-btn" data-i18n="nav_settings">⚙️ Einstellungen</button>
+
+            <!-- Tab Navigation -->
+            <div class="menu-hub-tabs">
+                <button id="tabMenuPlay" class="menu-hub-tab active" data-tab="play">
+                    <span class="tab-icon">🎮</span>
+                    <span class="tab-label" data-i18n="menu_tab_play">Spielen</span>
+                </button>
+                <button id="tabMenuRules" class="menu-hub-tab" data-tab="rules">
+                    <span class="tab-icon">📜</span>
+                    <span class="tab-label" data-i18n="menu_tab_rules">Regeln</span>
+                </button>
+                <button id="tabMenuStats" class="menu-hub-tab" data-tab="stats">
+                    <span class="tab-icon">📊</span>
+                    <span class="tab-label" data-i18n="menu_tab_stats">Statistik</span>
+                </button>
+                <button id="tabMenuSettings" class="menu-hub-tab" data-tab="settings">
+                    <span class="tab-icon">⚙️</span>
+                    <span class="tab-label" data-i18n="menu_tab_settings">Optionen</span>
+                </button>
+            </div>
+
+            <div class="modal-body menu-hub-body">
+                <!-- TAB 1: SPIELEN -->
+                <div id="menuSecPlay" class="menu-hub-sec">
+                    <div class="menu-modes-grid">
+                        <button id="navCampaign" class="menu-mode-card primary-mode">
+                            <div class="mode-icon-box">🏆</div>
+                            <div class="mode-text-box">
+                                <strong data-i18n="nav_campaign">Kampagne</strong>
+                                <span data-i18n="campaign_desc">30 handgefertigte Level</span>
+                            </div>
+                        </button>
+
+                        <button id="navDaily" class="menu-mode-card">
+                            <div class="mode-icon-box">📅</div>
+                            <div class="mode-text-box">
+                                <strong data-i18n="nav_daily">Tägliches Rätsel</strong>
+                                <span data-i18n="daily_desc">Jeden Tag eine neue Herausforderung</span>
+                            </div>
+                            <span id="dailyBadge" class="nav-badge" style="display: none;" data-i18n="reminder_badge_new">Neu</span>
+                        </button>
+
+                        <button id="navFree" class="menu-mode-card">
+                            <div class="mode-icon-box">🎲</div>
+                            <div class="mode-text-box">
+                                <strong data-i18n="nav_free">Freies Spiel</strong>
+                                <span data-i18n="free_desc">4×4 bis 10×10, beliebige Stufe</span>
+                            </div>
+                        </button>
+
+                        <div class="menu-sub-row">
+                            <button id="navTutorial" class="secondary-btn" data-i18n="nav_tutorial">📖 Grundlagen-Tutorial</button>
+                            <button id="navTutorialPro" class="secondary-btn" data-i18n="nav_tutorial_pro">🎓 Tutorial Pro</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: REGELN -->
+                <div id="menuSecRules" class="menu-hub-sec" style="display: none;">
+                    <div class="rules-container">
+                        <div class="rule-box">
+                            <div class="rule-badge">1</div>
+                            <div class="rule-content">
+                                <strong data-i18n="rule_1_title">Gleiche Anzahl pro Zeile &amp; Spalte</strong>
+                                <p data-i18n="rule_1_desc">Jede Zeile und Spalte muss exakt gleich viele Sonnen ☀️ wie Monde 🌙 enthalten (z. B. 3☀️ &amp; 3🌙 bei 6×6).</p>
+                            </div>
+                        </div>
+                        <div class="rule-box">
+                            <div class="rule-badge">2</div>
+                            <div class="rule-content">
+                                <strong data-i18n="rule_2_title">Maximal 2 gleiche Symbole nebeneinander</strong>
+                                <p data-i18n="rule_2_desc">Niemals dürfen 3 gleiche Symbole horizontal oder vertikal aufeinanderfolgen (kein ☀️☀️☀️ oder 🌙🌙🌙).</p>
+                            </div>
+                        </div>
+                        <div class="rule-box">
+                            <div class="rule-badge">3</div>
+                            <div class="rule-content">
+                                <strong data-i18n="rule_3_title">Gleichheitszeichen =</strong>
+                                <p data-i18n="rule_3_desc">Verbundene Nachbarfelder müssen dasselbe Symbol besitzen (beide ☀️ oder beide 🌙).</p>
+                            </div>
+                        </div>
+                        <div class="rule-box">
+                            <div class="rule-badge">4</div>
+                            <div class="rule-content">
+                                <strong data-i18n="rule_4_title">Gegenteilszeichen ×</strong>
+                                <p data-i18n="rule_4_desc">Verbundene Nachbarfelder müssen unterschiedliche Symbole besitzen (eine ☀️, ein 🌙).</p>
+                            </div>
+                        </div>
+                        <div class="rule-box">
+                            <div class="rule-badge">5</div>
+                            <div class="rule-content">
+                                <strong data-i18n="rule_5_title">Eindeutigkeit</strong>
+                                <p data-i18n="rule_5_desc">Keine zwei Zeilen und keine zwei Spalten dürfen vollständig identisch sein.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: STATISTIKEN -->
+                <div id="menuSecStats" class="menu-hub-sec" style="display: none;">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-val" id="statPlayed">0</span>
+                            <span class="stat-lbl" data-i18n="stats_total_played">Gespielt</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-val" id="statWon">0</span>
+                            <span class="stat-lbl" data-i18n="stats_total_won">Gelöst</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-val" id="statWinRate">0%</span>
+                            <span class="stat-lbl" data-i18n="stats_win_rate">Quote</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-val" id="statBestTime">-</span>
+                            <span class="stat-lbl" data-i18n="stats_best_time">Bestzeit</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button id="btnResetStats" class="danger-btn" data-i18n="stats_reset_btn" style="width: 100%;">Statistik zurücksetzen</button>
+                    </div>
+                </div>
+
+                <!-- TAB 4: EINSTELLUNGEN & SYNC -->
+                <div id="menuSecSettings" class="menu-hub-sec" style="display: none;">
+                    <div class="setting-row">
+                        <span class="setting-label" data-i18n="setting_theme">Farbdesign</span>
+                        <select id="settingThemeSelect" class="setting-select">
+                            <option value="dark" data-i18n="setting_theme_dark">Modern Dark</option>
+                            <option value="amoled" data-i18n="setting_theme_amoled">AMOLED Schwarz</option>
+                            <option value="light" data-i18n="setting_theme_light">Hell / Clean</option>
+                            <option value="wood" data-i18n="setting_theme_wood">Warmes Holz</option>
+                            <option value="cyberpunk" data-i18n="setting_theme_cyberpunk">Cyberpunk Neon</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <span class="setting-label" data-i18n="setting_sound">Soundeffekte</span>
+                        <label class="switch">
+                            <input type="checkbox" id="settingSoundToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-row">
+                        <span class="setting-label" data-i18n="setting_vibration">Haptisches Feedback</span>
+                        <label class="switch">
+                            <input type="checkbox" id="settingVibrationToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-row" id="settingVibStrengthRow">
+                        <span class="setting-label" data-i18n="setting_vibration_strength">Vibrationsstärke</span>
+                        <select id="settingVibStrengthSelect" class="setting-select">
+                            <option value="medium" selected data-i18n="setting_vib_medium">Standard (Empfohlen)</option>
+                            <option value="strong" data-i18n="setting_vib_strong">Kräftig</option>
+                            <option value="ultra" data-i18n="setting_vib_ultra">Ultra kräftig</option>
+                            <option value="soft" data-i18n="setting_vib_soft">Sanft</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <span class="setting-label" data-i18n="setting_auto_check">Fehler sofort hervorheben</span>
+                        <label class="switch">
+                            <input type="checkbox" id="settingAutoCheckToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-row">
+                        <span class="setting-label" data-i18n="setting_daily_reminder">System-Benachrichtigung</span>
+                        <label class="switch">
+                            <input type="checkbox" id="settingReminderToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-row" id="settingReminderTimeRow" style="display: none;">
+                        <span class="setting-label" data-i18n="setting_reminder_time">Erinnerungszeit</span>
+                        <input type="time" id="settingReminderTimeInput" class="setting-time-input" value="09:00">
+                    </div>
+                    <div class="setting-row" id="settingCalendarExportRow" style="display: none; padding-top: 4px;">
+                        <button id="btnExportCalendarReminder" class="secondary-btn" data-i18n="setting_calendar_reminder" style="width: 100%; font-size: 0.85rem;">📅 Kalender-Erinnerung (.ics) stellen</button>
+                    </div>
+                    <div class="setting-row">
+                        <span class="setting-label" data-i18n="setting_language">Sprache</span>
+                        <select id="settingLanguageSelect" class="setting-select">
+                            <option value="de">Deutsch</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                    <div class="setting-hub-actions">
+                        <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
+                    </div>
+                    <div class="settings-version-info" style="text-align:center; margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:11px; opacity:0.65;">
+                        Tango App <span id="appVersionBadge">v1.0.4</span> • 100% Offline &amp; Werbefrei
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -222,24 +427,31 @@
                     </label>
                 </div>
                 <div class="setting-row">
-                    <span class="setting-label" data-i18n="setting_input_mode">Eingabemodus</span>
-                    <select id="settingInputSelect" class="setting-select">
-                        <option value="cycle" data-i18n="setting_input_cycle">Direkt (1× ☀️ / 2× 🌙 / 3× ✕)</option>
-                        <option value="keypad" data-i18n="setting_input_keypad">Symbolleiste (Keypad)</option>
-                    </select>
-                </div>
-                <div class="setting-row">
                     <span class="setting-label" data-i18n="setting_language">Sprache</span>
                     <select id="settingLanguageSelect" class="setting-select">
                         <option value="de">Deutsch</option>
                         <option value="en">English</option>
                     </select>
                 </div>
-                <div class="setting-row" style="padding-top: 12px; border-bottom: none;">
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="setting_daily_reminder">Tägliche Erinnerung</span>
+                    <label class="switch">
+                        <input type="checkbox" id="settingReminderToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-row" id="settingReminderTimeRow" style="display: none;">
+                    <span class="setting-label" data-i18n="setting_reminder_time">Erinnerungszeit</span>
+                    <input type="time" id="settingReminderTimeInput" class="setting-time-input" value="09:00">
+                </div>
+                <div class="setting-row" id="settingCalendarExportRow" style="display: none; padding-top: 6px;">
+                    <button id="btnExportCalendarReminder" class="secondary-btn" data-i18n="setting_calendar_reminder" style="width: 100%; font-size: 0.85rem;">📅 Kalender-Erinnerung (.ics) stellen</button>
+                </div>
+                <div class="setting-row" style="padding-top: 10px; border-bottom: none;">
                     <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
                 </div>
                 <div class="settings-version-info" style="text-align:center; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08); font-size:12px; opacity:0.65;">
-                    Tango App <span id="appVersionBadge">v1.0.2</span> • 100% Offline &amp; Werbefrei
+                    Tango App <span id="appVersionBadge">v1.0.4</span> • 100% Offline &amp; Werbefrei
                 </div>
             </div>
         </div>
@@ -268,6 +480,9 @@
                 <div class="setting-row">
                     <span class="setting-label" data-i18n="stats_best_time">Bestzeit</span>
                     <span id="statBestTime" style="font-weight: 700;">-</span>
+                </div>
+                <div class="setting-row" style="padding-top: 10px; border-bottom: none;">
+                    <button id="btnResetStatsModal" class="danger-btn" data-i18n="stats_reset_btn" style="width: 100%;">Statistik zurücksetzen</button>
                 </div>
             </div>
         </div>
@@ -316,6 +531,20 @@
             </div>
             <div class="modal-actions">
                 <button id="btnStartFreePlay" class="primary-btn" data-i18n="btn_start">Starten</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Schicker Sicherheitsabfrage Dialog -->
+    <div id="confirmModal" class="modal-overlay" style="display: none; z-index: 10000;">
+        <div class="modal-card confirm-modal-card">
+            <div class="confirm-icon-box">⚠️</div>
+            <h3 id="confirmTitle" class="confirm-title" data-i18n="confirm_title">Sicherheitsabfrage</h3>
+            <p id="confirmMessage" class="confirm-message">Möchtest du diese Aktion wirklich ausführen?</p>
+            <div class="confirm-actions">
+                <button id="btnConfirmCancel" class="secondary-btn" data-i18n="btn_cancel">Abbrechen</button>
+                <button id="btnConfirmOk" class="danger-btn" data-i18n="btn_confirm_reset">Zurücksetzen</button>
             </div>
         </div>
     </div>

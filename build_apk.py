@@ -55,8 +55,9 @@ def build_apk():
     run_cmd(cmd_link)
 
     print("=== 4. Java-Code kompilieren (javac) ===")
-    java_file = os.path.join(BASE_DIR, "android", "app", "src", "main", "java", "com", "tango", "game", "MainActivity.java")
-    cmd_javac = f'"{JAVAC}" -cp "{ANDROID_JAR}" -d "{bin_dir}" "{java_file}"'
+    java_src_dir = os.path.join(BASE_DIR, "android", "app", "src", "main", "java", "com", "tango", "game")
+    java_files = [os.path.join(java_src_dir, f) for f in os.listdir(java_src_dir) if f.endswith('.java')]
+    cmd_javac = f'"{JAVAC}" -encoding UTF-8 -cp "{ANDROID_JAR}" -d "{bin_dir}" ' + ' '.join([f'"{f}"' for f in java_files])
     run_cmd(cmd_javac)
 
     print("=== 5. Bytecode nach DEX konvertieren (d8) ===")

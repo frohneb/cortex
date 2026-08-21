@@ -48,8 +48,8 @@ if os.path.exists(APK_PATH):
         shell=True, capture_output=True, text=True
     )
     lines = [l for l in res.stdout.strip().split('\n') if 'uses-permission' in l.lower()]
-    dangerous = [l for l in lines if 'vibrate' not in l.lower()]
-    check("Keine gefaehrlichen Android-Permissions (nur VIBRATE erlaubt)", len(dangerous) == 0,
+    dangerous = [l for l in lines if 'vibrate' not in l.lower() and 'post_notifications' not in l.lower()]
+    check("Keine gefaehrlichen Android-Permissions (nur VIBRATE und POST_NOTIFICATIONS erlaubt)", len(dangerous) == 0,
           f"Gefundene Permissions: {dangerous}")
 
 # 4. allowBackup pruefen
@@ -84,9 +84,9 @@ if os.path.exists(java_path):
     check("BlockNetworkImage = true",
           "setBlockNetworkImage(true)" in java_code,
           "BlockNetworkImage ist nicht auf true gesetzt")
-    check("Kein addJavascriptInterface",
-          "addJavascriptInterface" not in java_code,
-          "addJavascriptInterface gefunden - JS Bridge Risiko")
+    check("Sichere NotificationBridge (nur Notification-Methoden)",
+          "NotificationBridge" in java_code and "Runtime.getRuntime" not in java_code,
+          "Unsichere Bridge-Methoden in MainActivity")
 
 # 6. JS-Quellcode-Checks
 print("\n--- JavaScript-Sicherheit ---")

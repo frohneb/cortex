@@ -12,6 +12,14 @@ import { t, setLang, getLang } from '../data/i18n.js';
 import { audio } from './audio.js';
 import { animations } from './animations.js';
 
+export function getSunSvg(extraClass = '') {
+    return `<svg class="tango-symbol tango-sun ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2" fill="currentColor"/><g stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="1.6" x2="12" y2="3.8"/><line x1="12" y1="20.2" x2="12" y2="22.4"/><line x1="1.6" y1="12" x2="3.8" y2="12"/><line x1="20.2" y1="12" x2="22.4" y2="12"/><line x1="4.6" y1="4.6" x2="6.2" y2="6.2"/><line x1="17.8" y1="17.8" x2="19.4" y2="19.4"/><line x1="4.6" y1="19.4" x2="6.2" y2="17.8"/><line x1="17.8" y1="6.2" x2="19.4" y2="4.6"/></g></svg>`;
+}
+
+export function getMoonSvg(extraClass = '') {
+    return `<svg class="tango-symbol tango-moon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 12.5A9.5 9.5 0 1 1 11.5 2.5a7.5 7.5 0 0 0 10 10z" fill="currentColor"/></svg>`;
+}
+
 export class TangoApp {
     constructor() {
         this.engine = new TangoEngine(6);
@@ -33,6 +41,9 @@ export class TangoApp {
         this.autoCheck = true;
         this.inputMode = 'cycle'; // 'cycle' | 'keypad'
         this.currentTheme = 'dark';
+        this.reminderEnabled = false;
+        this.reminderTime = '09:00';
+        this.reminderDismissed = false;
 
         this.init();
     }
@@ -61,6 +72,9 @@ export class TangoApp {
         animations.init(document.getElementById('confettiCanvas'));
         this.bindEvents();
         this.updateI18n();
+        this.checkDailyReminder();
+        this.checkDailySystemNotification();
+        this.notifCheckInterval = setInterval(() => this.checkDailySystemNotification(), 30000);
 
         // Starte mit der Kampagne oder dem Tutorial falls neu
         const completedLevels = this.getCompletedLevels();
@@ -81,6 +95,14 @@ export class TangoApp {
 
             const savedInput = localStorage.getItem('tango_input_mode');
             if (savedInput) this.inputMode = savedInput;
+
+            const savedRem = localStorage.getItem('tango_reminder_enabled');
+            if (savedRem !== null) this.reminderEnabled = savedRem === 'true';
+
+            const savedRemTime = localStorage.getItem('tango_reminder_time');
+            if (savedRemTime && /^([01]\d|2[0-3]):[0-5]\d$/.test(savedRemTime)) {
+                this.reminderTime = savedRemTime;
+            }
         } catch (e) {
             console.warn('localStorage konnte nicht gelesen werden:', e);
         }
@@ -103,23 +125,21 @@ export class TangoApp {
 
     bindEvents() {
         // Navigation / Menüs
-        document.getElementById('btnMenu').addEventListener('click', () => this.toggleModal('menuModal', true));
+        document.getElementById('btnMenu').addEventListener('click', () => this.openMenuTab('play'));
         document.getElementById('btnCloseMenu').addEventListener('click', () => this.toggleModal('menuModal', false));
-        document.getElementById('btnSettings').addEventListener('click', () => {
-            this.toggleModal('menuModal', false);
-            this.openSettingsModal();
-        });
-        document.getElementById('btnCloseSettings').addEventListener('click', () => this.toggleModal('settingsModal', false));
-        document.getElementById('btnStats').addEventListener('click', () => {
-            this.toggleModal('menuModal', false);
-            this.openStatsModal();
-        });
-        document.getElementById('btnCloseStats').addEventListener('click', () => this.toggleModal('statsModal', false));
-        document.getElementById('btnRules').addEventListener('click', () => {
-            this.toggleModal('menuModal', false);
-            this.toggleModal('rulesModal', true);
-        });
-        document.getElementById('btnCloseRules').addEventListener('click', () => this.toggleModal('rulesModal', false));
+
+        // Menü-Hub Tabs
+        document.getElementById('tabMenuPlay')?.addEventListener('click', () => this.switchMenuTab('play'));
+        document.getElementById('tabMenuRules')?.addEventListener('click', () => this.switchMenuTab('rules'));
+        document.getElementById('tabMenuStats')?.addEventListener('click', () => this.switchMenuTab('stats'));
+        document.getElementById('tabMenuSettings')?.addEventListener('click', () => this.switchMenuTab('settings'));
+
+        document.getElementById('btnSettings')?.addEventListener('click', () => this.openMenuTab('settings'));
+        document.getElementById('btnCloseSettings')?.addEventListener('click', () => this.toggleModal('settingsModal', false));
+        document.getElementById('btnStats')?.addEventListener('click', () => this.openMenuTab('stats'));
+        document.getElementById('btnCloseStats')?.addEventListener('click', () => this.toggleModal('statsModal', false));
+        document.getElementById('btnRules')?.addEventListener('click', () => this.openMenuTab('rules'));
+        document.getElementById('btnCloseRules')?.addEventListener('click', () => this.toggleModal('rulesModal', false));
 
         // Spielmodi-Auswahl im Menü
         document.getElementById('navTutorial')?.addEventListener('click', () => {
@@ -199,29 +219,70 @@ export class TangoApp {
             localStorage.setItem('tango_auto_check', this.autoCheck);
             this.renderGrid();
         });
-        document.getElementById('settingInputSelect')?.addEventListener('change', (e) => {
-            this.inputMode = e.target.value;
-            localStorage.setItem('tango_input_mode', this.inputMode);
-            this.updateKeypadVisibility();
-        });
         document.getElementById('settingLanguageSelect')?.addEventListener('change', (e) => {
             setLang(e.target.value);
             this.updateI18n();
         });
-        document.getElementById('btnResetProgress')?.addEventListener('click', () => {
-            if (confirm(t('setting_reset_confirm'))) {
+        document.getElementById('settingReminderToggle')?.addEventListener('change', (e) => {
+            this.setReminderEnabled(e.target.checked);
+        });
+        document.getElementById('settingReminderTimeInput')?.addEventListener('change', (e) => {
+            this.setReminderTime(e.target.value);
+        });
+        document.getElementById('btnExportCalendarReminder')?.addEventListener('click', () => {
+            this.exportCalendarReminder();
+        });
+        document.getElementById('btnPlayDailyFromReminder')?.addEventListener('click', () => {
+            this.dismissReminderBanner();
+            this.startDailyPuzzle();
+        });
+        document.getElementById('btnCloseDailyReminder')?.addEventListener('click', () => {
+            this.dismissReminderBanner();
+        });
+
+        // Spielstand zurücksetzen (mit schicker In-Game Sicherheitsabfrage)
+        document.getElementById('btnResetProgress')?.addEventListener('click', async () => {
+            const confirmed = await this.showConfirmDialog({
+                title: t('setting_reset_data'),
+                message: t('setting_reset_confirm'),
+                confirmText: t('btn_confirm_reset'),
+                cancelText: t('btn_cancel'),
+                isDanger: true
+            });
+            if (confirmed) {
                 try {
-                    localStorage.removeItem('tango_stats');
                     localStorage.removeItem('tango_campaign_completed');
                     localStorage.removeItem('tango_campaign_stars');
                     localStorage.removeItem('tango_daily_completed');
                     localStorage.removeItem('tango_daily_streak');
+                    localStorage.removeItem('tango_daily_history');
                 } catch (e) {}
                 this.toggleModal('settingsModal', false);
+                this.toggleModal('menuModal', false);
                 audio.playClear();
-                alert(getLang() === 'de' ? 'Fortschritt erfolgreich zurückgesetzt!' : 'Progress successfully reset!');
+                this.checkDailyReminder();
             }
         });
+
+        // Statistik zurücksetzen (mit schicker In-Game Sicherheitsabfrage)
+        const handleResetStats = async () => {
+            const confirmed = await this.showConfirmDialog({
+                title: t('stats_reset_btn'),
+                message: t('stats_reset_confirm'),
+                confirmText: t('btn_confirm_reset'),
+                cancelText: t('btn_cancel'),
+                isDanger: true
+            });
+            if (confirmed) {
+                try {
+                    localStorage.removeItem('tango_stats');
+                } catch (e) {}
+                this.updateMenuStats();
+                audio.playClear();
+            }
+        };
+        document.getElementById('btnResetStats')?.addEventListener('click', handleResetStats);
+        document.getElementById('btnResetStatsModal')?.addEventListener('click', handleResetStats);
     }
 
     startTimer() {
@@ -455,10 +516,10 @@ export class TangoApp {
 
                 if (val === SUN) {
                     cellEl.classList.add('val-sun');
-                    cellEl.innerHTML = `<span class="icon-sun">☀️</span>`;
+                    cellEl.innerHTML = `<span class="icon-sun">${getSunSvg('cell-sun')}</span>`;
                 } else if (val === MOON) {
                     cellEl.classList.add('val-moon');
-                    cellEl.innerHTML = `<span class="icon-moon">🌙</span>`;
+                    cellEl.innerHTML = `<span class="icon-moon">${getMoonSvg('cell-moon')}</span>`;
                 } else {
                     // Marker für Tutorial-Zielzellen
                     const tutStep = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS[this.tutorialStepIndex] : (this.currentMode === 'tutorial_pro' ? TUTORIAL_PRO_STEPS[this.tutorialStepIndex] : null);
@@ -466,8 +527,8 @@ export class TangoApp {
                     if (targetCellInfo) {
                         cellEl.classList.add('tutorial-target');
                         const ghostEl = document.createElement('span');
-                        ghostEl.className = 'target-ghost';
-                        ghostEl.textContent = targetCellInfo.val === SUN ? '☀️' : '🌙';
+                        ghostEl.className = `target-ghost ${targetCellInfo.val === SUN ? 'ghost-sun' : 'ghost-moon'}`;
+                        ghostEl.innerHTML = targetCellInfo.val === SUN ? getSunSvg('ghost-icon') : getMoonSvg('ghost-icon');
                         cellEl.appendChild(ghostEl);
                     } else {
                         // Zeige eventuelle Notizen
@@ -475,8 +536,8 @@ export class TangoApp {
                         if (notes && notes.size > 0) {
                             const noteEl = document.createElement('div');
                             noteEl.className = 'cell-notes';
-                            if (notes.has(SUN)) noteEl.innerHTML += '<span class="mini-sun">☀️</span>';
-                            if (notes.has(MOON)) noteEl.innerHTML += '<span class="mini-moon">🌙</span>';
+                            if (notes.has(SUN)) noteEl.innerHTML += `<span class="mini-sun">${getSunSvg('mini-icon')}</span>`;
+                            if (notes.has(MOON)) noteEl.innerHTML += `<span class="mini-moon">${getMoonSvg('mini-icon')}</span>`;
                             cellEl.appendChild(noteEl);
                         }
                     }
@@ -612,14 +673,9 @@ export class TangoApp {
         // 2x Tippen = 🌙 (Mond)
         // 3x Tippen = Löschen (Empty)
         if (this.isNoteMode) {
-            // Notiz-Zyklus
-            const currentVal = this.engine.grid[r][c];
-            if (currentVal === EMPTY) {
-                const notes = this.engine.notes[r][c];
-                const nextNote = notes.has(SUN) ? MOON : SUN;
-                this.engine.setCellValue(r, c, nextNote, true);
-                audio.playClear();
-            }
+            // Notiz-Zyklus: Leer -> ☀️ (Sonne) -> 🌙 (Mond) -> ☀️🌙 (Beide) -> Leer (Löschen)
+            this.engine.cycleNoteValue(r, c);
+            audio.playClear();
         } else {
             const nextVal = this.engine.cycleCellValue(r, c);
             this.movesCount++;
@@ -733,13 +789,16 @@ export class TangoApp {
         audio.playVictory();
         animations.launchConfetti();
 
-        // Statistiken & Fortschritt speichern
+        // Statistiken & Fortschritt speichern (Tutorials nicht in Statistik aufnehmen)
         if (this.currentMode === 'campaign') {
             this.saveCampaignProgress(this.campaignLevelIndex);
+            this.recordGameStats(true);
         } else if (this.currentMode === 'daily') {
             this.saveDailyProgress();
+            this.recordGameStats(true);
+        } else if (this.currentMode === 'free') {
+            this.recordGameStats(true);
         }
-        this.recordGameStats(true);
 
         const mins = Math.floor(this.secondsElapsed / 60).toString().padStart(2, '0');
         const secs = (this.secondsElapsed % 60).toString().padStart(2, '0');
@@ -789,10 +848,15 @@ export class TangoApp {
                 history.push(today);
                 localStorage.setItem('tango_daily_history', JSON.stringify(history));
             }
+            this.checkDailyReminder();
         } catch (e) {}
     }
 
     recordGameStats(won) {
+        // Tutorials und Tutorial Pro fließen nicht in die Statistik oder Bestzeiten ein
+        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro') {
+            return;
+        }
         try {
             const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"totalTime":0}');
             stats.played++;
@@ -870,11 +934,20 @@ export class TangoApp {
         const chkToggle = document.getElementById('settingAutoCheckToggle');
         if (chkToggle) chkToggle.checked = this.autoCheck;
 
-        const inpSel = document.getElementById('settingInputSelect');
-        if (inpSel) inpSel.value = this.inputMode;
-
         const langSel = document.getElementById('settingLanguageSelect');
         if (langSel) langSel.value = getLang();
+
+        const remToggle = document.getElementById('settingReminderToggle');
+        if (remToggle) remToggle.checked = this.reminderEnabled;
+
+        const remTimeInput = document.getElementById('settingReminderTimeInput');
+        if (remTimeInput) remTimeInput.value = this.reminderTime;
+
+        const remTimeRow = document.getElementById('settingReminderTimeRow');
+        if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';
+
+        const calExportRow = document.getElementById('settingCalendarExportRow');
+        if (calExportRow) calExportRow.style.display = this.reminderEnabled ? 'flex' : 'none';
 
         this.toggleModal('settingsModal', true);
     }
@@ -896,11 +969,356 @@ export class TangoApp {
         this.toggleModal('statsModal', true);
     }
 
+    setReminderEnabled(enabled) {
+        this.reminderEnabled = enabled;
+        try {
+            localStorage.setItem('tango_reminder_enabled', enabled);
+        } catch (e) {}
+        const remTimeRow = document.getElementById('settingReminderTimeRow');
+        if (remTimeRow) remTimeRow.style.display = enabled ? 'flex' : 'none';
+        const calExportRow = document.getElementById('settingCalendarExportRow');
+        if (calExportRow) calExportRow.style.display = enabled ? 'flex' : 'none';
+        
+        if (enabled) {
+            this.requestNotificationPermission();
+            if (window.AndroidNotification && typeof window.AndroidNotification.scheduleDailyReminder === 'function') {
+                const [remH, remM] = this.reminderTime.split(':').map(Number);
+                try {
+                    window.AndroidNotification.scheduleDailyReminder(remH, remM);
+                } catch (e) {}
+            }
+        } else {
+            if (window.AndroidNotification && typeof window.AndroidNotification.cancelDailyReminder === 'function') {
+                try {
+                    window.AndroidNotification.cancelDailyReminder();
+                } catch (e) {}
+            }
+        }
+        this.checkDailyReminder();
+    }
+
+    setReminderTime(timeStr) {
+        if (/^([01]\d|2[0-3]):[0-5]\d$/.test(timeStr)) {
+            this.reminderTime = timeStr;
+            try {
+                localStorage.setItem('tango_reminder_time', timeStr);
+            } catch (e) {}
+            if (this.reminderEnabled && window.AndroidNotification && typeof window.AndroidNotification.scheduleDailyReminder === 'function') {
+                const [remH, remM] = timeStr.split(':').map(Number);
+                try {
+                    window.AndroidNotification.scheduleDailyReminder(remH, remM);
+                } catch (e) {}
+            }
+            this.checkDailyReminder();
+        }
+    }
+
+    openMenuTab(tabName = 'play') {
+        this.toggleModal('menuModal', true);
+        this.switchMenuTab(tabName);
+    }
+
+    switchMenuTab(tabName) {
+        const tabs = ['play', 'rules', 'stats', 'settings'];
+        tabs.forEach(t => {
+            const btn = document.getElementById(`tabMenu${t.charAt(0).toUpperCase() + t.slice(1)}`);
+            const sec = document.getElementById(`menuSec${t.charAt(0).toUpperCase() + t.slice(1)}`);
+            if (btn) btn.classList.toggle('active', t === tabName);
+            if (sec) sec.style.display = t === tabName ? 'flex' : 'none';
+        });
+
+        if (tabName === 'stats') {
+            this.updateMenuStats();
+        } else if (tabName === 'settings') {
+            this.updateMenuSettings();
+        }
+    }
+
+    updateMenuStats() {
+        let stats = { played: 0, won: 0, bestTime: null, totalTime: 0 };
+        try {
+            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"totalTime":0}');
+        } catch (e) {}
+        
+        const statP = document.getElementById('statPlayed');
+        const statW = document.getElementById('statWon');
+        const statR = document.getElementById('statWinRate');
+        const statB = document.getElementById('statBestTime');
+
+        if (statP) statP.textContent = stats.played;
+        if (statW) statW.textContent = stats.won;
+        if (statR) statR.textContent = stats.played > 0 ? `${Math.round((stats.won / stats.played) * 100)}%` : '0%';
+        if (statB) {
+            if (stats.bestTime !== null) {
+                const mins = Math.floor(stats.bestTime / 60).toString().padStart(2, '0');
+                const secs = (stats.bestTime % 60).toString().padStart(2, '0');
+                statB.textContent = `${mins}:${secs}`;
+            } else {
+                statB.textContent = '-';
+            }
+        }
+    }
+
+    updateMenuSettings() {
+        const themeSel = document.getElementById('settingThemeSelect');
+        if (themeSel) themeSel.value = this.currentTheme;
+
+        const sndToggle = document.getElementById('settingSoundToggle');
+        if (sndToggle) sndToggle.checked = audio.enabled;
+
+        const vibToggle = document.getElementById('settingVibrationToggle');
+        if (vibToggle) vibToggle.checked = audio.vibrationEnabled;
+
+        const vibStrengthSel = document.getElementById('settingVibStrengthSelect');
+        if (vibStrengthSel) vibStrengthSel.value = audio.vibrationStrength;
+
+        const chkToggle = document.getElementById('settingAutoCheckToggle');
+        if (chkToggle) chkToggle.checked = this.autoCheck;
+
+        const langSel = document.getElementById('settingLanguageSelect');
+        if (langSel) langSel.value = getLang();
+
+        const remToggle = document.getElementById('settingReminderToggle');
+        if (remToggle) remToggle.checked = this.reminderEnabled;
+
+        const remTimeInput = document.getElementById('settingReminderTimeInput');
+        if (remTimeInput) remTimeInput.value = this.reminderTime;
+
+        const remTimeRow = document.getElementById('settingReminderTimeRow');
+        if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';
+
+        const calExportRow = document.getElementById('settingCalendarExportRow');
+        if (calExportRow) calExportRow.style.display = this.reminderEnabled ? 'flex' : 'none';
+    }
+
+    requestNotificationPermission() {
+        if (window.AndroidNotification) return; // Android NotificationBridge regelt Permissions nativ
+        if ('Notification' in window && Notification.permission === 'default') {
+            try {
+                Notification.requestPermission().catch(() => {});
+            } catch (e) {}
+        }
+    }
+
+    sendSystemNotification(title, body) {
+        if (window.AndroidNotification && typeof window.AndroidNotification.showNotification === 'function') {
+            try {
+                window.AndroidNotification.showNotification(title, body);
+                return true;
+            } catch (e) {
+                console.warn('AndroidNotification Fehler:', e);
+            }
+        }
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.ready.then(reg => {
+                        reg.showNotification(title, {
+                            body: body,
+                            icon: './assets/icons/icon-192.png',
+                            badge: './assets/icons/icon-192.png',
+                            vibrate: [100, 50, 100],
+                            tag: 'tango-daily-alarm',
+                            renotify: true
+                        });
+                    }).catch(() => {
+                        new Notification(title, { body: body, icon: './assets/icons/icon-192.png' });
+                    });
+                } else {
+                    new Notification(title, { body: body, icon: './assets/icons/icon-192.png' });
+                }
+                return true;
+            } catch (e) {
+                console.warn('System-Benachrichtigung konnte nicht erstellt werden:', e);
+            }
+        }
+        return false;
+    }
+
+    testSystemNotification() {
+        if (window.AndroidNotification && typeof window.AndroidNotification.showNotification === 'function') {
+            try {
+                window.AndroidNotification.showNotification(t('notif_title'), t('notif_body'));
+                alert(t('notif_test_sent'));
+                return;
+            } catch (e) {
+                console.warn('Android Test-Notification Fehler:', e);
+            }
+        }
+
+        if ('Notification' in window) {
+            if (Notification.permission === 'default') {
+                Notification.requestPermission().then(perm => {
+                    if (perm === 'granted') {
+                        this.sendSystemNotification(t('notif_title'), t('notif_body'));
+                        alert(t('notif_test_sent'));
+                    } else {
+                        alert(t('notif_permission_denied'));
+                    }
+                }).catch(() => {
+                    alert(t('notif_permission_denied'));
+                });
+            } else if (Notification.permission === 'granted') {
+                this.sendSystemNotification(t('notif_title'), t('notif_body'));
+                alert(t('notif_test_sent'));
+            } else {
+                alert(t('notif_permission_denied'));
+            }
+            return;
+        }
+
+        alert(t('notif_test_sent'));
+    }
+
+    checkDailySystemNotification() {
+        if (!this.reminderEnabled) return;
+        const today = new Date().toISOString().slice(0, 10);
+        let history = [];
+        try {
+            history = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
+        } catch (e) {}
+        if (history.includes(today)) return; // Heute bereits abgeschlossen
+
+        let lastNotif = '';
+        try {
+            lastNotif = localStorage.getItem('tango_last_notif_date') || '';
+        } catch (e) {}
+        if (lastNotif === today) return; // Heute bereits alarmiert
+
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const [remHour, remMinute] = this.reminderTime.split(':').map(Number);
+
+        if (currentHour > remHour || (currentHour === remHour && currentMinute >= remMinute)) {
+            const sent = this.sendSystemNotification(t('notif_title'), t('notif_body'));
+            if (sent) {
+                try {
+                    localStorage.setItem('tango_last_notif_date', today);
+                } catch (e) {}
+            }
+        }
+    }
+
+    checkDailyReminder() {
+        const today = new Date().toISOString().slice(0, 10);
+        let history = [];
+        try {
+            history = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
+        } catch (e) {}
+
+        const isTodaySolved = history.includes(today);
+        const badge = document.getElementById('dailyBadge');
+        if (badge) badge.style.display = isTodaySolved ? 'none' : 'inline-block';
+
+        const banner = document.getElementById('dailyReminderBanner');
+        if (isTodaySolved || !this.reminderEnabled || this.reminderDismissed) {
+            if (banner) banner.style.display = 'none';
+            return;
+        }
+
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const [remHour, remMinute] = this.reminderTime.split(':').map(Number);
+
+        if (currentHour > remHour || (currentHour === remHour && currentMinute >= remMinute)) {
+            if (banner) banner.style.display = 'flex';
+        } else {
+            if (banner) banner.style.display = 'none';
+        }
+    }
+
+    dismissReminderBanner() {
+        this.reminderDismissed = true;
+        const banner = document.getElementById('dailyReminderBanner');
+        if (banner) banner.style.display = 'none';
+    }
+
+    exportCalendarReminder() {
+        try {
+            const [remHour, remMinute] = this.reminderTime.split(':').map(Number);
+            const pad = (n) => String(n).padStart(2, '0');
+            const d = new Date();
+            const dtStart = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(remHour)}${pad(remMinute)}00`;
+            const icsContent = [
+                "BEGIN:VCALENDAR",
+                "VERSION:2.0",
+                "PRODID:-//Tango//Daily Reminder//DE",
+                "CALSCALE:GREGORIAN",
+                "METHOD:PUBLISH",
+                "BEGIN:VEVENT",
+                `UID:tango-daily-${Date.now()}@tango.game`,
+                `DTSTAMP:${dtStart}Z`,
+                `DTSTART:${dtStart}`,
+                `RRULE:FREQ=DAILY;INTERVAL=1`,
+                "SUMMARY:Tango Tagesrätsel",
+                "DESCRIPTION:Zeit für dein tägliches Tango Logikrätsel!",
+                "BEGIN:VALARM",
+                "ACTION:DISPLAY",
+                "DESCRIPTION:Tango Tagesrätsel wartet auf dich!",
+                "TRIGGER:-PT0M",
+                "END:VALARM",
+                "END:VEVENT",
+                "END:VCALENDAR"
+            ].join("\r\n");
+
+            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tango-tagesraetsel-erinnerung.ics`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            alert(t('reminder_calendar_saved'));
+        } catch (e) {
+            alert("Fehler beim Erstellen der Kalender-Datei: " + e.message);
+        }
+    }
+
     toggleModal(modalId, show) {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.style.display = show ? 'flex' : 'none';
         }
+    }
+
+    showConfirmDialog({ title, message, confirmText, cancelText, isDanger = true }) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirmModal');
+            const titleEl = document.getElementById('confirmTitle');
+            const msgEl = document.getElementById('confirmMessage');
+            const okBtn = document.getElementById('btnConfirmOk');
+            const cancelBtn = document.getElementById('btnConfirmCancel');
+
+            if (!modal) {
+                resolve(false);
+                return;
+            }
+
+            if (titleEl) titleEl.textContent = title || t('confirm_title');
+            if (msgEl) msgEl.textContent = message || '';
+            if (okBtn) {
+                okBtn.textContent = confirmText || t('btn_confirm_reset');
+                okBtn.className = isDanger ? 'danger-btn' : 'primary-btn';
+            }
+            if (cancelBtn) cancelBtn.textContent = cancelText || t('btn_cancel');
+
+            const cleanup = (result) => {
+                modal.style.display = 'none';
+                if (okBtn) okBtn.onclick = null;
+                if (cancelBtn) cancelBtn.onclick = null;
+                resolve(result);
+            };
+
+            if (okBtn) okBtn.onclick = () => cleanup(true);
+            if (cancelBtn) cancelBtn.onclick = () => cleanup(false);
+
+            modal.style.display = 'flex';
+        });
     }
 }
 

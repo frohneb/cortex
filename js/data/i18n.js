@@ -90,7 +90,8 @@ export const translations = {
         setting_input_keypad: "Ziffern- / Symbolleiste unten",
         setting_language: "Sprache",
         setting_reset_data: "Fortschritt zurücksetzen",
-        setting_reset_confirm: "Möchtest du wirklich alle Zeiten, gelösten Level und Statistiken zurücksetzen?",
+        setting_reset_confirm: "Möchtest du deinen Spielfortschritt wirklich zurücksetzen?",
+        stats_reset_confirm: "Möchtest du deine Spielstatistik wirklich zurücksetzen?",
 
         // Statistiken
         stats_title: "Deine Statistiken",
@@ -107,7 +108,51 @@ export const translations = {
         pwa_install_title: "App installieren",
         pwa_install_desc: "Installiere Tango auf deinem Smartphone, um komplett offline und werbefrei zu spielen.",
         pwa_install_btn: "Jetzt installieren",
-        pwa_dismiss: "Später"
+        pwa_dismiss: "Später",
+
+        // Synchronisation & QR-Code
+        nav_sync: "🔄 Spielstand übertragen & QR-Code",
+        sync_title: "Spielstand synchronisieren",
+        sync_tab_export: "📱 QR-Code / Senden",
+        sync_tab_import: "📥 Empfangen / Laden",
+        sync_export_desc: "Scanne diesen QR-Code mit einem anderen Gerät oder kopiere den Sync-Code, um deinen gesamten Fortschritt verlustfrei zu übertragen.",
+        sync_import_desc: "Füge den Sync-Code oder den Inhalt einer Backup-Datei ein. Dein Fortschritt wird intelligent und verlustfrei mit bestehenden Daten zusammengeführt.",
+        sync_btn_copy: "📋 Kopieren",
+        sync_btn_copied: "✅ Kopiert!",
+        sync_btn_download: "💾 Backup-Datei (.tango) speichern",
+        sync_btn_paste: "📋 Aus Zwischenablage",
+        sync_btn_merge: "🔄 Spielstand zusammenführen",
+        sync_file_load: "📁 Datei laden",
+        sync_success_title: "Erfolgreich synchronisiert!",
+        sync_no_new_data: "Dein Spielstand ist bereits auf dem neuesten Stand.",
+
+        // Tägliche Erinnerung & Benachrichtigungen
+        setting_daily_reminder: "System-Benachrichtigung",
+        setting_reminder_time: "Erinnerungszeit",
+        setting_test_notif: "🔔 Test",
+        setting_calendar_reminder: "📅 Kalender-Erinnerung (.ics) stellen",
+        reminder_banner_title: "Tagesrätsel wartet!",
+        reminder_banner_desc: "Löse dein heutiges Rätsel für deine Serie.",
+        reminder_btn_play: "Spielen",
+        reminder_badge_new: "Neu",
+        reminder_calendar_saved: "Kalender-Erinnerung (.ics) heruntergeladen! Öffne die Datei zum Speichern.",
+        notif_title: "Tango Tagesrätsel",
+        notif_body: "Dein heutiges Tagesrätsel wartet auf dich! ☀️🌙",
+        notif_test_sent: "Systembenachrichtigung gesendet!",
+        notif_permission_denied: "Benachrichtigungen sind im Browser blockiert. Bitte erlaube sie in den Berechtigungen.",
+
+        // Menü Hub Tabs
+        menu_tab_play: "Spielen",
+        menu_tab_rules: "Regeln",
+        menu_tab_stats: "Statistik",
+        menu_tab_settings: "Optionen",
+        stats_reset_btn: "Statistik zurücksetzen",
+        confirm_title: "Sicherheitsabfrage",
+        btn_cancel: "Abbrechen",
+        btn_confirm_reset: "Zurücksetzen",
+        campaign_desc: "30 handgefertigte Logikrätsel",
+        daily_desc: "Jeden Tag eine neue Herausforderung",
+        free_desc: "4×4 bis 10×10, beliebige Stufe"
     },
     en: {
         app_title: "Tango Logic Puzzle",
@@ -179,7 +224,8 @@ export const translations = {
         setting_input_keypad: "Bottom Selector Bar",
         setting_language: "Language",
         setting_reset_data: "Reset Progress",
-        setting_reset_confirm: "Are you sure you want to reset all your progress?",
+        setting_reset_confirm: "Are you sure you want to reset all your campaign and streak progress?",
+        stats_reset_confirm: "Are you sure you want to reset all your statistics?",
         stats_title: "Your Statistics",
         stats_total_played: "Puzzles Played",
         stats_total_won: "Puzzles Solved",
@@ -192,7 +238,51 @@ export const translations = {
         pwa_install_title: "Install App",
         pwa_install_desc: "Install Tango on your home screen for instant offline play.",
         pwa_install_btn: "Install Now",
-        pwa_dismiss: "Later"
+        pwa_dismiss: "Later",
+
+        // Sync & QR Code
+        nav_sync: "🔄 Transfer & Sync Saves",
+        sync_title: "Sync Game Save States",
+        sync_tab_export: "📱 QR Code / Export",
+        sync_tab_import: "📥 Receive / Import",
+        sync_export_desc: "Scan this QR code with another device or copy the sync code to transfer your full progress losslessly.",
+        sync_import_desc: "Paste the sync code or load a backup file. Your progress will be merged losslessly with existing local progress.",
+        sync_btn_copy: "📋 Copy Code",
+        sync_btn_copied: "✅ Copied!",
+        sync_btn_download: "💾 Download Backup (.tango)",
+        sync_btn_paste: "📋 Paste from Clipboard",
+        sync_btn_merge: "🔄 Merge & Update Saves",
+        sync_file_load: "📁 Load File",
+        sync_success_title: "Successfully Synced!",
+        sync_no_new_data: "Your save state is already fully up to date.",
+
+        // Daily Reminder & Notifications
+        setting_daily_reminder: "System Notification",
+        setting_reminder_time: "Reminder Time",
+        setting_test_notif: "🔔 Test",
+        setting_calendar_reminder: "📅 Set Calendar Reminder (.ics)",
+        reminder_banner_title: "Daily Puzzle Ready!",
+        reminder_banner_desc: "Solve today's puzzle to keep your streak.",
+        reminder_btn_play: "Play",
+        reminder_badge_new: "New",
+        reminder_calendar_saved: "Calendar reminder (.ics) downloaded! Open the file to add it.",
+        notif_title: "Tango Daily Puzzle",
+        notif_body: "Today's daily puzzle is ready for you! ☀️🌙",
+        notif_test_sent: "System notification sent!",
+        notif_permission_denied: "Notifications blocked by browser. Please enable permissions.",
+
+        // Menu Hub Tabs
+        menu_tab_play: "Play",
+        menu_tab_rules: "Rules",
+        menu_tab_stats: "Stats",
+        menu_tab_settings: "Options",
+        stats_reset_btn: "Reset Statistics",
+        confirm_title: "Confirmation",
+        btn_cancel: "Cancel",
+        btn_confirm_reset: "Reset",
+        campaign_desc: "30 handcrafted logic puzzles",
+        daily_desc: "A fresh challenge every single day",
+        free_desc: "4×4 to 10×10, custom difficulty"
     }
 };
 

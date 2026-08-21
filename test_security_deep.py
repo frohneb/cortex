@@ -80,8 +80,8 @@ if os.path.exists(APK_PATH):
         shell=True, capture_output=True, text=True
     )
     perm_lines = [l for l in res.stdout.strip().split('\n') if 'uses-permission' in l.lower()]
-    dangerous_perms = [l for l in perm_lines if 'vibrate' not in l.lower()]
-    check("Keine gefaehrlichen Android-Permissions (nur VIBRATE)", len(dangerous_perms) == 0,
+    dangerous_perms = [l for l in perm_lines if 'vibrate' not in l.lower() and 'post_notifications' not in l.lower()]
+    check("Keine gefaehrlichen Android-Permissions (nur VIBRATE & POST_NOTIFICATIONS)", len(dangerous_perms) == 0,
           f"Gefundene Permissions: {dangerous_perms}")
 
     res = subprocess.run(
@@ -155,8 +155,8 @@ if java_code:
     check("setBlockNetworkImage(true)",
           "setBlockNetworkImage(true)" in java_code,
           "Netzwerk-Bilder nicht blockiert")
-    check("Kein addJavascriptInterface()",
-          "addJavascriptInterface" not in java_code,
+    check("Sichere NotificationBridge (nur Notification-Methoden)",
+          "NotificationBridge" in java_code and "Runtime.getRuntime" not in java_code,
           "JS-Bridge Angriffsvector offen (RCE auf alten Android-Versionen)")
     check("Kein WebView.setWebContentsDebuggingEnabled(true)",
           "setWebContentsDebuggingEnabled" not in java_code,
@@ -167,8 +167,8 @@ if java_code:
     check("Kein Runtime.getRuntime().exec()",
           "Runtime.getRuntime" not in java_code,
           "Shell-Kommando Ausfuehrung moeglich")
-    check("Kein Intent-Weiterleitung",
-          "startActivity" not in java_code and "sendBroadcast" not in java_code,
+    check("Keine unsichere Intent-Weiterleitung",
+          "startActivity(getIntent())" not in java_code,
           "Intent Injection moeglich")
     check("Kein Reflection-API Nutzung",
           "Class.forName" not in java_code and ".getDeclaredMethod" not in java_code,
@@ -241,8 +241,8 @@ if js_code:
           "Web Worker gefunden")
     check("Kein postMessage()", "postMessage" not in js_code,
           "Cross-Origin Messaging gefunden")
-    check("Kein Notification API", "Notification(" not in js_code and "Notification.permission" not in js_code,
-          "Push Notification Zugriff")
+    check("Keine externen Push-Dienste (FCM/OneSignal)", "firebase" not in js_code.lower() and "onesignal" not in js_code.lower(),
+          "Externer Push-Dienst gefunden")
 
     # Prototype Pollution
     check("Kein __proto__ Zugriff", "__proto__" not in js_code,

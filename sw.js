@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tango-app-v1';
+const CACHE_NAME = 'tango-app-v1.0.4';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
