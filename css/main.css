@@ -654,10 +654,13 @@ html, body {
     line-height: 1.4;
     color: var(--text-primary);
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    padding-right: 4px;
+    padding-right: 2px;
     flex: 1;
     min-height: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .modal-actions {
@@ -699,18 +702,23 @@ html, body {
 /* Level Select Modal & Chapter Tabs */
 .level-modal-card {
     max-width: 440px;
-    width: 92%;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .chapter-tabs {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    margin-bottom: 14px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    margin-bottom: 12px;
     background: rgba(0, 0, 0, 0.25);
-    padding: 4px;
+    padding: 3px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .chapter-tab-btn {
@@ -718,7 +726,10 @@ html, body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 8px 4px;
+    padding: 6px 2px;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -726,6 +737,7 @@ html, body {
     cursor: pointer;
     transition: all 0.18s ease;
     user-select: none;
+    overflow: hidden;
 }
 
 .chapter-tab-btn:hover {
@@ -741,26 +753,33 @@ html, body {
 }
 
 .chapter-tab-btn .chapter-title {
-    font-size: 0.78rem;
+    font-size: clamp(0.68rem, 2.3vw, 0.78rem);
     font-weight: 700;
     line-height: 1.1;
     white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 100%;
 }
 
 .chapter-tab-btn .chapter-range {
-    font-size: 0.68rem;
+    font-size: clamp(0.58rem, 1.9vw, 0.68rem);
     opacity: 0.8;
-    margin-top: 3px;
+    margin-top: 2px;
+    white-space: nowrap;
 }
 
 /* Level Select Grid */
 .level-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 10px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
     max-height: 340px;
     overflow-y: auto;
-    padding: 4px;
+    overflow-x: hidden;
+    padding: 2px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .level-item-btn {
@@ -769,7 +788,7 @@ html, body {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     color: var(--text-primary);
-    font-size: 1.1rem;
+    font-size: clamp(0.9rem, 3.2vw, 1.1rem);
     font-weight: 600;
     display: flex;
     flex-direction: column;
@@ -778,6 +797,8 @@ html, body {
     cursor: pointer;
     position: relative;
     transition: transform 0.1s;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .level-item-btn:disabled {
@@ -800,32 +821,38 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding: 9px 0;
+    gap: 8px;
+    padding: 8px 0;
     border-bottom: 1px solid var(--border-color);
     min-height: 40px;
+    width: 100%;
     box-sizing: border-box;
 }
 
 .setting-label {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     font-weight: 500;
     color: var(--text-primary);
     flex: 1;
+    min-width: 0;
+    line-height: 1.25;
+    word-break: break-word;
 }
 
 .setting-select {
     background: var(--cell-bg);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    padding: 7px 10px;
+    padding: 6px 8px;
     border-radius: var(--radius-sm);
-    font-size: 0.88rem;
-    max-width: 58%;
+    font-size: 0.84rem;
+    max-width: 48%;
+    flex-shrink: 0;
     outline: none;
     cursor: pointer;
     text-overflow: ellipsis;
     white-space: nowrap;
+    box-sizing: border-box;
 }
 
 .danger-btn {
@@ -1154,26 +1181,34 @@ input:checked + .slider:before {
     background: var(--cell-bg);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    padding: 6px 10px;
+    padding: 5px 8px;
     border-radius: var(--radius-sm);
-    font-size: 0.9rem;
+    font-size: 0.86rem;
     font-family: inherit;
     outline: none;
     cursor: pointer;
     color-scheme: dark;
+    max-width: 48%;
+    flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 /* ==================== TABBED MENU HUB ==================== */
 .menu-hub-card {
     max-width: 440px;
+    width: 100%;
+    box-sizing: border-box;
     padding: 16px;
     gap: 10px;
+    overflow-x: hidden;
 }
 
 .menu-hub-title-box {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
+    flex-shrink: 0;
 }
 
 .menu-hub-icon {
@@ -1182,27 +1217,33 @@ input:checked + .slider:before {
 
 .menu-hub-tabs {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     background: var(--cell-bg);
-    padding: 4px;
+    padding: 3px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .menu-hub-tab {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 2px;
     background: transparent;
     border: none;
     color: var(--text-secondary);
-    padding: 8px 4px;
+    padding: 6px 2px;
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.2s ease;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .menu-hub-tab .tab-icon {
@@ -1211,8 +1252,12 @@ input:checked + .slider:before {
 }
 
 .menu-hub-tab .tab-label {
-    font-size: 0.76rem;
+    font-size: clamp(0.66rem, 2.1vw, 0.76rem);
     font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 100%;
 }
 
 .menu-hub-tab.active {
@@ -1225,8 +1270,11 @@ input:checked + .slider:before {
     max-height: 60vh;
     max-height: 60dvh;
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    padding-right: 4px;
+    padding-right: 2px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .menu-hub-sec {
@@ -1234,6 +1282,9 @@ input:checked + .slider:before {
     flex-direction: column;
     gap: 10px;
     animation: fadeIn 0.2s ease;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 /* Modes Cards Grid */
