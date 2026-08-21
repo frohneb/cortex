@@ -14,10 +14,10 @@ export const TUTORIAL_PRO_STEPS = [
         description: `**Das Prinzip**:\nWenn zwei identische Symbole ein leeres Feld umschließen (\`☀️ _ ☀️\` oder \`🌙 _ 🌙\`), MUSS dazwischen das gegenteilige Symbol stehen.\n\n**Mathematischer Beweis**:\nWürde man in die Lücke dasselbe Symbol setzen, entstünde eine Kette aus drei gleichen Symbolen (\`☀️☀️☀️\`). Da die maximale Kettenlänge laut Tango-Axiom $k_{max} = 2$ beträgt, existiert nur genau eine Belegung für die Lücke.\n\n*Übung: Vervollständige die Sandwich-Lücken in Zeile 1 und Spalte 4!*`,
         size: 4,
         initialGrid: [
-            [SUN, EMPTY, SUN, EMPTY],
-            [EMPTY, EMPTY, EMPTY, MOON],
+            [SUN, EMPTY, SUN, MOON],
             [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, MOON]
+            [EMPTY, EMPTY, EMPTY, MOON],
+            [EMPTY, EMPTY, EMPTY, SUN]
         ],
         hEdges: [
             [EDGE_NONE, EDGE_NONE, EDGE_NONE],
@@ -30,7 +30,7 @@ export const TUTORIAL_PRO_STEPS = [
             [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
             [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
         ],
-        targetCells: [{r: 0, c: 1, val: MOON}, {r: 2, c: 3, val: SUN}],
+        targetCells: [{r: 0, c: 1, val: MOON}, {r: 1, c: 3, val: SUN}],
         explanation: "Mathematisch korrekt! Das Sandwich-Prinzip sichert die Belegung ohne Raten."
     },
     {

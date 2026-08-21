@@ -5,9 +5,9 @@
 
 import { EMPTY, SUN, MOON, EDGE_NONE, EDGE_EQUAL, EDGE_OPPOSITE, TangoEngine } from '../core/engine.js';
 import { TangoSolver } from '../core/solver.js';
-import { TangoGenerator } from '../core/generator.js';
 import { TUTORIAL_STEPS } from '../data/tutorial.js';
-import { CAMPAIGN_LEVELS, getCampaignLevel, getDailyPuzzle } from '../data/levels.js';
+import { TUTORIAL_PRO_STEPS } from '../data/tutorial_pro.js';
+import { getCampaignLevel, getDailyPuzzle } from '../data/levels.js';
 import { t, setLang, getLang } from '../data/i18n.js';
 import { audio } from './audio.js';
 import { animations } from './animations.js';
