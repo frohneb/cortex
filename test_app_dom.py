@@ -217,6 +217,31 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('row_uniqueness', bundle_content, "Unizitäts-Axiom muss im Solver enthalten sein")
         self.assertNotIn('Durch logische Kombination der Zeilen-, Spalten- und Kantenregeln', bundle_content, "Schwammige Floskel muss entfernt worden sein")
 
+    def test_calendar_export_removed(self):
+        """Überprüft, dass Kalenderexport-Buttons und .ics-Exportfunktionen entfernt wurden"""
+        html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
+        bundle_content = (BASE_DIR / "js" / "bundle.js").read_text(encoding='utf-8')
+        self.assertNotIn('btnExportCalendarReminder', html_content, "btnExportCalendarReminder darf nicht mehr in index.html sein")
+        self.assertNotIn('settingCalendarExportRow', html_content, "settingCalendarExportRow darf nicht mehr in index.html sein")
+        self.assertNotIn('exportCalendarReminder', bundle_content, "exportCalendarReminder darf nicht mehr in bundle.js sein")
+
+    def test_daily_streak_and_split_best_times_stats(self):
+        """Überprüft, dass Streaks und aufgeteilte Bestzeiten (4x4, 6x6, 8x8, 10x10) im DOM und JS implementiert sind"""
+        html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
+        bundle_content = (BASE_DIR / "js" / "bundle.js").read_text(encoding='utf-8')
+
+        # DOM IDs in index.html
+        stats_ids = [
+            'statCurrentStreak', 'statMaxStreak',
+            'statBestTime4', 'statBestTime6', 'statBestTime8', 'statBestTime10'
+        ]
+        for sid in stats_ids:
+            self.assertIn(f'id="{sid}"', html_content, f'Element #{sid} muss in index.html vorhanden sein')
+
+        # JS Logik im Bundle
+        self.assertIn('calculateStreaks', bundle_content, 'calculateStreaks Funktion muss im Bundle vorhanden sein')
+        self.assertIn('bestTimes', bundle_content, 'bestTimes Objekt muss im Bundle vorhanden sein')
+
 
 if __name__ == "__main__":
     unittest.main()

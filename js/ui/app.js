@@ -20,6 +20,77 @@ export function getMoonSvg(extraClass = '') {
     return `<svg class="tango-symbol tango-moon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 12.5A9.5 9.5 0 1 1 11.5 2.5a7.5 7.5 0 0 0 10 10z" fill="currentColor"/></svg>`;
 }
 
+export function formatTime(seconds) {
+    if (typeof seconds !== 'number' || seconds === null || isNaN(seconds) || seconds < 0) {
+        return '-';
+    }
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+}
+
+export function calculateStreaks(history = [], todayStr = null) {
+    if (!Array.isArray(history) || history.length === 0) {
+        return { currentStreak: 0, maxStreak: 0 };
+    }
+
+    const validDates = history.filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d));
+    if (validDates.length === 0) {
+        return { currentStreak: 0, maxStreak: 0 };
+    }
+
+    const parseToUtcDays = (dateStr) => {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+    };
+
+    const uniqueDays = Array.from(new Set(validDates.map(parseToUtcDays))).sort((a, b) => a - b);
+    if (uniqueDays.length === 0) {
+        return { currentStreak: 0, maxStreak: 0 };
+    }
+
+    let maxStreak = 0;
+    let currentRun = 0;
+    let prevDay = null;
+
+    for (const day of uniqueDays) {
+        if (prevDay !== null && day === prevDay + 1) {
+            currentRun++;
+        } else {
+            currentRun = 1;
+        }
+        if (currentRun > maxStreak) {
+            maxStreak = currentRun;
+        }
+        prevDay = day;
+    }
+
+    const now = new Date();
+    const todayFormatted = todayStr || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayDay = parseToUtcDays(todayFormatted);
+
+    const daySet = new Set(uniqueDays);
+    let currentStreak = 0;
+
+    if (daySet.has(todayDay)) {
+        let check = todayDay;
+        while (daySet.has(check)) {
+            currentStreak++;
+            check--;
+        }
+    } else if (daySet.has(todayDay - 1)) {
+        let check = todayDay - 1;
+        while (daySet.has(check)) {
+            currentStreak++;
+            check--;
+        }
+    } else {
+        currentStreak = 0;
+    }
+
+    return { currentStreak, maxStreak };
+}
+
 export class TangoApp {
     constructor() {
         this.engine = new TangoEngine(6);
@@ -242,9 +313,6 @@ export class TangoApp {
         });
         document.getElementById('settingReminderTimeInput')?.addEventListener('change', (e) => {
             this.setReminderTime(e.target.value);
-        });
-        document.getElementById('btnExportCalendarReminder')?.addEventListener('click', () => {
-            this.exportCalendarReminder();
         });
         document.getElementById('btnPlayDailyFromReminder')?.addEventListener('click', () => {
             this.dismissReminderBanner();
@@ -872,13 +940,20 @@ export class TangoApp {
             return;
         }
         try {
-            const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"totalTime":0}');
-            stats.played++;
+            const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
+            if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
+                stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
+            }
+            stats.played = (stats.played || 0) + 1;
             if (won) {
-                stats.won++;
-                stats.totalTime += this.secondsElapsed;
-                if (stats.bestTime === null || this.secondsElapsed < stats.bestTime) {
+                stats.won = (stats.won || 0) + 1;
+                stats.totalTime = (stats.totalTime || 0) + this.secondsElapsed;
+                if (stats.bestTime === null || stats.bestTime === undefined || this.secondsElapsed < stats.bestTime) {
                     stats.bestTime = this.secondsElapsed;
+                }
+                const sizeKey = String(this.engine.size);
+                if (stats.bestTimes[sizeKey] === null || stats.bestTimes[sizeKey] === undefined || this.secondsElapsed < stats.bestTimes[sizeKey]) {
+                    stats.bestTimes[sizeKey] = this.secondsElapsed;
                 }
             }
             localStorage.setItem('tango_stats', JSON.stringify(stats));
@@ -982,25 +1057,35 @@ export class TangoApp {
         const remTimeRow = document.getElementById('settingReminderTimeRow');
         if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';
 
-        const calExportRow = document.getElementById('settingCalendarExportRow');
-        if (calExportRow) calExportRow.style.display = this.reminderEnabled ? 'flex' : 'none';
-
         this.toggleModal('settingsModal', true);
     }
 
     openStatsModal() {
-        const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"totalTime":0}');
-        document.getElementById('statPlayed').textContent = stats.played;
-        document.getElementById('statWon').textContent = stats.won;
-        document.getElementById('statWinRate').textContent = stats.played > 0 ? `${Math.round((stats.won / stats.played) * 100)}%` : '0%';
-        
-        if (stats.bestTime !== null) {
-            const mins = Math.floor(stats.bestTime / 60).toString().padStart(2, '0');
-            const secs = (stats.bestTime % 60).toString().padStart(2, '0');
-            document.getElementById('statBestTime').textContent = `${mins}:${secs}`;
-        } else {
-            document.getElementById('statBestTime').textContent = '-';
-        }
+        let stats = { played: 0, won: 0, bestTime: null, bestTimes: { '4': null, '6': null, '8': null, '10': null }, totalTime: 0 };
+        try {
+            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
+            if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
+                stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
+            }
+        } catch (e) {}
+
+        let dailyHistory = [];
+        try {
+            dailyHistory = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
+        } catch (e) {}
+
+        const streaks = calculateStreaks(dailyHistory);
+
+        const el = (id) => document.getElementById(id);
+        if (el('statPlayedModal')) el('statPlayedModal').textContent = stats.played || 0;
+        if (el('statWonModal')) el('statWonModal').textContent = stats.won || 0;
+        if (el('statWinRateModal')) el('statWinRateModal').textContent = stats.played > 0 ? `${Math.round(((stats.won || 0) / stats.played) * 100)}%` : '0%';
+        if (el('statCurrentStreakModal')) el('statCurrentStreakModal').textContent = `${streaks.currentStreak} 🔥`;
+        if (el('statMaxStreakModal')) el('statMaxStreakModal').textContent = `${streaks.maxStreak} 🏆`;
+        if (el('statBestTime4Modal')) el('statBestTime4Modal').textContent = formatTime(stats.bestTimes['4']);
+        if (el('statBestTime6Modal')) el('statBestTime6Modal').textContent = formatTime(stats.bestTimes['6']);
+        if (el('statBestTime8Modal')) el('statBestTime8Modal').textContent = formatTime(stats.bestTimes['8']);
+        if (el('statBestTime10Modal')) el('statBestTime10Modal').textContent = formatTime(stats.bestTimes['10']);
 
         this.toggleModal('statsModal', true);
     }
@@ -1012,8 +1097,6 @@ export class TangoApp {
         } catch (e) {}
         const remTimeRow = document.getElementById('settingReminderTimeRow');
         if (remTimeRow) remTimeRow.style.display = enabled ? 'flex' : 'none';
-        const calExportRow = document.getElementById('settingCalendarExportRow');
-        if (calExportRow) calExportRow.style.display = enabled ? 'flex' : 'none';
         
         if (enabled) {
             this.requestNotificationPermission();
@@ -1071,28 +1154,42 @@ export class TangoApp {
     }
 
     updateMenuStats() {
-        let stats = { played: 0, won: 0, bestTime: null, totalTime: 0 };
+        let stats = { played: 0, won: 0, bestTime: null, bestTimes: { '4': null, '6': null, '8': null, '10': null }, totalTime: 0 };
         try {
-            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"totalTime":0}');
+            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
+            if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
+                stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
+            }
         } catch (e) {}
+
+        let dailyHistory = [];
+        try {
+            dailyHistory = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
+        } catch (e) {}
+
+        const streaks = calculateStreaks(dailyHistory);
         
         const statP = document.getElementById('statPlayed');
         const statW = document.getElementById('statWon');
         const statR = document.getElementById('statWinRate');
-        const statB = document.getElementById('statBestTime');
+        const statCurrStreak = document.getElementById('statCurrentStreak');
+        const statMaxStreak = document.getElementById('statMaxStreak');
 
-        if (statP) statP.textContent = stats.played;
-        if (statW) statW.textContent = stats.won;
-        if (statR) statR.textContent = stats.played > 0 ? `${Math.round((stats.won / stats.played) * 100)}%` : '0%';
-        if (statB) {
-            if (stats.bestTime !== null) {
-                const mins = Math.floor(stats.bestTime / 60).toString().padStart(2, '0');
-                const secs = (stats.bestTime % 60).toString().padStart(2, '0');
-                statB.textContent = `${mins}:${secs}`;
-            } else {
-                statB.textContent = '-';
-            }
-        }
+        const statT4 = document.getElementById('statBestTime4');
+        const statT6 = document.getElementById('statBestTime6');
+        const statT8 = document.getElementById('statBestTime8');
+        const statT10 = document.getElementById('statBestTime10');
+
+        if (statP) statP.textContent = stats.played || 0;
+        if (statW) statW.textContent = stats.won || 0;
+        if (statR) statR.textContent = stats.played > 0 ? `${Math.round(((stats.won || 0) / stats.played) * 100)}%` : '0%';
+        if (statCurrStreak) statCurrStreak.textContent = `${streaks.currentStreak} 🔥`;
+        if (statMaxStreak) statMaxStreak.textContent = `${streaks.maxStreak} 🏆`;
+
+        if (statT4) statT4.textContent = formatTime(stats.bestTimes['4']);
+        if (statT6) statT6.textContent = formatTime(stats.bestTimes['6']);
+        if (statT8) statT8.textContent = formatTime(stats.bestTimes['8']);
+        if (statT10) statT10.textContent = formatTime(stats.bestTimes['10']);
     }
 
     updateMenuSettings() {
@@ -1122,9 +1219,6 @@ export class TangoApp {
 
         const remTimeRow = document.getElementById('settingReminderTimeRow');
         if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';
-
-        const calExportRow = document.getElementById('settingCalendarExportRow');
-        if (calExportRow) calExportRow.style.display = this.reminderEnabled ? 'flex' : 'none';
     }
 
     requestNotificationPermission() {
@@ -1270,49 +1364,6 @@ export class TangoApp {
         this.reminderDismissed = true;
         const banner = document.getElementById('dailyReminderBanner');
         if (banner) banner.style.display = 'none';
-    }
-
-    exportCalendarReminder() {
-        try {
-            const [remHour, remMinute] = this.reminderTime.split(':').map(Number);
-            const pad = (n) => String(n).padStart(2, '0');
-            const d = new Date();
-            const dtStart = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(remHour)}${pad(remMinute)}00`;
-            const icsContent = [
-                "BEGIN:VCALENDAR",
-                "VERSION:2.0",
-                "PRODID:-//Tango//Daily Reminder//DE",
-                "CALSCALE:GREGORIAN",
-                "METHOD:PUBLISH",
-                "BEGIN:VEVENT",
-                `UID:tango-daily-${Date.now()}@tango.game`,
-                `DTSTAMP:${dtStart}Z`,
-                `DTSTART:${dtStart}`,
-                `RRULE:FREQ=DAILY;INTERVAL=1`,
-                "SUMMARY:Tango Tagesrätsel",
-                "DESCRIPTION:Zeit für dein tägliches Tango Logikrätsel!",
-                "BEGIN:VALARM",
-                "ACTION:DISPLAY",
-                "DESCRIPTION:Tango Tagesrätsel wartet auf dich!",
-                "TRIGGER:-PT0M",
-                "END:VALARM",
-                "END:VEVENT",
-                "END:VCALENDAR"
-            ].join("\r\n");
-
-            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `tango-tagesraetsel-erinnerung.ics`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            alert(t('reminder_calendar_saved'));
-        } catch (e) {
-            alert("Fehler beim Erstellen der Kalender-Datei: " + e.message);
-        }
     }
 
     toggleModal(modalId, show) {

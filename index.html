@@ -224,11 +224,36 @@
                             <span class="stat-lbl" data-i18n="stats_win_rate">Quote</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-val" id="statBestTime">-</span>
-                            <span class="stat-lbl" data-i18n="stats_best_time">Bestzeit</span>
+                            <span class="stat-val" id="statCurrentStreak">0 🔥</span>
+                            <span class="stat-lbl" data-i18n="stats_current_streak">Aktuelle Tages-Serie</span>
+                        </div>
+                        <div class="stat-card" style="grid-column: span 2;">
+                            <span class="stat-val" id="statMaxStreak">0 🏆</span>
+                            <span class="stat-lbl" data-i18n="stats_max_streak">Längste Tages-Serie</span>
                         </div>
                     </div>
-                    <div style="margin-top: 10px;">
+
+                    <div class="stats-section-title" data-i18n="stats_best_times_title">⚡ Bestzeiten</div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-val" id="statBestTime4">-</span>
+                            <span class="stat-lbl" data-i18n="stats_best_time_4">Bestzeit 4×4</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-val" id="statBestTime6">-</span>
+                            <span class="stat-lbl" data-i18n="stats_best_time_6">Bestzeit 6×6</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-val" id="statBestTime8">-</span>
+                            <span class="stat-lbl" data-i18n="stats_best_time_8">Bestzeit 8×8</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-val" id="statBestTime10">-</span>
+                            <span class="stat-lbl" data-i18n="stats_best_time_10">Bestzeit 10×10</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 12px;">
                         <button id="btnResetStats" class="danger-btn" data-i18n="stats_reset_btn" style="width: 100%;">Statistik zurücksetzen</button>
                     </div>
                 </div>
@@ -285,9 +310,6 @@
                     <div class="setting-row" id="settingReminderTimeRow" style="display: none;">
                         <span class="setting-label" data-i18n="setting_reminder_time">Erinnerungszeit</span>
                         <input type="time" id="settingReminderTimeInput" class="setting-time-input" value="09:00">
-                    </div>
-                    <div class="setting-row" id="settingCalendarExportRow" style="display: none; padding-top: 4px;">
-                        <button id="btnExportCalendarReminder" class="secondary-btn" data-i18n="setting_calendar_reminder" style="width: 100%; font-size: 0.85rem;">📅 Kalender-Erinnerung (.ics) stellen</button>
                     </div>
                     <div class="setting-row">
                         <span class="setting-label" data-i18n="setting_language">Sprache</span>
@@ -444,9 +466,6 @@
                     <span class="setting-label" data-i18n="setting_reminder_time">Erinnerungszeit</span>
                     <input type="time" id="settingReminderTimeInput" class="setting-time-input" value="09:00">
                 </div>
-                <div class="setting-row" id="settingCalendarExportRow" style="display: none; padding-top: 6px;">
-                    <button id="btnExportCalendarReminder" class="secondary-btn" data-i18n="setting_calendar_reminder" style="width: 100%; font-size: 0.85rem;">📅 Kalender-Erinnerung (.ics) stellen</button>
-                </div>
                 <div class="setting-row" style="padding-top: 10px; border-bottom: none;">
                     <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
                 </div>
@@ -467,19 +486,39 @@
             <div class="modal-body">
                 <div class="setting-row">
                     <span class="setting-label" data-i18n="stats_total_played">Gespielte Rätsel</span>
-                    <span id="statPlayed" style="font-weight: 700;">0</span>
+                    <span id="statPlayedModal" style="font-weight: 700;">0</span>
                 </div>
                 <div class="setting-row">
                     <span class="setting-label" data-i18n="stats_total_won">Gelöste Rätsel</span>
-                    <span id="statWon" style="font-weight: 700;">0</span>
+                    <span id="statWonModal" style="font-weight: 700;">0</span>
                 </div>
                 <div class="setting-row">
                     <span class="setting-label" data-i18n="stats_win_rate">Erfolgsquote</span>
-                    <span id="statWinRate" style="font-weight: 700;">0%</span>
+                    <span id="statWinRateModal" style="font-weight: 700;">0%</span>
                 </div>
                 <div class="setting-row">
-                    <span class="setting-label" data-i18n="stats_best_time">Bestzeit</span>
-                    <span id="statBestTime" style="font-weight: 700;">-</span>
+                    <span class="setting-label" data-i18n="stats_current_streak">Aktuelle Tages-Serie</span>
+                    <span id="statCurrentStreakModal" style="font-weight: 700;">0 🔥</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_max_streak">Längste Tages-Serie</span>
+                    <span id="statMaxStreakModal" style="font-weight: 700;">0 🏆</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_best_time_4">Bestzeit 4×4</span>
+                    <span id="statBestTime4Modal" style="font-weight: 700;">-</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_best_time_6">Bestzeit 6×6</span>
+                    <span id="statBestTime6Modal" style="font-weight: 700;">-</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_best_time_8">Bestzeit 8×8</span>
+                    <span id="statBestTime8Modal" style="font-weight: 700;">-</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_best_time_10">Bestzeit 10×10</span>
+                    <span id="statBestTime10Modal" style="font-weight: 700;">-</span>
                 </div>
                 <div class="setting-row" style="padding-top: 10px; border-bottom: none;">
                     <button id="btnResetStatsModal" class="danger-btn" data-i18n="stats_reset_btn" style="width: 100%;">Statistik zurücksetzen</button>
