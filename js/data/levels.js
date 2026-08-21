@@ -207,18 +207,42 @@ export const CAMPAIGN_LEVELS = [
 ];
 
 export function getCampaignLevel(levelIndex) {
-    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt
+    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (120 Level in 4 Kapiteln)
     let size, difficulty;
-    if (levelIndex < 5) {
+    if (levelIndex < 10) {
+        // Kapitel 1: Level 1–10 (4×4 Einfach)
         size = 4;
         difficulty = 'easy';
-    } else if (levelIndex < 15) {
+    } else if (levelIndex < 20) {
+        // Kapitel 1: Level 11–20 (6×6 Einfach)
         size = 6;
-        difficulty = levelIndex < 10 ? 'easy' : 'medium';
+        difficulty = 'easy';
     } else if (levelIndex < 30) {
+        // Kapitel 1: Level 21–30 (6×6 Mittel)
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 45) {
+        // Kapitel 2: Level 31–45 (6×6 Mittel)
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 60) {
+        // Kapitel 2: Level 46–60 (6×6 Schwer)
+        size = 6;
+        difficulty = 'hard';
+    } else if (levelIndex < 75) {
+        // Kapitel 3: Level 61–75 (8×8 Mittel)
+        size = 8;
+        difficulty = 'medium';
+    } else if (levelIndex < 90) {
+        // Kapitel 3: Level 76–90 (8×8 Schwer)
+        size = 8;
+        difficulty = 'hard';
+    } else if (levelIndex < 105) {
+        // Kapitel 4: Level 91–105 (8×8 Meister)
         size = 8;
         difficulty = 'hard';
     } else {
+        // Kapitel 4: Level 106–120 (10×10 Meister)
         size = 10;
         difficulty = 'hard';
     }

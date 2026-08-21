@@ -25,6 +25,7 @@ export class TangoApp {
         this.engine = new TangoEngine(6);
         this.currentMode = 'campaign'; // 'campaign' | 'daily' | 'free' | 'tutorial'
         this.campaignLevelIndex = 0;
+        this.selectedCampaignChapter = 0;
         this.tutorialStepIndex = 0;
         this.selectedCell = null;
         this.isNoteMode = false;
@@ -208,6 +209,19 @@ export class TangoApp {
         });
         document.getElementById('btnCloseHint').addEventListener('click', () => this.toggleModal('hintModal', false));
         document.getElementById('btnCloseLevelSelect')?.addEventListener('click', () => this.toggleModal('levelSelectModal', false));
+
+        // Kampagnen-Kapitel Tabs
+        const chapterTabs = document.getElementById('campaignChapterTabs');
+        if (chapterTabs) {
+            chapterTabs.addEventListener('click', (e) => {
+                const btn = e.target.closest('.chapter-tab-btn');
+                if (!btn) return;
+                const chapter = parseInt(btn.dataset.chapter, 10);
+                if (!isNaN(chapter)) {
+                    this.switchCampaignChapter(chapter);
+                }
+            });
+        }
 
         // Settings Dialog Listener
         document.getElementById('settingThemeSelect')?.addEventListener('change', (e) => this.applyTheme(e.target.value));
@@ -872,15 +886,39 @@ export class TangoApp {
     }
 
     openLevelSelectModal() {
-        const modal = document.getElementById('levelSelectModal');
+        if (typeof this.campaignLevelIndex === 'number' && this.campaignLevelIndex >= 0) {
+            this.selectedCampaignChapter = Math.min(3, Math.max(0, Math.floor(this.campaignLevelIndex / 30)));
+        }
+        this.renderCampaignLevelGrid();
+        this.toggleModal('levelSelectModal', true);
+    }
+
+    switchCampaignChapter(chapter) {
+        this.selectedCampaignChapter = Math.min(3, Math.max(0, chapter));
+        audio.playClear();
+        this.renderCampaignLevelGrid();
+    }
+
+    renderCampaignLevelGrid() {
+        const tabs = document.querySelectorAll('#campaignChapterTabs .chapter-tab-btn');
+        tabs.forEach((tab) => {
+            const chap = parseInt(tab.dataset.chapter, 10);
+            if (chap === this.selectedCampaignChapter) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+
         const list = document.getElementById('levelGridList');
         if (!list) return;
-
         list.innerHTML = '';
-        const completed = this.getCompletedLevels();
-        const totalLevels = 30; // Zeige die ersten 30 Level
 
-        for (let i = 0; i < totalLevels; i++) {
+        const completed = this.getCompletedLevels();
+        const startLvl = this.selectedCampaignChapter * 30;
+        const endLvl = startLvl + 30;
+
+        for (let i = startLvl; i < endLvl; i++) {
             const btn = document.createElement('button');
             btn.className = 'level-item-btn';
             const isDone = completed.includes(i);
@@ -897,8 +935,6 @@ export class TangoApp {
             });
             list.appendChild(btn);
         }
-
-        this.toggleModal('levelSelectModal', true);
     }
 
     openFreePlayModal() {

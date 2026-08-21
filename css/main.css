@@ -696,12 +696,69 @@ html, body {
     cursor: pointer;
 }
 
+/* Level Select Modal & Chapter Tabs */
+.level-modal-card {
+    max-width: 440px;
+    width: 92%;
+}
+
+.chapter-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 4px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.chapter-tab-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 4px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.18s ease;
+    user-select: none;
+}
+
+.chapter-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.chapter-tab-btn.active {
+    background: var(--cell-bg);
+    border-color: var(--accent-sun);
+    color: var(--accent-sun);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.chapter-tab-btn .chapter-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.chapter-tab-btn .chapter-range {
+    font-size: 0.68rem;
+    opacity: 0.8;
+    margin-top: 3px;
+}
+
 /* Level Select Grid */
 .level-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 10px;
-    max-height: 320px;
+    max-height: 340px;
     overflow-y: auto;
     padding: 4px;
 }

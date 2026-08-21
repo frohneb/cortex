@@ -150,7 +150,11 @@ export const translations = {
         confirm_title: "Sicherheitsabfrage",
         btn_cancel: "Abbrechen",
         btn_confirm_reset: "Zurücksetzen",
-        campaign_desc: "30 handgefertigte Logikrätsel",
+        campaign_desc: "120 handgefertigte Logikrätsel",
+        chapter_1: "Kapitel 1",
+        chapter_2: "Kapitel 2",
+        chapter_3: "Kapitel 3",
+        chapter_4: "Kapitel 4",
         daily_desc: "Jeden Tag eine neue Herausforderung",
         free_desc: "4×4 bis 10×10, beliebige Stufe"
     },
@@ -280,7 +284,11 @@ export const translations = {
         confirm_title: "Confirmation",
         btn_cancel: "Cancel",
         btn_confirm_reset: "Reset",
-        campaign_desc: "30 handcrafted logic puzzles",
+        campaign_desc: "120 handcrafted logic puzzles",
+        chapter_1: "Chapter 1",
+        chapter_2: "Chapter 2",
+        chapter_3: "Chapter 3",
+        chapter_4: "Chapter 4",
         daily_desc: "A fresh challenge every single day",
         free_desc: "4×4 to 10×10, custom difficulty"
     }

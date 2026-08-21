@@ -1300,7 +1300,11 @@ const translations = {
         confirm_title: "Sicherheitsabfrage",
         btn_cancel: "Abbrechen",
         btn_confirm_reset: "Zurücksetzen",
-        campaign_desc: "30 handgefertigte Logikrätsel",
+        campaign_desc: "120 handgefertigte Logikrätsel",
+        chapter_1: "Kapitel 1",
+        chapter_2: "Kapitel 2",
+        chapter_3: "Kapitel 3",
+        chapter_4: "Kapitel 4",
         daily_desc: "Jeden Tag eine neue Herausforderung",
         free_desc: "4×4 bis 10×10, beliebige Stufe"
     },
@@ -1430,7 +1434,11 @@ const translations = {
         confirm_title: "Confirmation",
         btn_cancel: "Cancel",
         btn_confirm_reset: "Reset",
-        campaign_desc: "30 handcrafted logic puzzles",
+        campaign_desc: "120 handcrafted logic puzzles",
+        chapter_1: "Chapter 1",
+        chapter_2: "Chapter 2",
+        chapter_3: "Chapter 3",
+        chapter_4: "Chapter 4",
         daily_desc: "A fresh challenge every single day",
         free_desc: "4×4 to 10×10, custom difficulty"
     }
@@ -2083,18 +2091,42 @@ const CAMPAIGN_LEVELS = [
 ];
 
 function getCampaignLevel(levelIndex) {
-    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt
+    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (120 Level in 4 Kapiteln)
     let size, difficulty;
-    if (levelIndex < 5) {
+    if (levelIndex < 10) {
+        // Kapitel 1: Level 1–10 (4×4 Einfach)
         size = 4;
         difficulty = 'easy';
-    } else if (levelIndex < 15) {
+    } else if (levelIndex < 20) {
+        // Kapitel 1: Level 11–20 (6×6 Einfach)
         size = 6;
-        difficulty = levelIndex < 10 ? 'easy' : 'medium';
+        difficulty = 'easy';
     } else if (levelIndex < 30) {
+        // Kapitel 1: Level 21–30 (6×6 Mittel)
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 45) {
+        // Kapitel 2: Level 31–45 (6×6 Mittel)
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 60) {
+        // Kapitel 2: Level 46–60 (6×6 Schwer)
+        size = 6;
+        difficulty = 'hard';
+    } else if (levelIndex < 75) {
+        // Kapitel 3: Level 61–75 (8×8 Mittel)
+        size = 8;
+        difficulty = 'medium';
+    } else if (levelIndex < 90) {
+        // Kapitel 3: Level 76–90 (8×8 Schwer)
+        size = 8;
+        difficulty = 'hard';
+    } else if (levelIndex < 105) {
+        // Kapitel 4: Level 91–105 (8×8 Meister)
         size = 8;
         difficulty = 'hard';
     } else {
+        // Kapitel 4: Level 106–120 (10×10 Meister)
         size = 10;
         difficulty = 'hard';
     }
@@ -2499,6 +2531,7 @@ class TangoApp {
         this.engine = new TangoEngine(6);
         this.currentMode = 'campaign'; // 'campaign' | 'daily' | 'free' | 'tutorial'
         this.campaignLevelIndex = 0;
+        this.selectedCampaignChapter = 0;
         this.tutorialStepIndex = 0;
         this.selectedCell = null;
         this.isNoteMode = false;
@@ -2682,6 +2715,19 @@ class TangoApp {
         });
         document.getElementById('btnCloseHint').addEventListener('click', () => this.toggleModal('hintModal', false));
         document.getElementById('btnCloseLevelSelect')?.addEventListener('click', () => this.toggleModal('levelSelectModal', false));
+
+        // Kampagnen-Kapitel Tabs
+        const chapterTabs = document.getElementById('campaignChapterTabs');
+        if (chapterTabs) {
+            chapterTabs.addEventListener('click', (e) => {
+                const btn = e.target.closest('.chapter-tab-btn');
+                if (!btn) return;
+                const chapter = parseInt(btn.dataset.chapter, 10);
+                if (!isNaN(chapter)) {
+                    this.switchCampaignChapter(chapter);
+                }
+            });
+        }
 
         // Settings Dialog Listener
         document.getElementById('settingThemeSelect')?.addEventListener('change', (e) => this.applyTheme(e.target.value));
@@ -3346,15 +3392,39 @@ class TangoApp {
     }
 
     openLevelSelectModal() {
-        const modal = document.getElementById('levelSelectModal');
+        if (typeof this.campaignLevelIndex === 'number' && this.campaignLevelIndex >= 0) {
+            this.selectedCampaignChapter = Math.min(3, Math.max(0, Math.floor(this.campaignLevelIndex / 30)));
+        }
+        this.renderCampaignLevelGrid();
+        this.toggleModal('levelSelectModal', true);
+    }
+
+    switchCampaignChapter(chapter) {
+        this.selectedCampaignChapter = Math.min(3, Math.max(0, chapter));
+        audio.playClear();
+        this.renderCampaignLevelGrid();
+    }
+
+    renderCampaignLevelGrid() {
+        const tabs = document.querySelectorAll('#campaignChapterTabs .chapter-tab-btn');
+        tabs.forEach((tab) => {
+            const chap = parseInt(tab.dataset.chapter, 10);
+            if (chap === this.selectedCampaignChapter) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+
         const list = document.getElementById('levelGridList');
         if (!list) return;
-
         list.innerHTML = '';
-        const completed = this.getCompletedLevels();
-        const totalLevels = 30; // Zeige die ersten 30 Level
 
-        for (let i = 0; i < totalLevels; i++) {
+        const completed = this.getCompletedLevels();
+        const startLvl = this.selectedCampaignChapter * 30;
+        const endLvl = startLvl + 30;
+
+        for (let i = startLvl; i < endLvl; i++) {
             const btn = document.createElement('button');
             btn.className = 'level-item-btn';
             const isDone = completed.includes(i);
@@ -3371,8 +3441,6 @@ class TangoApp {
             });
             list.appendChild(btn);
         }
-
-        this.toggleModal('levelSelectModal', true);
     }
 
     openFreePlayModal() {
