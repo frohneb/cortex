@@ -2718,8 +2718,10 @@ class TangoApp {
                 }
             } else if (this.currentMode === 'campaign') {
                 this.startCampaignLevel(this.campaignLevelIndex + 1);
+            } else if (this.currentMode === 'free') {
+                this.openFreePlayModal();
             } else {
-                this.openLevelSelectModal();
+                this.openMenuTab('play');
             }
         });
 
@@ -2750,6 +2752,8 @@ class TangoApp {
             this.toggleModal('solutionRevealedModal', false);
             if (this.currentMode === 'campaign') {
                 this.openLevelSelectModal();
+            } else if (this.currentMode === 'free') {
+                this.openFreePlayModal();
             } else {
                 this.openMenuTab('play');
             }
