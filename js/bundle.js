@@ -1385,6 +1385,9 @@ const translations = {
         notif_body: "Dein heutiges Tagesrätsel wartet auf dich! ☀️🌙",
         notif_test_sent: "Systembenachrichtigung gesendet!",
         notif_permission_denied: "Benachrichtigungen sind im Browser blockiert. Bitte erlaube sie in den Berechtigungen.",
+        daily_replay_title: "Tagesrätsel bereits gelöst",
+        daily_replay_confirm: "Du hast das heutige Tagesrätsel bereits erfolgreich gelöst. Möchtest du es noch einmal zur Übung spielen?",
+        daily_btn_replay: "Erneut spielen",
 
         // Menü Hub Tabs
         menu_tab_play: "Spielen",
@@ -1543,6 +1546,9 @@ const translations = {
         notif_body: "Today's daily puzzle is ready for you! ☀️🌙",
         notif_test_sent: "System notification sent!",
         notif_permission_denied: "Notifications blocked by browser. Please enable permissions.",
+        daily_replay_title: "Daily Puzzle Already Solved",
+        daily_replay_confirm: "You have already solved today's daily puzzle. Would you like to play it again for practice?",
+        daily_btn_replay: "Play Again",
 
         // Menu Hub Tabs
         menu_tab_play: "Play",
@@ -2676,8 +2682,7 @@ class TangoApp {
             this.openLevelSelectModal();
         });
         document.getElementById('navDaily').addEventListener('click', () => {
-            this.toggleModal('menuModal', false);
-            this.startDailyPuzzle();
+            this.requestStartDailyPuzzle();
         });
         document.getElementById('navFree').addEventListener('click', () => {
             this.toggleModal('menuModal', false);
@@ -2868,7 +2873,7 @@ class TangoApp {
         });
         document.getElementById('btnPlayDailyFromReminder')?.addEventListener('click', () => {
             this.dismissReminderBanner();
-            this.startDailyPuzzle();
+            this.requestStartDailyPuzzle();
         });
         document.getElementById('btnCloseDailyReminder')?.addEventListener('click', () => {
             this.dismissReminderBanner();
@@ -3044,6 +3049,33 @@ class TangoApp {
         document.getElementById('levelTitle').textContent = `${t('status_level')} ${levelIndex + 1}`;
         this.renderGrid();
         this.updateKeypadVisibility();
+    }
+
+    isDailyPuzzleCompleted(dateStr = new Date().toISOString().slice(0, 10)) {
+        try {
+            const history = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
+            return Array.isArray(history) && history.includes(dateStr);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    async requestStartDailyPuzzle() {
+        const today = new Date().toISOString().slice(0, 10);
+        if (this.isDailyPuzzleCompleted(today)) {
+            const confirmed = await this.showConfirmDialog({
+                title: t('daily_replay_title'),
+                message: t('daily_replay_confirm'),
+                confirmText: t('daily_btn_replay'),
+                cancelText: t('btn_cancel'),
+                isDanger: false
+            });
+            if (!confirmed) {
+                return;
+            }
+        }
+        this.toggleModal('menuModal', false);
+        this.startDailyPuzzle();
     }
 
     startDailyPuzzle() {

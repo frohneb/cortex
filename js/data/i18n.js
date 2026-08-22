@@ -153,6 +153,9 @@ export const translations = {
         notif_body: "Dein heutiges Tagesrätsel wartet auf dich! ☀️🌙",
         notif_test_sent: "Systembenachrichtigung gesendet!",
         notif_permission_denied: "Benachrichtigungen sind im Browser blockiert. Bitte erlaube sie in den Berechtigungen.",
+        daily_replay_title: "Tagesrätsel bereits gelöst",
+        daily_replay_confirm: "Du hast das heutige Tagesrätsel bereits erfolgreich gelöst. Möchtest du es noch einmal zur Übung spielen?",
+        daily_btn_replay: "Erneut spielen",
 
         // Menü Hub Tabs
         menu_tab_play: "Spielen",
@@ -311,6 +314,9 @@ export const translations = {
         notif_body: "Today's daily puzzle is ready for you! ☀️🌙",
         notif_test_sent: "System notification sent!",
         notif_permission_denied: "Notifications blocked by browser. Please enable permissions.",
+        daily_replay_title: "Daily Puzzle Already Solved",
+        daily_replay_confirm: "You have already solved today's daily puzzle. Would you like to play it again for practice?",
+        daily_btn_replay: "Play Again",
 
         // Menu Hub Tabs
         menu_tab_play: "Play",

@@ -242,8 +242,7 @@ export class TangoApp {
             this.openLevelSelectModal();
         });
         document.getElementById('navDaily').addEventListener('click', () => {
-            this.toggleModal('menuModal', false);
-            this.startDailyPuzzle();
+            this.requestStartDailyPuzzle();
         });
         document.getElementById('navFree').addEventListener('click', () => {
             this.toggleModal('menuModal', false);
@@ -434,7 +433,7 @@ export class TangoApp {
         });
         document.getElementById('btnPlayDailyFromReminder')?.addEventListener('click', () => {
             this.dismissReminderBanner();
-            this.startDailyPuzzle();
+            this.requestStartDailyPuzzle();
         });
         document.getElementById('btnCloseDailyReminder')?.addEventListener('click', () => {
             this.dismissReminderBanner();
@@ -610,6 +609,33 @@ export class TangoApp {
         document.getElementById('levelTitle').textContent = `${t('status_level')} ${levelIndex + 1}`;
         this.renderGrid();
         this.updateKeypadVisibility();
+    }
+
+    isDailyPuzzleCompleted(dateStr = new Date().toISOString().slice(0, 10)) {
+        try {
+            const history = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
+            return Array.isArray(history) && history.includes(dateStr);
+        } catch (e) {
+            return false;
+        }
+    }
+
+    async requestStartDailyPuzzle() {
+        const today = new Date().toISOString().slice(0, 10);
+        if (this.isDailyPuzzleCompleted(today)) {
+            const confirmed = await this.showConfirmDialog({
+                title: t('daily_replay_title'),
+                message: t('daily_replay_confirm'),
+                confirmText: t('daily_btn_replay'),
+                cancelText: t('btn_cancel'),
+                isDanger: false
+            });
+            if (!confirmed) {
+                return;
+            }
+        }
+        this.toggleModal('menuModal', false);
+        this.startDailyPuzzle();
     }
 
     startDailyPuzzle() {

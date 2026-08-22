@@ -287,24 +287,26 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('id="solutionRevealedBanner"', html_content, "solutionRevealedBanner muss in index.html vorhanden sein")
         self.assertIn('id="btnProceedToDefeatModal"', html_content, "btnProceedToDefeatModal muss in index.html vorhanden sein")
         self.assertIn('openSolutionRevealedModal', bundle_content, "openSolutionRevealedModal muss im Bundle vorhanden sein")
-        self.assertIn('hideSolutionBanner', bundle_content, "hideSolutionBanner muss im Bundle vorhanden sein")
+        # Daily Replay Abfrage
+        self.assertIn('requestStartDailyPuzzle', bundle_content, "requestStartDailyPuzzle muss im Bundle vorhanden sein")
+        self.assertIn('isDailyPuzzleCompleted', bundle_content, "isDailyPuzzleCompleted muss im Bundle vorhanden sein")
 
         # Sicherstellen, dass keine störenden nativen <select>-Tags verblieben sind
         self.assertNotIn('<select', html_content, "Es dürfen keine nativen HTML <select> Tags mehr in index.html existieren")
 
-    def test_version_number_consistency_v1_1_0(self):
-        """Überprüft, dass Version 1.1.0 (Code 12) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v1_1_1(self):
+        """Überprüft, dass Version 1.1.1 (Code 13) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('tango-app-v1.1.0', sw_content, "sw.js muss Cache tango-app-v1.1.0 enthalten")
-        self.assertIn('id="appVersionBadge">v1.1.0<', html_content, "index.html muss appVersionBadge mit v1.1.0 enthalten")
-        self.assertIn('versionName = "1.1.0"', gradle_content, "build.gradle.kts muss versionName 1.1.0 enthalten")
-        self.assertIn('versionCode = 12', gradle_content, "build.gradle.kts muss versionCode 12 enthalten")
-        self.assertIn('android:versionName="1.1.0"', manifest_content, "AndroidManifest.xml muss versionName 1.1.0 enthalten")
-        self.assertIn('android:versionCode="12"', manifest_content, "AndroidManifest.xml muss versionCode 12 enthalten")
+        self.assertIn('tango-app-v1.1.1', sw_content, "sw.js muss Cache tango-app-v1.1.1 enthalten")
+        self.assertIn('id="appVersionBadge">v1.1.1<', html_content, "index.html muss appVersionBadge mit v1.1.1 enthalten")
+        self.assertIn('versionName = "1.1.1"', gradle_content, "build.gradle.kts muss versionName 1.1.1 enthalten")
+        self.assertIn('versionCode = 13', gradle_content, "build.gradle.kts muss versionCode 13 enthalten")
+        self.assertIn('android:versionName="1.1.1"', manifest_content, "AndroidManifest.xml muss versionName 1.1.1 enthalten")
+        self.assertIn('android:versionCode="13"', manifest_content, "AndroidManifest.xml muss versionCode 13 enthalten")
 
 
 if __name__ == "__main__":
