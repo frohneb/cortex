@@ -173,6 +173,9 @@ if java_code:
     check("Kein Reflection-API Nutzung",
           "Class.forName" not in java_code and ".getDeclaredMethod" not in java_code,
           "Reflection kann Sicherheitsmechanismen umgehen")
+    check("onPermissionRequest verweigert unnoetige Web-Permissions",
+          "request.deny()" in java_code,
+          "WebView koennte ungepruefte Sensor-/Medien-Permissions gewaehren")
 else:
     errors.append("  [FAIL] MainActivity.java nicht gefunden")
 

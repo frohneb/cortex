@@ -87,7 +87,8 @@ public class MainActivity extends Activity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
-                request.grant(request.getResources());
+                // Offline-Sicherheit: Keine Medien- oder Sensor-Berechtigungen in der WebView gewähren
+                request.deny();
             }
         });
         webView.setWebViewClient(new WebViewClient());
