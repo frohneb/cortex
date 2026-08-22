@@ -1,12 +1,12 @@
 # Tango – Logikrätsel für Android & Web (Werbefrei & 100% Offline)
 
-[![Version](https://img.shields.io/badge/Version-1.2.3-brightgreen.svg)](https://github.com/frohneb/tango)
+[![Version](https://img.shields.io/badge/Version-1.2.4-brightgreen.svg)](https://github.com/frohneb/tango)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
 [![Security](https://img.shields.io/badge/Security-9.8%2F10%20Exzellent-brightgreen.svg)](SECURITY.md)
 
-Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logik-Puzzles **Tango** (Takuzu / Binairo / Binoxxo) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones.
+Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logik-Puzzles **Tango** (Takuzu / Binairo / Binoxxo) mit vollständiger deutscher und englischer Lokalisierung, 28 interaktiven Tutorial-Lektionen, intelligentem Hinweis-System, Notizen-Modus, pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones.
 
 ---
 
@@ -14,10 +14,10 @@ Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logi
 
 - 🚫 **100 % Werbefrei & Offline**: Keine Werbung, keine In-App-Käufe, kein Tracking, keine unnötigen Berechtigungen (kein Internet-Zugriff erforderlich).
 - 🌐 **Zweisprachig (DE / EN)**: Vollständige Lokalisierung aller Texte, Regeln und Dialoge auf Deutsch und Englisch.
-- 🎓 **Drei Interaktive Tutorial-Bereiche**:
+- 🎓 **Drei Interaktive Tutorial-Bereiche (28 Lektionen)**:
   - 📖 **Grundlagen (6 Schritte)**: Schritt-für-Schritt-Einführung in Sonnen (☀️), Monde (🌙), die 3er-Regel, Zeilenbalance sowie Gleichheit (`=`) und Gegenteil (`×`).
-  - 🎓 **Mathematik (8 Lektionen)**: Fortgeschrittene mathematische Lösungsstrategien (Sandwich-Prinzip, Kanten-Kaskade, Taubenschlag-Prinzip, Zeilen-Duplikat-Ausschluss, Paritäts-Trippel).
-  - 📐 **Muster (8 Lektionen)**: Tiefgehende Analyse von feldgrößenspezifischen Gesetzen (4×4 Paar-Inversion, 6×6 Paar-Limits, 3-Blöcke-Dominozerlegung, Zeilen-Unizität und universell verbotene Doppel-`=`-Ketten).
+  - 🎓 **Mathematik (8 Lektionen)**: Fortgeschrittene mathematische Lösungsstrategien (Sandwich-Prinzip, Kanten-Kaskade, Taubenschlag-Prinzip, Zeilen-Duplikat-Ausschluss, Paritäts-Trippel, 2×2-Kanten-Algebra).
+  - 📐 **Muster (14 Lektionen)**: Tiefgehende Analyse von Meister-Mustern und feldgrößenspezifischen Gesetzen (4×4 Paar-Inversion, 6×6 Paar-Limits, **die 1-5-Regel**, **doppelte `[×]`-Kaskade**, **Kanten-Lookahead-Sperre**, 3-Blöcke-Dominozerlegung, **Budget-Kanten-Inkompatibilität**, **2D-Eck-Interferenz**, 8×8 & **10×10 Paar-Budgets**, Zeilen-Unizität und universell verbotene Doppel-`=`-Ketten).
 - ✏️ **Notizen-Modus (Kandidaten & Entwürfe)**:
   - Ermöglicht das Festhalten von temporären Markierungen und Annahmen direkt auf dem Spielfeld.
   - Nahtloses Umschalten zwischen Notizen und fest gesetzten Symbolen.
@@ -58,11 +58,14 @@ Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logi
 Das Projekt verfügt über ein umfassendes Test- und Sicherheitsframework:
 
 ```bash
-# 1. Alle Unit-, DOM- und Logik-Tests ausführen
+# 1. Alle Unit-, DOM- und Logik-Tests ausführen (66 Tests)
 python -m unittest test_app_dom.py test_rules.py test_streak_logic.py test_hint_and_defeat_logic.py test_tutorial_patterns.py
 
 # 2. Tiefen-Sicherheitsaudit (74 Prüfungen: Permissions, CSP, XSS, APK-Integrität)
 python test_security_deep.py
+
+# 3. Standard-Sicherheitscheck (22 Prüfungen)
+python test_security.py
 ```
 
 ---
@@ -88,7 +91,7 @@ Die fertige Datei liegt anschließend als **`Tango.apk`** im Hauptverzeichnis vo
 Tango wird nach den Prinzipien **„Privacy by Design"** und **„Defense in Depth"** entwickelt und kontinuierlich auditiert.
 
 - **Gesamtbewertung:** 9.8 / 10 – EXZELLENT ⭐⭐⭐⭐⭐
-- **74 automatisierte Security-Checks** mit 100% Pass Rate
+- **74 automatisierte Security-Checks** mit 100% Pass Rate (0 Fehler, 0 Warnungen)
 - **Keine Internet-Permission**, kein Tracking, keine Werbung
 - Vollständiger Audit-Report: **[SECURITY.md](SECURITY.md)**
 

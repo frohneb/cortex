@@ -1,12 +1,12 @@
 # 🔒 Sicherheitsrichtlinie & Audit-Report: Tango – Logikrätsel
 
-**Audit Datum:** 22.08.2026 (Intensive Komplettprüfung nach Großem Update – v1.2.3)  
+**Audit Datum:** 22.08.2026 (Intensive Komplettprüfung nach Meister-Muster-Update – v1.2.4)  
 **Projekt:** frohneb/tango  
-**Version:** 1.2.3 (versionCode 20)  
+**Version:** 1.2.4 (versionCode 21)  
 **Gesamtbewertung:** **9.8/10 – EXZELLENT** ⭐⭐⭐⭐⭐  
 **Status:** ✅ **PRODUCTION-READY – ALLE SICHERHEITSPRÜFUNGEN BESTANDEN (0 FEHLER / 0 WARNUNGEN)**  
-**APK SHA-256:** `ab61157df043c4f3593af51e0ccbf063c2a8a0dc7c698553e14962215d7f69cf`  
-**APK Dateigröße:** 337.963 Bytes (~330 KB)  
+**APK SHA-256:** `e5b168531542b6154d973f46817739f945d6708b3058f04130855ea5d8dc1814`  
+**APK Dateigröße:** 342.059 Bytes (~334 KB)  
 **Signatur:** RSA-2048 (APK Signature Scheme v2 + v3 verifiziert)
 
 ---
@@ -82,11 +82,11 @@ graph TD
 ### 4.1 Android Manifest & Permissions ✅ (10/10)
 
 ```xml
-<!-- AndroidManifest.xml (v1.2.3, versionCode 20) -->
+<!-- AndroidManifest.xml (v1.2.4, versionCode 21) -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.tango.game"
-    android:versionCode="20"
-    android:versionName="1.2.3">
+    android:versionCode="21"
+    android:versionName="1.2.4">
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -217,7 +217,7 @@ Die Datei [index.html](file:///d:/Tango%20apk/index.html) definiert eine strikte
 
 - ✅ **Fehlertolerante Deserialisierung:** Jeder Zugriff auf `localStorage.getItem()` mit anschließendem `JSON.parse()` ist in einem dedizierten `try/catch`-Block gekapselt und mit sicheren Fallback-Werten (`[]` oder `{}`) versehen.
 - ✅ **Zeitformat-Validierung:** Die Weckzeiteingabe wird über die strikte Regular Expression `/^([01]\d|2[0-3]):[0-5]\d$/` validiert.
-- ✅ **Service Worker ([sw.js](file:///d:/Tango%20apk/sw.js)):** Verwendet versionierten Cache `tango-app-v1.2.3` mit Cache-First-Strategie und bereinigt veraltete Caches im `activate`-Event.
+- ✅ **Service Worker ([sw.js](file:///d:/Tango%20apk/sw.js)):** Verwendet versionierten Cache `tango-app-v1.2.4` mit Cache-First-Strategie und bereinigt veraltete Caches im `activate`-Event.
 
 ---
 
@@ -240,8 +240,8 @@ Schlüssellänge:                                 2048 Bit
 ```
 
 #### Dateistruktur & SHA-256 Checksumme
-- **APK SHA-256:** `ab61157df043c4f3593af51e0ccbf063c2a8a0dc7c698553e14962215d7f69cf`
-- **Dateigröße:** 337.963 Bytes (330 KB)
+- **APK SHA-256:** `e5b168531542b6154d973f46817739f945d6708b3058f04130855ea5d8dc1814`
+- **Dateigröße:** 342.059 Bytes (~334 KB)
 - **DEX-Dateien:** Exakt 1 (`classes.dex`)
 - **Native Bibliotheken (.so):** 0 (Keine ungeprüften Binaries)
 - **Skripte/Executables:** 0 (Keine `.sh`, `.exe`, `.bat` innerhalb der APK)
@@ -280,7 +280,7 @@ Alle Testsuiten wurden am **22.08.2026** erfolgreich ausgeführt:
    - test_rules.py: 8 Tests [OK]
    - test_hint_and_defeat_logic.py: 3 Tests [OK]
    - test_streak_logic.py: 9 Tests [OK]
-   - test_tutorial_patterns.py: 8 Tests [OK]
+   - test_tutorial_patterns.py: 14 Tests [OK]
 ======================================================================
 GESAMTSTATUS: 100% PASS (0 Fehler, 0 Warnungen)
 ```
@@ -301,7 +301,7 @@ GESAMTSTATUS: 100% PASS (0 Fehler, 0 Warnungen)
 
 ## 🏆 7. Fazit & Freigabe-Empfehlung
 
-Die Anwendung **Tango – Logikrätsel** (v1.2.3, versionCode 20) weist ein vorbildliches Sicherheitsniveau auf. Durch den konsequenten Verzicht auf Internet-Berechtigungen, externe Bibliotheken und Cloud-Anbindungen existiert **keine Angriffsfläche für Remote-Angriffe, Datenabflüsse oder Tracking**.
+Die Anwendung **Tango – Logikrätsel** (v1.2.4, versionCode 21) weist ein vorbildliches Sicherheitsniveau auf. Durch den konsequenten Verzicht auf Internet-Berechtigungen, externe Bibliotheken und Cloud-Anbindungen existiert **keine Angriffsfläche für Remote-Angriffe, Datenabflüsse oder Tracking**.
 
 ### ✅ **OFFIZIELLE FREIGABE FÜR DEN PRODUKTIVBETRIEB**
 Die APK ist bereit für den Einsatz auf privaten Android-Geräten sowie für den Vertrieb über App-Stores.

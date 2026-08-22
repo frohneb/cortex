@@ -305,19 +305,19 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('.tut-btn-icon', css_content, "main.css muss CSS für .tut-btn-icon definieren")
         self.assertIn('.tut-btn-text', css_content, "main.css muss CSS für .tut-btn-text definieren")
 
-    def test_version_number_consistency_v1_2_3(self):
-        """Überprüft, dass Version 1.2.3 (Code 20) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v1_2_4(self):
+        """Überprüft, dass Version 1.2.4 (Code 21) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('tango-app-v1.2.3', sw_content, "sw.js muss Cache tango-app-v1.2.3 enthalten")
-        self.assertIn('id="appVersionBadge">v1.2.3<', html_content, "index.html muss appVersionBadge mit v1.2.3 enthalten")
-        self.assertIn('versionName = "1.2.3"', gradle_content, "build.gradle.kts muss versionName 1.2.3 enthalten")
-        self.assertIn('versionCode = 20', gradle_content, "build.gradle.kts muss versionCode 20 enthalten")
-        self.assertIn('android:versionName="1.2.3"', manifest_content, "AndroidManifest.xml muss versionName 1.2.3 enthalten")
-        self.assertIn('android:versionCode="20"', manifest_content, "AndroidManifest.xml muss versionCode 20 enthalten")
+        self.assertIn('tango-app-v1.2.4', sw_content, "sw.js muss Cache tango-app-v1.2.4 enthalten")
+        self.assertIn('id="appVersionBadge">v1.2.4<', html_content, "index.html muss appVersionBadge mit v1.2.4 enthalten")
+        self.assertIn('versionName = "1.2.4"', gradle_content, "build.gradle.kts muss versionName 1.2.4 enthalten")
+        self.assertIn('versionCode = 21', gradle_content, "build.gradle.kts muss versionCode 21 enthalten")
+        self.assertIn('android:versionName="1.2.4"', manifest_content, "AndroidManifest.xml muss versionName 1.2.4 enthalten")
+        self.assertIn('android:versionCode="21"', manifest_content, "AndroidManifest.xml muss versionCode 21 enthalten")
 
 
 if __name__ == "__main__":
