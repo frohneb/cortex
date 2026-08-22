@@ -1289,7 +1289,7 @@ const translations = {
         btn_reveal_solution: "Lösung aufdecken",
         reveal_defeat_title: "Rätsel aufgegeben",
         reveal_defeat_msg: "Die Lösung wurde hinterlegt und Fehler wurden rot markiert. Das nächste Level bleibt gesperrt und in deiner Statistik wurde eine Niederlage verbucht.",
-        reveal_banner_hint: "Lösung wird angezeigt. Tippe auf Weiter oder das Gitter zum Fortfahren.",
+        reveal_banner_hint: "Lösung wird angezeigt. Tippe auf Weiter zum Fortfahren.",
         btn_retry_level: "Level wiederholen",
         error_title: "Regelverstoß",
         victory_title: "Glückwunsch!",
@@ -1455,7 +1455,7 @@ const translations = {
         btn_reveal_solution: "Reveal Solution",
         reveal_defeat_title: "Puzzle Surrendered",
         reveal_defeat_msg: "The solution has been revealed and mistakes highlighted in red. The next level remains locked and a defeat has been recorded in your statistics.",
-        reveal_banner_hint: "Solution displayed. Tap Continue or the grid to proceed.",
+        reveal_banner_hint: "Solution displayed. Tap Continue to proceed.",
         btn_retry_level: "Retry Level",
         error_title: "Rule Violation",
         victory_title: "Congratulations!",
@@ -2733,7 +2733,10 @@ class TangoApp {
         // Sicherheitsabfrage & Lösungsaufdeckung Listener
         document.getElementById('btnCancelReveal')?.addEventListener('click', () => this.toggleModal('confirmRevealModal', false));
         document.getElementById('btnConfirmReveal')?.addEventListener('click', () => this.revealSolutionAndSurrender());
-        document.getElementById('btnProceedToDefeatModal')?.addEventListener('click', () => this.openSolutionRevealedModal());
+        document.getElementById('btnProceedToDefeatModal')?.addEventListener('click', () => {
+            if (Date.now() < this.ignoreClickUntil) return;
+            this.openSolutionRevealedModal();
+        });
         document.getElementById('btnRevealRestart')?.addEventListener('click', () => {
             this.toggleModal('solutionRevealedModal', false);
             this.restartCurrentPuzzle();
@@ -3319,11 +3322,6 @@ class TangoApp {
     }
 
     handleCellClick(r, c, e) {
-        if (this.solutionRevealed) {
-            this.openSolutionRevealedModal();
-            return;
-        }
-
         if (Date.now() < this.ignoreClickUntil) {
             if (e) {
                 e.preventDefault();
@@ -3332,7 +3330,7 @@ class TangoApp {
             return;
         }
 
-        if (!this.isGameActive || this.engine.locked[r][c]) return;
+        if (this.solutionRevealed || !this.isGameActive || this.engine.locked[r][c]) return;
 
         this.selectedCell = { r, c };
 
@@ -3469,6 +3467,7 @@ class TangoApp {
     }
 
     revealSolutionAndSurrender() {
+        this.ignoreClickUntil = Date.now() + 600;
         this.toggleModal('confirmRevealModal', false);
         this.isGameActive = false;
         this.solutionRevealed = true;

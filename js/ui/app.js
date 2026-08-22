@@ -299,7 +299,10 @@ export class TangoApp {
         // Sicherheitsabfrage & Lösungsaufdeckung Listener
         document.getElementById('btnCancelReveal')?.addEventListener('click', () => this.toggleModal('confirmRevealModal', false));
         document.getElementById('btnConfirmReveal')?.addEventListener('click', () => this.revealSolutionAndSurrender());
-        document.getElementById('btnProceedToDefeatModal')?.addEventListener('click', () => this.openSolutionRevealedModal());
+        document.getElementById('btnProceedToDefeatModal')?.addEventListener('click', () => {
+            if (Date.now() < this.ignoreClickUntil) return;
+            this.openSolutionRevealedModal();
+        });
         document.getElementById('btnRevealRestart')?.addEventListener('click', () => {
             this.toggleModal('solutionRevealedModal', false);
             this.restartCurrentPuzzle();
@@ -885,11 +888,6 @@ export class TangoApp {
     }
 
     handleCellClick(r, c, e) {
-        if (this.solutionRevealed) {
-            this.openSolutionRevealedModal();
-            return;
-        }
-
         if (Date.now() < this.ignoreClickUntil) {
             if (e) {
                 e.preventDefault();
@@ -898,7 +896,7 @@ export class TangoApp {
             return;
         }
 
-        if (!this.isGameActive || this.engine.locked[r][c]) return;
+        if (this.solutionRevealed || !this.isGameActive || this.engine.locked[r][c]) return;
 
         this.selectedCell = { r, c };
 
@@ -1035,6 +1033,7 @@ export class TangoApp {
     }
 
     revealSolutionAndSurrender() {
+        this.ignoreClickUntil = Date.now() + 600;
         this.toggleModal('confirmRevealModal', false);
         this.isGameActive = false;
         this.solutionRevealed = true;

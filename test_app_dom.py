@@ -292,17 +292,17 @@ class TestTangoAppDOM(unittest.TestCase):
         # Sicherstellen, dass keine störenden nativen <select>-Tags verblieben sind
         self.assertNotIn('<select', html_content, "Es dürfen keine nativen HTML <select> Tags mehr in index.html existieren")
 
-    def test_version_number_consistency_v1_0_10(self):
-        """Überprüft, dass Version 1.0.10 (Code 10) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v1_0_11(self):
+        """Überprüft, dass Version 1.0.11 (Code 11) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('tango-app-v1.0.10', sw_content, "sw.js muss Cache tango-app-v1.0.10 enthalten")
-        self.assertIn('versionName = "1.0.10"', gradle_content, "build.gradle.kts muss versionName 1.0.10 enthalten")
-        self.assertIn('versionCode = 10', gradle_content, "build.gradle.kts muss versionCode 10 enthalten")
-        self.assertIn('android:versionName="1.0.10"', manifest_content, "AndroidManifest.xml muss versionName 1.0.10 enthalten")
-        self.assertIn('android:versionCode="10"', manifest_content, "AndroidManifest.xml muss versionCode 10 enthalten")
+        self.assertIn('tango-app-v1.0.11', sw_content, "sw.js muss Cache tango-app-v1.0.11 enthalten")
+        self.assertIn('versionName = "1.0.11"', gradle_content, "build.gradle.kts muss versionName 1.0.11 enthalten")
+        self.assertIn('versionCode = 11', gradle_content, "build.gradle.kts muss versionCode 11 enthalten")
+        self.assertIn('android:versionName="1.0.11"', manifest_content, "AndroidManifest.xml muss versionName 1.0.11 enthalten")
+        self.assertIn('android:versionCode="11"', manifest_content, "AndroidManifest.xml muss versionCode 11 enthalten")
 
 
 if __name__ == "__main__":
