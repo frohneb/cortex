@@ -1,6 +1,6 @@
 # Tango – Logikrätsel für Android & Web (Werbefrei & 100% Offline)
 
-[![Version](https://img.shields.io/badge/Version-1.1.3-brightgreen.svg)](https://github.com/frohneb/tango)
+[![Version](https://img.shields.io/badge/Version-1.1.4-brightgreen.svg)](https://github.com/frohneb/tango)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
