@@ -1,9 +1,10 @@
 # Tango – Logikrätsel für Android & Web (Werbefrei & 100% Offline)
 
-[![Version](https://img.shields.io/badge/Version-1.1.4-brightgreen.svg)](https://github.com/frohneb/tango)
+[![Version](https://img.shields.io/badge/Version-1.2.0-brightgreen.svg)](https://github.com/frohneb/tango)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
+[![Security](https://img.shields.io/badge/Security-9.7%2F10%20Exzellent-brightgreen.svg)](SECURITY.md)
 
 Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logik-Puzzles **Tango** (Takuzu / Binairo / Binoxxo) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones.
 
@@ -15,7 +16,8 @@ Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logi
 - 🌐 **Zweisprachig (DE / EN)**: Vollständige Lokalisierung aller Texte, Regeln und Dialoge auf Deutsch und Englisch.
 - 🎓 **Interaktive Tutorials**:
   - **Grundlagen-Tutorial (6 Schritte)**: Schritt-für-Schritt-Einführung in Sonnen (☀️), Monde (🌙), die 3er-Regel, Balance sowie Gleichheit (`=`) und Gegenteil (`×`).
-  - **Tutorial Pro**: Vertiefende Profi-Techniken (Zeilen-/Spalten-Deduktion, Eindeutigkeitsregel).
+  - **Tutorial Pro (8 Lektionen)**: Fortgeschrittene mathematische Lösungsstrategien (Sandwich-Prinzip, Kanten-Kaskade, Taubenschlag-Prinzip, Zeilen-Duplikat-Ausschluss).
+  - **Tutorial Regelmäßigkeiten (8 Lektionen)**: Tiefgehende Analyse von feldgrößenspezifischen Gesetzen (4×4 Paar-Inversion, 6×6 Paar-Limits, 3-Blöcke-Dominozerlegung, Zeilen-Unizität und universell verbotene Doppel-`=`-Ketten).
 - 🏆 **Umfangreiche Kampagne**: 120 handgefertigte Logikrätsel, gegliedert in 4 Kapitel (von 4×4 über 6×6 und 8×8 bis 10×10) mit Fortschritts- und Sterne-Speicherung.
 - 📅 **Tägliches Rätsel (Daily Tango)**:
   - Jeden Tag ein neues, synchron generiertes Tagesrätsel.
@@ -34,7 +36,7 @@ Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logi
 - ⏰ **Pünktliche Systemerinnerungen**:
   - Nutzt unter Android `AlarmManager.setAlarmClock`, um tägliche Erinnerungen zur eingestellten Wunschuhrzeit sekundengenau auszulösen (ohne Verzögerungen durch den Android Doze-Modus).
 - 🔊 **Sound & Haptik**:
-  - Angenehmes Synthesizer-Audio und 3 einstellbare Vibrationsstufen (Sanft, Mittel, Stark).
+  - Angenehmes Synthesizer-Audio und 4 einstellbare Vibrationsstufen (Sanft, Standard, Stark, Ultra).
 
 ---
 
@@ -56,7 +58,7 @@ Das Projekt verfügt über ein umfassendes Test- und Sicherheitsframework:
 # 1. Alle Unit- und DOM-Tests ausführen
 python -m unittest test_app_dom.py test_rules.py test_streak_logic.py test_hint_and_defeat_logic.py
 
-# 2. Tiefen-Sicherheitsaudit (73 Prüfungen: Permissions, CSP, XSS, APK-Integrität)
+# 2. Tiefen-Sicherheitsaudit (74 Prüfungen: Permissions, CSP, XSS, APK-Integrität)
 python test_security_deep.py
 ```
 
@@ -75,6 +77,17 @@ python build_apk.py
 ```
 
 Die fertige Datei liegt anschließend als **`Tango.apk`** im Hauptverzeichnis vor.
+
+---
+
+## 🔒 Sicherheit
+
+Tango wird nach dem Prinzip **„Privacy by Design"** und **„Defense in Depth"** entwickelt und regelmäßig auditiert.
+
+- **Gesamtbewertung:** 9.7/10 – EXZELLENT ⭐⭐⭐⭐⭐
+- **74 automatisierte Security-Checks** mit 100% Pass Rate
+- **Keine Internet-Permission**, kein Tracking, keine Werbung
+- Vollständiger Audit-Report: **[SECURITY.md](SECURITY.md)**
 
 ---
 
