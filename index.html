@@ -262,13 +262,10 @@
                 <div id="menuSecSettings" class="menu-hub-sec" style="display: none;">
                     <div class="setting-row">
                         <span class="setting-label" data-i18n="setting_theme">Farbdesign</span>
-                        <select id="settingThemeSelect" class="setting-select">
-                            <option value="dark" data-i18n="setting_theme_dark">Modern Dark</option>
-                            <option value="amoled" data-i18n="setting_theme_amoled">AMOLED Schwarz</option>
-                            <option value="light" data-i18n="setting_theme_light">Hell / Clean</option>
-                            <option value="wood" data-i18n="setting_theme_wood">Warmes Holz</option>
-                            <option value="cyberpunk" data-i18n="setting_theme_cyberpunk">Cyberpunk Neon</option>
-                        </select>
+                        <button type="button" id="btnThemePicker" class="custom-select-btn">
+                            <span id="lblThemeValue" class="select-btn-label">Modern Dark</span>
+                            <span class="select-btn-chevron">▾</span>
+                        </button>
                     </div>
                     <div class="setting-row">
                         <span class="setting-label" data-i18n="setting_sound">Soundeffekte</span>
@@ -286,12 +283,10 @@
                     </div>
                     <div class="setting-row" id="settingVibStrengthRow">
                         <span class="setting-label" data-i18n="setting_vibration_strength">Vibrationsstärke</span>
-                        <select id="settingVibStrengthSelect" class="setting-select">
-                            <option value="medium" selected data-i18n="setting_vib_medium">Standard (Empfohlen)</option>
-                            <option value="strong" data-i18n="setting_vib_strong">Kräftig</option>
-                            <option value="ultra" data-i18n="setting_vib_ultra">Ultra kräftig</option>
-                            <option value="soft" data-i18n="setting_vib_soft">Sanft</option>
-                        </select>
+                        <button type="button" id="btnVibPicker" class="custom-select-btn">
+                            <span id="lblVibValue" class="select-btn-label">Standard (Empfohlen)</span>
+                            <span class="select-btn-chevron">▾</span>
+                        </button>
                     </div>
                     <div class="setting-row">
                         <span class="setting-label" data-i18n="setting_auto_check">Fehler sofort hervorheben</span>
@@ -309,20 +304,23 @@
                     </div>
                     <div class="setting-row" id="settingReminderTimeRow" style="display: none;">
                         <span class="setting-label" data-i18n="setting_reminder_time">Erinnerungszeit</span>
-                        <input type="time" id="settingReminderTimeInput" class="setting-time-input" value="09:00">
+                        <button type="button" id="btnTimePicker" class="custom-time-btn">
+                            <span id="lblTimeValue" class="time-btn-label">09:30</span>
+                            <span class="time-btn-icon">⏰</span>
+                        </button>
                     </div>
                     <div class="setting-row">
                         <span class="setting-label" data-i18n="setting_language">Sprache</span>
-                        <select id="settingLanguageSelect" class="setting-select">
-                            <option value="de">Deutsch</option>
-                            <option value="en">English</option>
-                        </select>
+                        <button type="button" id="btnLangPicker" class="custom-select-btn">
+                            <span id="lblLangValue" class="select-btn-label">Deutsch</span>
+                            <span class="select-btn-chevron">▾</span>
+                        </button>
                     </div>
                     <div class="setting-hub-actions">
                         <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
                     </div>
                     <div class="settings-version-info" style="text-align:center; margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:11px; opacity:0.65;">
-                        Tango App <span id="appVersionBadge">v1.0.8</span> • 100% Offline &amp; Werbefrei
+                        Tango App <span id="appVersionBadge">v1.0.9</span> • 100% Offline &amp; Werbefrei
                     </div>
                 </div>
             </div>
@@ -442,77 +440,115 @@
         </div>
     </div>
 
-    <!-- Einstellungen Modal -->
-    <div id="settingsModal" class="modal-overlay">
+    <!-- Freies Spiel Modal -->
+    <div id="freePlayModal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-header">
-                <h2 class="modal-title" data-i18n="settings_title">Einstellungen</h2>
-                <button id="btnCloseSettings" class="modal-close-btn">✕</button>
+                <h2 class="modal-title" data-i18n="nav_free">Freies Spiel</h2>
+                <button id="btnCloseFreePlay" class="modal-close-btn">✕</button>
             </div>
             <div class="modal-body">
                 <div class="setting-row">
-                    <span class="setting-label" data-i18n="setting_theme">Farbdesign</span>
-                    <select id="settingThemeSelect" class="setting-select">
-                        <option value="dark" data-i18n="setting_theme_dark">Modern Dark</option>
-                        <option value="amoled" data-i18n="setting_theme_amoled">AMOLED Schwarz</option>
-                        <option value="light" data-i18n="setting_theme_light">Hell / Clean</option>
-                        <option value="wood" data-i18n="setting_theme_wood">Warmes Holz</option>
-                        <option value="cyberpunk" data-i18n="setting_theme_cyberpunk">Cyberpunk Neon</option>
-                    </select>
+                    <span class="setting-label" data-i18n="free_size">Gittergröße</span>
+                    <button type="button" id="btnFreePlaySizePicker" class="custom-select-btn">
+                        <span id="lblFreePlaySizeValue" class="select-btn-label">6 × 6 (Klassisch)</span>
+                        <span class="select-btn-chevron">▾</span>
+                    </button>
                 </div>
                 <div class="setting-row">
-                    <span class="setting-label" data-i18n="setting_sound">Soundeffekte</span>
-                    <label class="switch">
-                        <input type="checkbox" id="settingSoundToggle" checked>
-                        <span class="slider"></span>
-                    </label>
+                    <span class="setting-label" data-i18n="free_diff">Schwierigkeitsgrad</span>
+                    <button type="button" id="btnFreePlayDiffPicker" class="custom-select-btn">
+                        <span id="lblFreePlayDiffValue" class="select-btn-label">Mittel</span>
+                        <span class="select-btn-chevron">▾</span>
+                    </button>
                 </div>
-                <div class="setting-row">
-                    <span class="setting-label" data-i18n="setting_vibration">Haptisches Feedback</span>
-                    <label class="switch">
-                        <input type="checkbox" id="settingVibrationToggle" checked>
-                        <span class="slider"></span>
-                    </label>
+            </div>
+            <div class="modal-actions">
+                <button id="btnStartFreePlay" class="primary-btn" data-i18n="btn_start">Starten</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Themed Select Modal -->
+    <div id="customSelectModal" class="modal-overlay">
+        <div class="modal-card custom-picker-card">
+            <div class="modal-header">
+                <h2 id="customSelectTitle" class="modal-title">Auswahl</h2>
+                <button id="btnCloseCustomSelect" class="modal-close-btn">✕</button>
+            </div>
+            <div id="customSelectOptionsList" class="custom-select-list">
+                <!-- Dynamisch befüllt -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Themed Time Picker Modal -->
+    <div id="customTimePickerModal" class="modal-overlay">
+        <div class="modal-card custom-time-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="setting_reminder_time">Erinnerungszeit</h2>
+                <button id="btnCloseTimePicker" class="modal-close-btn">✕</button>
+            </div>
+            <div class="time-picker-body">
+                <div class="time-spinner-container">
+                    <div class="time-col">
+                        <button type="button" class="time-step-btn" id="btnHourUp">▲</button>
+                        <div class="time-digit-display" id="timeHourDisplay">09</div>
+                        <button type="button" class="time-step-btn" id="btnHourDown">▼</button>
+                        <span class="time-col-label">Std</span>
+                    </div>
+                    <div class="time-colon">:</div>
+                    <div class="time-col">
+                        <button type="button" class="time-step-btn" id="btnMinuteUp">▲</button>
+                        <div class="time-digit-display" id="timeMinuteDisplay">30</div>
+                        <button type="button" class="time-step-btn" id="btnMinuteDown">▼</button>
+                        <span class="time-col-label">Min</span>
+                    </div>
                 </div>
-                <div class="setting-row" id="settingVibStrengthRow">
-                    <span class="setting-label" data-i18n="setting_vibration_strength">Vibrationsstärke</span>
-                    <select id="settingVibStrengthSelect" class="setting-select">
-                        <option value="medium" selected data-i18n="setting_vib_medium">Standard (Empfohlen)</option>
-                        <option value="strong" data-i18n="setting_vib_strong">Kräftig</option>
-                        <option value="ultra" data-i18n="setting_vib_ultra">Ultra kräftig</option>
-                        <option value="soft" data-i18n="setting_vib_soft">Sanft</option>
-                    </select>
+                <div class="time-presets-grid">
+                    <button type="button" class="time-preset-btn" data-time="08:00">08:00</button>
+                    <button type="button" class="time-preset-btn" data-time="09:00">09:00</button>
+                    <button type="button" class="time-preset-btn" data-time="09:30">09:30</button>
+                    <button type="button" class="time-preset-btn" data-time="12:00">12:00</button>
+                    <button type="button" class="time-preset-btn" data-time="18:00">18:00</button>
+                    <button type="button" class="time-preset-btn" data-time="20:00">20:00</button>
                 </div>
-                <div class="setting-row">
-                    <span class="setting-label" data-i18n="setting_auto_check">Fehler sofort hervorheben</span>
-                    <label class="switch">
-                        <input type="checkbox" id="settingAutoCheckToggle" checked>
-                        <span class="slider"></span>
-                    </label>
+            </div>
+            <div class="modal-actions" style="display: flex; gap: 10px; margin-top: 6px;">
+                <button type="button" id="btnCancelTimePicker" class="secondary-btn" style="flex: 1;" data-i18n="btn_cancel">Abbrechen</button>
+                <button type="button" id="btnSaveTimePicker" class="primary-btn" style="flex: 1;" data-i18n="btn_save">Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Levelauswahl Modal -->
+    <div id="levelSelectModal" class="modal-overlay">
+        <div class="modal-card level-modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" data-i18n="nav_campaign">Levelauswahl</h2>
+                <button id="btnCloseLevelSelect" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="chapter-tabs" id="campaignChapterTabs">
+                    <button class="chapter-tab-btn active" data-chapter="0">
+                        <span class="chapter-title" data-i18n="chapter_1">Teil 1</span>
+                        <span class="chapter-range">1–30</span>
+                    </button>
+                    <button class="chapter-tab-btn" data-chapter="1">
+                        <span class="chapter-title" data-i18n="chapter_2">Teil 2</span>
+                        <span class="chapter-range">31–60</span>
+                    </button>
+                    <button class="chapter-tab-btn" data-chapter="2">
+                        <span class="chapter-title" data-i18n="chapter_3">Teil 3</span>
+                        <span class="chapter-range">61–90</span>
+                    </button>
+                    <button class="chapter-tab-btn" data-chapter="3">
+                        <span class="chapter-title" data-i18n="chapter_4">Teil 4</span>
+                        <span class="chapter-range">91–120</span>
+                    </button>
                 </div>
-                <div class="setting-row">
-                    <span class="setting-label" data-i18n="setting_language">Sprache</span>
-                    <select id="settingLanguageSelect" class="setting-select">
-                        <option value="de">Deutsch</option>
-                        <option value="en">English</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <span class="setting-label" data-i18n="setting_daily_reminder">Tägliche Erinnerung</span>
-                    <label class="switch">
-                        <input type="checkbox" id="settingReminderToggle">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="setting-row" id="settingReminderTimeRow" style="display: none;">
-                    <span class="setting-label" data-i18n="setting_reminder_time">Erinnerungszeit</span>
-                    <input type="time" id="settingReminderTimeInput" class="setting-time-input" value="09:00">
-                </div>
-                <div class="setting-row" style="padding-top: 10px; border-bottom: none;">
-                    <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
-                </div>
-                <div class="settings-version-info" style="text-align:center; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08); font-size:12px; opacity:0.65;">
-                    Tango App <span id="appVersionBadge">v1.0.8</span> • 100% Offline &amp; Werbefrei
+                <div id="levelGridList" class="level-grid">
+                    <!-- Levelbuttons (30 Stück pro Kapitel) -->
                 </div>
             </div>
         </div>
@@ -573,71 +609,44 @@
         </div>
     </div>
 
-    <!-- Levelauswahl Modal -->
-    <div id="levelSelectModal" class="modal-overlay">
-        <div class="modal-card level-modal-card">
-            <div class="modal-header">
-                <h2 class="modal-title" data-i18n="nav_campaign">Levelauswahl</h2>
-                <button id="btnCloseLevelSelect" class="modal-close-btn">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="chapter-tabs" id="campaignChapterTabs">
-                    <button class="chapter-tab-btn active" data-chapter="0">
-                        <span class="chapter-title" data-i18n="chapter_1">Teil 1</span>
-                        <span class="chapter-range">1–30</span>
-                    </button>
-                    <button class="chapter-tab-btn" data-chapter="1">
-                        <span class="chapter-title" data-i18n="chapter_2">Teil 2</span>
-                        <span class="chapter-range">31–60</span>
-                    </button>
-                    <button class="chapter-tab-btn" data-chapter="2">
-                        <span class="chapter-title" data-i18n="chapter_3">Teil 3</span>
-                        <span class="chapter-range">61–90</span>
-                    </button>
-                    <button class="chapter-tab-btn" data-chapter="3">
-                        <span class="chapter-title" data-i18n="chapter_4">Teil 4</span>
-                        <span class="chapter-range">91–120</span>
-                    </button>
-                </div>
-                <div id="levelGridList" class="level-grid">
-                    <!-- Levelbuttons (30 Stück pro Kapitel) -->
-                </div>
+    <!-- Sicherheitsabfrage für Lösungsaufdeckung Modal -->
+    <div id="confirmRevealModal" class="modal-overlay">
+        <div class="modal-card confirm-modal-card">
+            <div class="confirm-icon-box">💡</div>
+            <h3 class="confirm-title" data-i18n="reveal_confirm_title">Lösung aufdecken?</h3>
+            <p class="confirm-message" data-i18n="reveal_confirm_desc">Du hast alle 3 Hinweise verbraucht. Möchtest du das Rätsel aufgeben und die vollständige Lösung aufdecken?<br><br>⚠️ Das nächste Level wird dabei <strong>nicht freigeschaltet</strong> und in der Statistik wird eine Niederlage vermerkt.</p>
+            <div class="confirm-actions">
+                <button id="btnCancelReveal" class="secondary-btn" data-i18n="btn_cancel">Abbrechen</button>
+                <button id="btnConfirmReveal" class="danger-btn" data-i18n="btn_reveal_solution">Lösung aufdecken</button>
             </div>
         </div>
     </div>
 
-    <!-- Freies Spiel Modal -->
-    <div id="freePlayModal" class="modal-overlay">
+    <!-- Lösungsanzeige / Niederlage Modal -->
+    <div id="solutionRevealedModal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-header">
-                <h2 class="modal-title" data-i18n="nav_free">Freies Spiel</h2>
-                <button id="btnCloseFreePlay" class="modal-close-btn">✕</button>
+                <h2 class="modal-title" style="color: var(--accent-sun);" data-i18n="reveal_defeat_title">Rätsel aufgegeben</h2>
             </div>
-            <div class="modal-body">
-                <div class="setting-row">
-                    <span class="setting-label">Gittergröße</span>
-                    <select id="freePlaySizeSelect" class="setting-select">
-                        <option value="4">4 × 4 (Schnell)</option>
-                        <option value="6" selected>6 × 6 (Klassisch)</option>
-                        <option value="8">8 × 8 (Groß)</option>
-                        <option value="10">10 × 10 (Gigant)</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <span class="setting-label">Schwierigkeitsgrad</span>
-                    <select id="freePlayDiffSelect" class="setting-select">
-                        <option value="easy">Einfach</option>
-                        <option value="medium" selected>Mittel</option>
-                        <option value="hard">Schwer</option>
-                    </select>
+            <div class="modal-body" style="text-align: center;">
+                <p data-i18n="reveal_defeat_msg" style="line-height: 1.5; margin-bottom: 14px;">Die Lösung wurde auf dem Spielfeld hinterlegt und Fehler wurden rot markiert. Das nächste Level bleibt gesperrt.</p>
+                <div class="victory-stats" style="margin-bottom: 16px;">
+                    <div>
+                        <span class="victory-stat-val" id="revealTime">00:00</span>
+                        <span class="victory-stat-lbl" data-i18n="status_time">Zeit</span>
+                    </div>
+                    <div>
+                        <span class="victory-stat-val" id="revealMoves">0</span>
+                        <span class="victory-stat-lbl" data-i18n="status_moves">Züge</span>
+                    </div>
                 </div>
             </div>
-            <div class="modal-actions">
-                <button id="btnStartFreePlay" class="primary-btn" data-i18n="btn_start">Starten</button>
+            <div class="modal-actions" style="display: flex; gap: 8px;">
+                <button id="btnRevealRestart" class="primary-btn" style="flex: 1;" data-i18n="btn_retry_level">Level wiederholen</button>
+                <button id="btnRevealMenu" class="secondary-btn" style="flex: 1;" data-i18n="btn_back_menu">Hauptmenü</button>
             </div>
         </div>
     </div>
-
 
     <!-- Schicker Sicherheitsabfrage Dialog -->
     <div id="confirmModal" class="modal-overlay" style="display: none; z-index: 10000;">

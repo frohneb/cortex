@@ -1393,6 +1393,7 @@ const translations = {
         stats_reset_btn: "Statistik zurücksetzen",
         confirm_title: "Sicherheitsabfrage",
         btn_cancel: "Abbrechen",
+        btn_save: "Speichern",
         btn_confirm_reset: "Zurücksetzen",
         campaign_desc: "120 handgefertigte Logikrätsel",
         chapter_1: "Teil 1",
@@ -1400,7 +1401,16 @@ const translations = {
         chapter_3: "Teil 3",
         chapter_4: "Teil 4",
         daily_desc: "Jeden Tag eine neue Herausforderung",
-        free_desc: "4×4 bis 10×10, beliebige Stufe"
+        free_desc: "4×4 bis 10×10, beliebige Stufe",
+        free_size: "Gittergröße",
+        free_diff: "Schwierigkeitsgrad",
+        free_size_4: "4 × 4 (Schnell)",
+        free_size_6: "6 × 6 (Klassisch)",
+        free_size_8: "8 × 8 (Groß)",
+        free_size_10: "10 × 10 (Gigant)",
+        free_diff_easy: "Einfach",
+        free_diff_medium: "Mittel",
+        free_diff_hard: "Schwer"
     },
     en: {
         app_title: "Tango Logic Puzzle",
@@ -1540,6 +1550,7 @@ const translations = {
         stats_reset_btn: "Reset Statistics",
         confirm_title: "Confirmation",
         btn_cancel: "Cancel",
+        btn_save: "Save",
         btn_confirm_reset: "Reset",
         campaign_desc: "120 handcrafted logic puzzles",
         chapter_1: "Part 1",
@@ -1547,7 +1558,16 @@ const translations = {
         chapter_3: "Part 3",
         chapter_4: "Part 4",
         daily_desc: "A fresh challenge every single day",
-        free_desc: "4×4 to 10×10, custom difficulty"
+        free_desc: "4×4 to 10×10, custom difficulty",
+        free_size: "Grid Size",
+        free_diff: "Difficulty",
+        free_size_4: "4 × 4 (Fast)",
+        free_size_6: "6 × 6 (Classic)",
+        free_size_8: "8 × 8 (Large)",
+        free_size_10: "10 × 10 (Giant)",
+        free_diff_easy: "Easy",
+        free_diff_medium: "Medium",
+        free_diff_hard: "Hard"
     }
 };
 
@@ -2529,6 +2549,8 @@ class TangoApp {
         this.reminderEnabled = false;
         this.reminderTime = '09:00';
         this.reminderDismissed = false;
+        this.freePlaySize = 6;
+        this.freePlayDiff = 'medium';
 
         this.init();
     }
@@ -2575,6 +2597,15 @@ class TangoApp {
             const savedTheme = localStorage.getItem('tango_theme');
             if (savedTheme) this.currentTheme = savedTheme;
 
+            const savedSound = localStorage.getItem('tango_sound');
+            if (savedSound !== null) audio.enabled = savedSound === 'true';
+
+            const savedVib = localStorage.getItem('tango_vibration');
+            if (savedVib !== null) audio.vibrationEnabled = savedVib === 'true';
+
+            const savedVibStrength = localStorage.getItem('tango_vibration_strength');
+            if (savedVibStrength) audio.vibrationStrength = savedVibStrength;
+
             const savedAutoCheck = localStorage.getItem('tango_auto_check');
             if (savedAutoCheck !== null) this.autoCheck = savedAutoCheck === 'true';
 
@@ -2599,6 +2630,7 @@ class TangoApp {
         try {
             localStorage.setItem('tango_theme', theme);
         } catch (e) {}
+        this.updateMenuSettings();
     }
 
     updateI18n() {
@@ -2606,6 +2638,8 @@ class TangoApp {
             const key = el.getAttribute('data-i18n');
             el.textContent = t(key);
         });
+        this.updateMenuSettings();
+        this.updateFreePlayLabels();
     }
 
     bindEvents() {
@@ -2723,25 +2757,108 @@ class TangoApp {
             });
         }
 
-        // Settings Dialog Listener
-        document.getElementById('settingThemeSelect')?.addEventListener('change', (e) => this.applyTheme(e.target.value));
+        // Settings Trigger Buttons (Maßgeschneiderte In-Game Auswahldialoge)
+        document.getElementById('btnThemePicker')?.addEventListener('click', () => {
+            this.openCustomSelectModal({
+                title: t('setting_theme'),
+                options: [
+                    { value: 'dark', label: t('setting_theme_dark'), subtitle: 'Ausgewogen & modern' },
+                    { value: 'amoled', label: t('setting_theme_amoled'), subtitle: 'Tiefschwarz & stromsparend' },
+                    { value: 'light', label: t('setting_theme_light'), subtitle: 'Hell & minimalistisch' },
+                    { value: 'wood', label: t('setting_theme_wood'), subtitle: 'Natürliche Holztöne' },
+                    { value: 'cyberpunk', label: t('setting_theme_cyberpunk'), subtitle: 'Futuristisch & leuchtend' }
+                ],
+                currentValue: this.currentTheme,
+                onSelect: (val) => this.applyTheme(val)
+            });
+        });
+
+        document.getElementById('btnVibPicker')?.addEventListener('click', () => {
+            this.openCustomSelectModal({
+                title: t('setting_vibration_strength'),
+                options: [
+                    { value: 'medium', label: t('setting_vib_medium'), subtitle: 'Standard-Haptik' },
+                    { value: 'strong', label: t('setting_vib_strong'), subtitle: 'Kräftiges Feedback (Empfohlen)' },
+                    { value: 'ultra', label: t('setting_vib_ultra'), subtitle: 'Maximaler Impuls' },
+                    { value: 'soft', label: t('setting_vib_soft'), subtitle: 'Dezenter Klick' }
+                ],
+                currentValue: audio.vibrationStrength,
+                onSelect: (val) => {
+                    audio.setVibrationStrength(val);
+                    this.updateMenuSettings();
+                }
+            });
+        });
+
+        document.getElementById('btnLangPicker')?.addEventListener('click', () => {
+            this.openCustomSelectModal({
+                title: t('setting_language'),
+                options: [
+                    { value: 'de', label: 'Deutsch', subtitle: 'German' },
+                    { value: 'en', label: 'English', subtitle: 'Englisch' }
+                ],
+                currentValue: getLang(),
+                onSelect: (val) => {
+                    setLang(val);
+                    this.updateI18n();
+                }
+            });
+        });
+
+        document.getElementById('btnTimePicker')?.addEventListener('click', () => {
+            this.openCustomTimePickerModal(this.reminderTime, (newTime) => {
+                this.setReminderTime(newTime);
+                this.updateMenuSettings();
+            });
+        });
+
+        document.getElementById('btnCloseCustomSelect')?.addEventListener('click', () => {
+            this.toggleModal('customSelectModal', false);
+        });
+
+        // Freies Spiel Trigger Buttons
+        document.getElementById('btnFreePlaySizePicker')?.addEventListener('click', () => {
+            this.openCustomSelectModal({
+                title: t('free_size'),
+                options: [
+                    { value: 4, label: t('free_size_4'), subtitle: '4 × 4 Gitter' },
+                    { value: 6, label: t('free_size_6'), subtitle: '6 × 6 Gitter' },
+                    { value: 8, label: t('free_size_8'), subtitle: '8 × 8 Gitter' },
+                    { value: 10, label: t('free_size_10'), subtitle: '10 × 10 Gitter' }
+                ],
+                currentValue: this.freePlaySize,
+                onSelect: (val) => {
+                    this.freePlaySize = val;
+                    this.updateFreePlayLabels();
+                }
+            });
+        });
+
+        document.getElementById('btnFreePlayDiffPicker')?.addEventListener('click', () => {
+            this.openCustomSelectModal({
+                title: t('free_diff'),
+                options: [
+                    { value: 'easy', label: t('free_diff_easy'), subtitle: 'Für Einsteiger' },
+                    { value: 'medium', label: t('free_diff_medium'), subtitle: 'Standard-Herausforderung' },
+                    { value: 'hard', label: t('free_diff_hard'), subtitle: 'Für Fortgeschrittene' }
+                ],
+                currentValue: this.freePlayDiff,
+                onSelect: (val) => {
+                    this.freePlayDiff = val;
+                    this.updateFreePlayLabels();
+                }
+            });
+        });
+
         document.getElementById('settingSoundToggle')?.addEventListener('change', (e) => audio.setSound(e.target.checked));
         document.getElementById('settingVibrationToggle')?.addEventListener('change', (e) => audio.setVibration(e.target.checked));
-        document.getElementById('settingVibStrengthSelect')?.addEventListener('change', (e) => audio.setVibrationStrength(e.target.value));
         document.getElementById('settingAutoCheckToggle')?.addEventListener('change', (e) => {
             this.autoCheck = e.target.checked;
             localStorage.setItem('tango_auto_check', this.autoCheck);
             this.renderGrid();
         });
-        document.getElementById('settingLanguageSelect')?.addEventListener('change', (e) => {
-            setLang(e.target.value);
-            this.updateI18n();
-        });
         document.getElementById('settingReminderToggle')?.addEventListener('change', (e) => {
             this.setReminderEnabled(e.target.checked);
-        });
-        document.getElementById('settingReminderTimeInput')?.addEventListener('change', (e) => {
-            this.setReminderTime(e.target.value);
         });
         document.getElementById('btnPlayDailyFromReminder')?.addEventListener('click', () => {
             this.dismissReminderBanner();
@@ -3532,15 +3649,33 @@ class TangoApp {
         }
     }
 
+    updateFreePlayLabels() {
+        const sizeLabels = {
+            4: t('free_size_4'),
+            6: t('free_size_6'),
+            8: t('free_size_8'),
+            10: t('free_size_10')
+        };
+        const diffLabels = {
+            'easy': t('free_diff_easy'),
+            'medium': t('free_diff_medium'),
+            'hard': t('free_diff_hard')
+        };
+        const lblSize = document.getElementById('lblFreePlaySizeValue');
+        if (lblSize) lblSize.textContent = sizeLabels[this.freePlaySize] || `${this.freePlaySize} × ${this.freePlaySize}`;
+
+        const lblDiff = document.getElementById('lblFreePlayDiffValue');
+        if (lblDiff) lblDiff.textContent = diffLabels[this.freePlayDiff] || this.freePlayDiff;
+    }
+
     openFreePlayModal() {
+        this.updateFreePlayLabels();
         this.toggleModal('freePlayModal', true);
         const btnStart = document.getElementById('btnStartFreePlay');
         if (btnStart) {
             btnStart.onclick = () => {
-                const size = parseInt(document.getElementById('freePlaySizeSelect').value, 10);
-                const diff = document.getElementById('freePlayDiffSelect').value;
                 this.toggleModal('freePlayModal', false);
-                this.startFreePlay(size, diff);
+                this.startFreePlay(this.freePlaySize, this.freePlayDiff);
             };
         }
         const btnClose = document.getElementById('btnCloseFreePlay');
@@ -3549,35 +3684,124 @@ class TangoApp {
         }
     }
 
+    openCustomSelectModal({ title, options, currentValue, onSelect }) {
+        const titleEl = document.getElementById('customSelectTitle');
+        const listEl = document.getElementById('customSelectOptionsList');
+        if (titleEl) titleEl.textContent = title;
+        if (!listEl) return;
+
+        listEl.innerHTML = '';
+        options.forEach(opt => {
+            const item = document.createElement('div');
+            item.className = 'custom-select-item';
+            if (opt.value === currentValue) item.classList.add('selected');
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'select-item-content';
+
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'select-item-title';
+            titleDiv.textContent = opt.label;
+            contentDiv.appendChild(titleDiv);
+
+            if (opt.subtitle) {
+                const subDiv = document.createElement('div');
+                subDiv.className = 'select-item-subtitle';
+                subDiv.textContent = opt.subtitle;
+                contentDiv.appendChild(subDiv);
+            }
+
+            const radioDiv = document.createElement('div');
+            radioDiv.className = 'select-item-radio';
+            const dotDiv = document.createElement('div');
+            dotDiv.className = 'radio-dot';
+            radioDiv.appendChild(dotDiv);
+
+            item.appendChild(contentDiv);
+            item.appendChild(radioDiv);
+
+            item.addEventListener('click', () => {
+                audio.vibrate(25);
+                audio.playClear();
+                this.toggleModal('customSelectModal', false);
+                if (typeof onSelect === 'function') {
+                    onSelect(opt.value);
+                }
+            });
+            listEl.appendChild(item);
+        });
+
+        this.toggleModal('customSelectModal', true);
+    }
+
+    openCustomTimePickerModal(currentTimeStr, onSave) {
+        let [h, m] = (currentTimeStr || '09:30').split(':').map(Number);
+        if (isNaN(h)) h = 9;
+        if (isNaN(m)) m = 30;
+
+        const updateDisplay = () => {
+            const hStr = h.toString().padStart(2, '0');
+            const mStr = m.toString().padStart(2, '0');
+            const hDisplay = document.getElementById('timeHourDisplay');
+            const mDisplay = document.getElementById('timeMinuteDisplay');
+            if (hDisplay) hDisplay.textContent = hStr;
+            if (mDisplay) mDisplay.textContent = mStr;
+
+            const fullTime = `${hStr}:${mStr}`;
+            document.querySelectorAll('.time-preset-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.time === fullTime);
+            });
+        };
+
+        const hourUp = document.getElementById('btnHourUp');
+        const hourDown = document.getElementById('btnHourDown');
+        const minUp = document.getElementById('btnMinuteUp');
+        const minDown = document.getElementById('btnMinuteDown');
+
+        if (hourUp) hourUp.onclick = () => { h = (h + 1) % 24; audio.vibrate(20); updateDisplay(); };
+        if (hourDown) hourDown.onclick = () => { h = (h - 1 + 24) % 24; audio.vibrate(20); updateDisplay(); };
+        if (minUp) minUp.onclick = () => { m = (m + 5) % 60; audio.vibrate(20); updateDisplay(); };
+        if (minDown) minDown.onclick = () => { m = (m - 5 + 60) % 60; audio.vibrate(20); updateDisplay(); };
+
+        document.querySelectorAll('.time-preset-btn').forEach(btn => {
+            btn.onclick = () => {
+                const parts = btn.dataset.time.split(':').map(Number);
+                h = parts[0];
+                m = parts[1];
+                audio.vibrate(25);
+                updateDisplay();
+            };
+        });
+
+        const btnSave = document.getElementById('btnSaveTimePicker');
+        if (btnSave) {
+            btnSave.onclick = () => {
+                audio.vibrate(30);
+                const hStr = h.toString().padStart(2, '0');
+                const mStr = m.toString().padStart(2, '0');
+                const finalTime = `${hStr}:${mStr}`;
+                this.toggleModal('customTimePickerModal', false);
+                if (typeof onSave === 'function') {
+                    onSave(finalTime);
+                }
+            };
+        }
+
+        const btnCancel = document.getElementById('btnCancelTimePicker');
+        if (btnCancel) {
+            btnCancel.onclick = () => this.toggleModal('customTimePickerModal', false);
+        }
+        const btnClose = document.getElementById('btnCloseTimePicker');
+        if (btnClose) {
+            btnClose.onclick = () => this.toggleModal('customTimePickerModal', false);
+        }
+
+        updateDisplay();
+        this.toggleModal('customTimePickerModal', true);
+    }
+
     openSettingsModal() {
-        const themeSel = document.getElementById('settingThemeSelect');
-        if (themeSel) themeSel.value = this.currentTheme;
-
-        const sndToggle = document.getElementById('settingSoundToggle');
-        if (sndToggle) sndToggle.checked = audio.enabled;
-
-        const vibToggle = document.getElementById('settingVibrationToggle');
-        if (vibToggle) vibToggle.checked = audio.vibrationEnabled;
-
-        const vibStrengthSel = document.getElementById('settingVibStrengthSelect');
-        if (vibStrengthSel) vibStrengthSel.value = audio.vibrationStrength;
-
-        const chkToggle = document.getElementById('settingAutoCheckToggle');
-        if (chkToggle) chkToggle.checked = this.autoCheck;
-
-        const langSel = document.getElementById('settingLanguageSelect');
-        if (langSel) langSel.value = getLang();
-
-        const remToggle = document.getElementById('settingReminderToggle');
-        if (remToggle) remToggle.checked = this.reminderEnabled;
-
-        const remTimeInput = document.getElementById('settingReminderTimeInput');
-        if (remTimeInput) remTimeInput.value = this.reminderTime;
-
-        const remTimeRow = document.getElementById('settingReminderTimeRow');
-        if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';
-
-        this.toggleModal('settingsModal', true);
+        this.openMenuTab('settings');
     }
 
     openStatsModal() {
@@ -3714,8 +3938,30 @@ class TangoApp {
     }
 
     updateMenuSettings() {
-        const themeSel = document.getElementById('settingThemeSelect');
-        if (themeSel) themeSel.value = this.currentTheme;
+        const themeLabels = {
+            'dark': t('setting_theme_dark'),
+            'amoled': t('setting_theme_amoled'),
+            'light': t('setting_theme_light'),
+            'wood': t('setting_theme_wood'),
+            'cyberpunk': t('setting_theme_cyberpunk')
+        };
+        const lblTheme = document.getElementById('lblThemeValue');
+        if (lblTheme) lblTheme.textContent = themeLabels[this.currentTheme] || this.currentTheme;
+
+        const vibLabels = {
+            'medium': t('setting_vib_medium'),
+            'strong': t('setting_vib_strong'),
+            'ultra': t('setting_vib_ultra'),
+            'soft': t('setting_vib_soft')
+        };
+        const lblVib = document.getElementById('lblVibValue');
+        if (lblVib) lblVib.textContent = vibLabels[audio.vibrationStrength] || audio.vibrationStrength;
+
+        const lblLang = document.getElementById('lblLangValue');
+        if (lblLang) lblLang.textContent = getLang() === 'de' ? 'Deutsch' : 'English';
+
+        const lblTime = document.getElementById('lblTimeValue');
+        if (lblTime) lblTime.textContent = this.reminderTime;
 
         const sndToggle = document.getElementById('settingSoundToggle');
         if (sndToggle) sndToggle.checked = audio.enabled;
@@ -3723,20 +3969,11 @@ class TangoApp {
         const vibToggle = document.getElementById('settingVibrationToggle');
         if (vibToggle) vibToggle.checked = audio.vibrationEnabled;
 
-        const vibStrengthSel = document.getElementById('settingVibStrengthSelect');
-        if (vibStrengthSel) vibStrengthSel.value = audio.vibrationStrength;
-
         const chkToggle = document.getElementById('settingAutoCheckToggle');
         if (chkToggle) chkToggle.checked = this.autoCheck;
 
-        const langSel = document.getElementById('settingLanguageSelect');
-        if (langSel) langSel.value = getLang();
-
         const remToggle = document.getElementById('settingReminderToggle');
         if (remToggle) remToggle.checked = this.reminderEnabled;
-
-        const remTimeInput = document.getElementById('settingReminderTimeInput');
-        if (remTimeInput) remTimeInput.value = this.reminderTime;
 
         const remTimeRow = document.getElementById('settingReminderTimeRow');
         if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';

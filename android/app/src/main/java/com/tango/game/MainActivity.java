@@ -8,6 +8,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
@@ -20,8 +21,12 @@ import java.util.Calendar;
 
 public class MainActivity extends Activity {
     private WebView webView;
-    private static final String CHANNEL_ID = "tango_daily_reminder";
-    private static final int NOTIFICATION_ID = 1001;
+    public static final String CHANNEL_ID = "tango_daily_reminder";
+    public static final int NOTIFICATION_ID = 1001;
+    public static final String PREFS_NAME = "tango_alarm_prefs";
+    public static final String KEY_HOUR = "reminder_hour";
+    public static final String KEY_MINUTE = "reminder_minute";
+    public static final String KEY_ENABLED = "reminder_enabled";
 
     public class NotificationBridge {
         @JavascriptInterface
@@ -36,12 +41,12 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void scheduleDailyReminder(int hour, int minute) {
-            scheduleAlarm(hour, minute);
+            scheduleExactDailyAlarm(MainActivity.this, hour, minute);
         }
 
         @JavascriptInterface
         public void cancelDailyReminder() {
-            cancelAlarm();
+            cancelExactDailyAlarm(MainActivity.this);
         }
 
         @JavascriptInterface
@@ -97,23 +102,28 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void createNotificationChannel() {
+    public static void createNotificationChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             CharSequence name = "Tango Tagesrätsel";
             String description = "Tägliche Erinnerung für das Tango Logikrätsel";
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
+            int importance = NotificationManager.IMPORTANCE_HIGH;
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
             channel.setDescription(description);
-            NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            channel.enableVibration(true);
+            NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (notificationManager != null) {
                 notificationManager.createNotificationChannel(channel);
             }
         }
     }
 
+    private void createNotificationChannel() {
+        createNotificationChannel(this);
+    }
+
     private void sendNativeNotification(String title, String message) {
         try {
-            createNotificationChannel();
+            createNotificationChannel(this);
 
             Intent intent = new Intent(this, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -145,15 +155,25 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void scheduleAlarm(int hour, int minute) {
+    public static void scheduleExactDailyAlarm(Context context, int hour, int minute) {
         try {
-            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-            Intent intent = new Intent(this, NotificationReceiver.class);
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) return;
+
+            // In SharedPreferences persistieren für Rescheduling im Receiver
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            prefs.edit()
+                 .putInt(KEY_HOUR, hour)
+                 .putInt(KEY_MINUTE, minute)
+                 .putBoolean(KEY_ENABLED, true)
+                 .apply();
+
+            Intent intent = new Intent(context, NotificationReceiver.class);
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 flags |= PendingIntent.FLAG_IMMUTABLE;
             }
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, flags);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, flags);
 
             Calendar calendar = Calendar.getInstance();
             calendar.set(Calendar.HOUR_OF_DAY, hour);
@@ -161,27 +181,41 @@ public class MainActivity extends Activity {
             calendar.set(Calendar.SECOND, 0);
             calendar.set(Calendar.MILLISECOND, 0);
 
+            // Liegt die Zeit heute bereits in der Vergangenheit, dann für morgen ansetzen
             if (calendar.getTimeInMillis() <= System.currentTimeMillis()) {
                 calendar.add(Calendar.DAY_OF_YEAR, 1);
             }
 
-            if (alarmManager != null) {
-                alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), AlarmManager.INTERVAL_DAY, pendingIntent);
+            long triggerAtMillis = calendar.getTimeInMillis();
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                Intent showIntent = new Intent(context, MainActivity.class);
+                showIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                PendingIntent showPendingIntent = PendingIntent.getActivity(context, 0, showIntent, flags);
+                AlarmManager.AlarmClockInfo clockInfo = new AlarmManager.AlarmClockInfo(triggerAtMillis, showPendingIntent);
+                alarmManager.setAlarmClock(clockInfo, pendingIntent);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
+            } else {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void cancelAlarm() {
+    public static void cancelExactDailyAlarm(Context context) {
         try {
-            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-            Intent intent = new Intent(this, NotificationReceiver.class);
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            prefs.edit().putBoolean(KEY_ENABLED, false).apply();
+
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            Intent intent = new Intent(context, NotificationReceiver.class);
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 flags |= PendingIntent.FLAG_IMMUTABLE;
             }
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, flags);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, flags);
             if (alarmManager != null) {
                 alarmManager.cancel(pendingIntent);
             }

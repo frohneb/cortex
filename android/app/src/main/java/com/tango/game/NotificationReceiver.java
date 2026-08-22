@@ -1,21 +1,21 @@
 package com.tango.game;
 
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 
 public class NotificationReceiver extends BroadcastReceiver {
-    public static final String CHANNEL_ID = "tango_daily_reminder";
-    public static final int NOTIFICATION_ID = 1001;
+    public static final String CHANNEL_ID = MainActivity.CHANNEL_ID;
+    public static final int NOTIFICATION_ID = MainActivity.NOTIFICATION_ID;
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        createNotificationChannel(context);
+        MainActivity.createNotificationChannel(context);
 
         Intent openIntent = new Intent(context, MainActivity.class);
         openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -43,19 +43,18 @@ public class NotificationReceiver extends BroadcastReceiver {
         if (manager != null) {
             manager.notify(NOTIFICATION_ID, builder.build());
         }
-    }
 
-    public static void createNotificationChannel(Context context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = "Tango Tagesrätsel";
-            String description = "Tägliche Erinnerung für das Tango Logikrätsel";
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
-            channel.setDescription(description);
-            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
+        // Automatisch den nächsten Tag exakt neu terminieren
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+            boolean enabled = prefs.getBoolean(MainActivity.KEY_ENABLED, true);
+            if (enabled) {
+                int hour = prefs.getInt(MainActivity.KEY_HOUR, 9);
+                int minute = prefs.getInt(MainActivity.KEY_MINUTE, 30);
+                MainActivity.scheduleExactDailyAlarm(context, hour, minute);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

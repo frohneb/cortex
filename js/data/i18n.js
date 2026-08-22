@@ -161,6 +161,7 @@ export const translations = {
         stats_reset_btn: "Statistik zurücksetzen",
         confirm_title: "Sicherheitsabfrage",
         btn_cancel: "Abbrechen",
+        btn_save: "Speichern",
         btn_confirm_reset: "Zurücksetzen",
         campaign_desc: "120 handgefertigte Logikrätsel",
         chapter_1: "Teil 1",
@@ -168,7 +169,16 @@ export const translations = {
         chapter_3: "Teil 3",
         chapter_4: "Teil 4",
         daily_desc: "Jeden Tag eine neue Herausforderung",
-        free_desc: "4×4 bis 10×10, beliebige Stufe"
+        free_desc: "4×4 bis 10×10, beliebige Stufe",
+        free_size: "Gittergröße",
+        free_diff: "Schwierigkeitsgrad",
+        free_size_4: "4 × 4 (Schnell)",
+        free_size_6: "6 × 6 (Klassisch)",
+        free_size_8: "8 × 8 (Groß)",
+        free_size_10: "10 × 10 (Gigant)",
+        free_diff_easy: "Einfach",
+        free_diff_medium: "Mittel",
+        free_diff_hard: "Schwer"
     },
     en: {
         app_title: "Tango Logic Puzzle",
@@ -308,6 +318,7 @@ export const translations = {
         stats_reset_btn: "Reset Statistics",
         confirm_title: "Confirmation",
         btn_cancel: "Cancel",
+        btn_save: "Save",
         btn_confirm_reset: "Reset",
         campaign_desc: "120 handcrafted logic puzzles",
         chapter_1: "Part 1",
@@ -315,7 +326,16 @@ export const translations = {
         chapter_3: "Part 3",
         chapter_4: "Part 4",
         daily_desc: "A fresh challenge every single day",
-        free_desc: "4×4 to 10×10, custom difficulty"
+        free_desc: "4×4 to 10×10, custom difficulty",
+        free_size: "Grid Size",
+        free_diff: "Difficulty",
+        free_size_4: "4 × 4 (Fast)",
+        free_size_6: "6 × 6 (Classic)",
+        free_size_8: "8 × 8 (Large)",
+        free_size_10: "10 × 10 (Giant)",
+        free_diff_easy: "Easy",
+        free_diff_medium: "Medium",
+        free_diff_hard: "Hard"
     }
 };
 

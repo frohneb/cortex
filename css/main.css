@@ -1628,6 +1628,284 @@ input:checked + .slider:before {
     font-weight: 700;
 }
 
+/* ============================================================
+   CUSTOM THEMED SELECT & TIME PICKER BUTTONS & MODALS
+   ============================================================ */
 
+/* Trigger Buttons im Settings-Bereich */
+.custom-select-btn, .custom-time-btn {
+    background: var(--cell-bg);
+    border: 1.5px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.92rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    min-width: 140px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
 
+.custom-select-btn:hover, .custom-time-btn:hover {
+    border-color: var(--accent-sun);
+    background: rgba(255, 255, 255, 0.04);
+}
 
+.custom-select-btn:active, .custom-time-btn:active {
+    transform: scale(0.97);
+    border-color: var(--accent-sun);
+}
+
+.custom-select-btn .select-btn-label, .custom-time-btn .time-btn-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.custom-select-btn .select-btn-chevron {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    transition: transform 0.2s ease;
+}
+
+.custom-time-btn .time-btn-icon {
+    font-size: 1rem;
+    opacity: 0.9;
+}
+
+/* Custom Select Modal (Themed Options List) */
+.custom-picker-card {
+    max-width: 360px;
+    width: 92%;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+.custom-select-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 14px 0 6px 0;
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.custom-select-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--cell-bg);
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-primary);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.custom-select-item:hover {
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.custom-select-item:active {
+    transform: scale(0.98);
+}
+
+.custom-select-item.selected {
+    border-color: var(--accent-sun);
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--accent-sun);
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.2);
+}
+
+.select-item-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+
+.select-item-title {
+    font-size: 0.96rem;
+    font-weight: 700;
+}
+
+.select-item-subtitle {
+    font-size: 0.78rem;
+    opacity: 0.7;
+    color: var(--text-secondary);
+}
+
+.select-item-radio {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: 12px;
+    transition: all 0.2s ease;
+}
+
+.custom-select-item.selected .select-item-radio {
+    border-color: var(--accent-sun);
+    background: var(--accent-sun);
+}
+
+.select-item-radio .radio-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #0f172a;
+    display: none;
+}
+
+.custom-select-item.selected .select-item-radio .radio-dot {
+    display: block;
+}
+
+/* Custom Time Picker Modal */
+.custom-time-card {
+    max-width: 340px;
+    width: 92%;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+.time-picker-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 12px 0 16px 0;
+}
+
+.time-spinner-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.time-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.time-step-btn {
+    background: var(--cell-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    width: 54px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.time-step-btn:hover {
+    border-color: var(--accent-sun);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.time-step-btn:active {
+    transform: scale(0.92);
+    background: var(--accent-sun);
+    color: #0f172a;
+}
+
+.time-digit-display {
+    font-size: 2.2rem;
+    font-weight: 800;
+    font-family: 'Courier New', Courier, monospace, system-ui;
+    color: var(--accent-sun);
+    background: var(--cell-bg);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    min-width: 60px;
+    text-align: center;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+    letter-spacing: 2px;
+}
+
+.time-col-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.time-colon {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: var(--accent-sun);
+    margin-bottom: 22px;
+    animation: pulseColon 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseColon {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.95); }
+}
+
+.time-presets-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+}
+
+.time-preset-btn {
+    background: var(--cell-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 4px;
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.time-preset-btn:hover {
+    border-color: var(--accent-sun);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.time-preset-btn.active, .time-preset-btn:active {
+    border-color: var(--accent-sun);
+    color: var(--accent-sun);
+    background: rgba(245, 158, 11, 0.15);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
