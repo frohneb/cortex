@@ -1289,6 +1289,7 @@ const translations = {
         btn_reveal_solution: "Lösung aufdecken",
         reveal_defeat_title: "Rätsel aufgegeben",
         reveal_defeat_msg: "Die Lösung wurde hinterlegt und Fehler wurden rot markiert. Das nächste Level bleibt gesperrt und in deiner Statistik wurde eine Niederlage verbucht.",
+        reveal_banner_hint: "Lösung wird angezeigt. Tippe auf Weiter oder das Gitter zum Fortfahren.",
         btn_retry_level: "Level wiederholen",
         error_title: "Regelverstoß",
         victory_title: "Glückwunsch!",
@@ -1454,6 +1455,7 @@ const translations = {
         btn_reveal_solution: "Reveal Solution",
         reveal_defeat_title: "Puzzle Surrendered",
         reveal_defeat_msg: "The solution has been revealed and mistakes highlighted in red. The next level remains locked and a defeat has been recorded in your statistics.",
+        reveal_banner_hint: "Solution displayed. Tap Continue or the grid to proceed.",
         btn_retry_level: "Retry Level",
         error_title: "Rule Violation",
         victory_title: "Congratulations!",
@@ -2731,6 +2733,7 @@ class TangoApp {
         // Sicherheitsabfrage & Lösungsaufdeckung Listener
         document.getElementById('btnCancelReveal')?.addEventListener('click', () => this.toggleModal('confirmRevealModal', false));
         document.getElementById('btnConfirmReveal')?.addEventListener('click', () => this.revealSolutionAndSurrender());
+        document.getElementById('btnProceedToDefeatModal')?.addEventListener('click', () => this.openSolutionRevealedModal());
         document.getElementById('btnRevealRestart')?.addEventListener('click', () => {
             this.toggleModal('solutionRevealedModal', false);
             this.restartCurrentPuzzle();
@@ -2955,6 +2958,7 @@ class TangoApp {
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
+        this.hideSolutionBanner();
         this.isGameActive = true;
         this.startTimer();
 
@@ -2992,6 +2996,7 @@ class TangoApp {
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
+        this.hideSolutionBanner();
         this.isGameActive = true;
         this.startTimer();
 
@@ -3026,6 +3031,7 @@ class TangoApp {
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
+        this.hideSolutionBanner();
         this.isGameActive = true;
         this.startTimer();
 
@@ -3047,6 +3053,7 @@ class TangoApp {
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
+        this.hideSolutionBanner();
         this.isGameActive = true;
         this.startTimer();
 
@@ -3067,6 +3074,7 @@ class TangoApp {
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
+        this.hideSolutionBanner();
         this.isGameActive = true;
         this.startTimer();
 
@@ -3090,6 +3098,7 @@ class TangoApp {
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
+        this.hideSolutionBanner();
         this.isGameActive = true;
         this.startTimer();
         this.renderGrid();
@@ -3310,6 +3319,11 @@ class TangoApp {
     }
 
     handleCellClick(r, c, e) {
+        if (this.solutionRevealed) {
+            this.openSolutionRevealedModal();
+            return;
+        }
+
         if (Date.now() < this.ignoreClickUntil) {
             if (e) {
                 e.preventDefault();
@@ -3449,6 +3463,11 @@ class TangoApp {
         }
     }
 
+    hideSolutionBanner() {
+        const banner = document.getElementById('solutionRevealedBanner');
+        if (banner) banner.style.display = 'none';
+    }
+
     revealSolutionAndSurrender() {
         this.toggleModal('confirmRevealModal', false);
         this.isGameActive = false;
@@ -3464,6 +3483,14 @@ class TangoApp {
         // Rendere das Spielfeld mit visualisierten Fehlern und hinterlegter Lösung
         this.renderGrid();
 
+        // Zeige den Lösungs-Banner im Spielfeld an (Spieler kann die Lösung in Ruhe ansehen)
+        const banner = document.getElementById('solutionRevealedBanner');
+        if (banner) banner.style.display = 'flex';
+    }
+
+    openSolutionRevealedModal() {
+        this.hideSolutionBanner();
+
         const mins = Math.floor(this.secondsElapsed / 60).toString().padStart(2, '0');
         const secs = (this.secondsElapsed % 60).toString().padStart(2, '0');
         const revealTimeEl = document.getElementById('revealTime');
@@ -3471,9 +3498,7 @@ class TangoApp {
         if (revealTimeEl) revealTimeEl.textContent = `${mins}:${secs}`;
         if (revealMovesEl) revealMovesEl.textContent = this.movesCount;
 
-        setTimeout(() => {
-            this.toggleModal('solutionRevealedModal', true);
-        }, 300);
+        this.toggleModal('solutionRevealedModal', true);
     }
 
     checkCompletion() {

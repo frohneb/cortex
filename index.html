@@ -51,6 +51,18 @@
             </div>
         </div>
 
+        <!-- Lösungs-Aufdeckungs Banner (erscheint wenn das Rätsel aufgegeben und die Lösung visualisiert wurde) -->
+        <div id="solutionRevealedBanner" class="solution-revealed-banner" style="display: none;">
+            <div class="revealed-banner-content">
+                <span class="revealed-banner-icon">💡</span>
+                <div class="revealed-banner-text">
+                    <strong data-i18n="reveal_defeat_title">Rätsel aufgegeben</strong>
+                    <span data-i18n="reveal_banner_hint">Lösung wird angezeigt. Tippe auf Weiter oder das Gitter zum Fortfahren.</span>
+                </div>
+            </div>
+            <button id="btnProceedToDefeatModal" class="primary-btn btn-sm" data-i18n="btn_continue">Weiter</button>
+        </div>
+
         <!-- Tutorial Banner (nur im Tutorial aktiv) -->
         <div id="tutorialBanner" class="tutorial-banner">
             <h3 id="tutTitle">1. Sonne ☀️ & Mond 🌙</h3>
