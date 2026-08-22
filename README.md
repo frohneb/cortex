@@ -1,7 +1,7 @@
 # Tango – Logikrätsel für Android & Web (Werbefrei & 100% Offline)
 
 [![Version](https://img.shields.io/badge/Version-1.1.2-brightgreen.svg)](https://github.com/frohneb/tango)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
 
@@ -79,5 +79,5 @@ Die fertige Datei liegt anschließend als **`Tango.apk`** im Hauptverzeichnis vo
 ---
 
 ## 📄 Lizenz
-
-Dieses Projekt ist unter der [MIT License](LICENSE) lizenziert.
+ 
+Dieses Projekt ist unter der [GNU General Public License v3.0 (GPLv3)](LICENSE) lizenziert.
