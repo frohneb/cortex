@@ -7,6 +7,7 @@ import { EMPTY, SUN, MOON, EDGE_NONE, EDGE_EQUAL, EDGE_OPPOSITE, TangoEngine } f
 import { TangoSolver } from '../core/solver.js';
 import { TUTORIAL_STEPS } from '../data/tutorial.js';
 import { TUTORIAL_PRO_STEPS } from '../data/tutorial_pro.js';
+import { TUTORIAL_PATTERNS_STEPS } from '../data/tutorial_patterns.js';
 import { getCampaignLevel, getDailyPuzzle } from '../data/levels.js';
 import { t, setLang, getLang } from '../data/i18n.js';
 import { audio } from './audio.js';
@@ -237,6 +238,10 @@ export class TangoApp {
             this.toggleModal('menuModal', false);
             this.startTutorialPro(0);
         });
+        document.getElementById('navTutorialPatterns')?.addEventListener('click', () => {
+            this.toggleModal('menuModal', false);
+            this.startTutorialPatterns(0);
+        });
         document.getElementById('navCampaign').addEventListener('click', () => {
             this.toggleModal('menuModal', false);
             this.openLevelSelectModal();
@@ -273,6 +278,12 @@ export class TangoApp {
             } else if (this.currentMode === 'tutorial_pro') {
                 if (this.tutorialStepIndex + 1 < TUTORIAL_PRO_STEPS.length) {
                     this.startTutorialPro(this.tutorialStepIndex + 1);
+                } else {
+                    this.startTutorialPatterns(0);
+                }
+            } else if (this.currentMode === 'tutorial_patterns') {
+                if (this.tutorialStepIndex + 1 < TUTORIAL_PATTERNS_STEPS.length) {
+                    this.startTutorialPatterns(this.tutorialStepIndex + 1);
                 } else {
                     this.startCampaignLevel(0);
                 }
@@ -546,7 +557,7 @@ export class TangoApp {
             if (mathBadge) mathBadge.style.display = 'none';
             document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         }
-        document.getElementById('levelTitle').textContent = `Tutorial ${stepIndex + 1}/${TUTORIAL_STEPS.length}`;
+        document.getElementById('levelTitle').textContent = `Grundlagen ${stepIndex + 1}/${TUTORIAL_STEPS.length}`;
 
         this.renderGrid();
         this.updateKeypadVisibility();
@@ -586,7 +597,47 @@ export class TangoApp {
             }
             document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         }
-        document.getElementById('levelTitle').textContent = `Tutorial Pro ${stepIndex + 1}/${TUTORIAL_PRO_STEPS.length}`;
+        document.getElementById('levelTitle').textContent = `Mathematik ${stepIndex + 1}/${TUTORIAL_PRO_STEPS.length}`;
+
+        this.renderGrid();
+        this.updateKeypadVisibility();
+    }
+
+    startTutorialPatterns(stepIndex = 0) {
+        this.currentMode = 'tutorial_patterns';
+        this.tutorialStepIndex = stepIndex;
+        const step = TUTORIAL_PATTERNS_STEPS[stepIndex];
+        
+        this.engine.loadPuzzle({
+            size: step.size,
+            initialGrid: step.initialGrid,
+            hEdges: step.hEdges,
+            vEdges: step.vEdges
+        });
+
+        this.selectedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = true;
+        this.startTimer();
+
+        this.scrollToTop();
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) {
+            tutHeader.scrollTop = 0;
+            tutHeader.style.display = 'block';
+            document.getElementById('tutTitle').textContent = step.title;
+            document.getElementById('tutSubtitle').textContent = step.subtitle;
+            const mathBadge = document.getElementById('tutMathPrinciple');
+            if (mathBadge) {
+                mathBadge.style.display = 'block';
+                mathBadge.textContent = step.mathPrinciple;
+            }
+            document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+        document.getElementById('levelTitle').textContent = `Muster ${stepIndex + 1}/${TUTORIAL_PATTERNS_STEPS.length}`;
 
         this.renderGrid();
         this.updateKeypadVisibility();
@@ -789,7 +840,7 @@ export class TangoApp {
                     cellEl.innerHTML = `<span class="icon-moon">${getMoonSvg('cell-moon')}</span>`;
                 } else {
                     // Marker für Tutorial-Zielzellen
-                    const tutStep = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS[this.tutorialStepIndex] : (this.currentMode === 'tutorial_pro' ? TUTORIAL_PRO_STEPS[this.tutorialStepIndex] : null);
+                    const tutStep = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS[this.tutorialStepIndex] : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS[this.tutorialStepIndex] : ((this.currentMode === 'tutorial_patterns') ? TUTORIAL_PATTERNS_STEPS[this.tutorialStepIndex] : null));
                     const targetCellInfo = (tutStep && tutStep.targetCells) ? tutStep.targetCells.find(t => t.r === r && t.c === c) : null;
                     if (targetCellInfo) {
                         cellEl.classList.add('tutorial-target');
@@ -1097,8 +1148,8 @@ export class TangoApp {
     }
 
     checkCompletion() {
-        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro') {
-            const steps = this.currentMode === 'tutorial' ? TUTORIAL_STEPS : TUTORIAL_PRO_STEPS;
+        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
+            const steps = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS : TUTORIAL_PATTERNS_STEPS);
             const step = steps[this.tutorialStepIndex];
             let stepSuccess = true;
             if (step && step.targetCells) {
@@ -1108,6 +1159,8 @@ export class TangoApp {
                         break;
                     }
                 }
+            } else if (step && !step.targetCells) {
+                stepSuccess = this.engine.isCompleted();
             }
             if (stepSuccess) {
                 this.onLevelVictory(step.explanation || '');
@@ -1120,7 +1173,7 @@ export class TangoApp {
         }
     }
 
-    onLevelVictory() {
+    onLevelVictory(customExplanation = null) {
         this.isGameActive = false;
         this.stopTimer();
         audio.playVictory();
@@ -1144,11 +1197,11 @@ export class TangoApp {
 
         const expEl = document.getElementById('victoryExplanation');
         if (expEl) {
-            if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro') {
-                const steps = this.currentMode === 'tutorial' ? TUTORIAL_STEPS : TUTORIAL_PRO_STEPS;
+            if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
+                const steps = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS : TUTORIAL_PATTERNS_STEPS);
                 const step = steps[this.tutorialStepIndex];
-                expEl.textContent = step.explanation || '';
-                expEl.style.display = step.explanation ? 'block' : 'none';
+                expEl.textContent = customExplanation || step?.explanation || '';
+                expEl.style.display = expEl.textContent ? 'block' : 'none';
             } else {
                 expEl.style.display = 'none';
             }
@@ -1190,8 +1243,8 @@ export class TangoApp {
     }
 
     recordGameStats(won) {
-        // Tutorials und Tutorial Pro fließen nicht in die Statistik oder Bestzeiten ein
-        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro') {
+        // Tutorials fließen nicht in die Statistik oder Bestzeiten ein
+        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
             return;
         }
         try {

@@ -1244,8 +1244,9 @@ const translations = {
         nav_campaign: "Kampagne",
         nav_daily: "Tagesrätsel",
         nav_free: "Freies Spiel",
-        nav_tutorial: "Tutorial (Grundlagen)",
-        nav_tutorial_pro: "Tutorial Pro (Mathe-Tricks)",
+        nav_tutorial: "Grundlagen",
+        nav_tutorial_pro: "Mathematik",
+        nav_tutorial_patterns: "Muster",
         nav_stats: "Statistiken",
         nav_settings: "Einstellungen",
         
@@ -1422,7 +1423,9 @@ const translations = {
         nav_campaign: "Campaign",
         nav_daily: "Daily Puzzle",
         nav_free: "Free Play",
-        nav_tutorial: "Tutorial",
+        nav_tutorial: "Basics",
+        nav_tutorial_pro: "Mathematics",
+        nav_tutorial_patterns: "Patterns",
         nav_stats: "Statistics",
         nav_settings: "Settings",
         diff_beginner: "Beginner (4×4)",
@@ -1790,8 +1793,8 @@ const TUTORIAL_PRO_STEPS = [
         id: 1,
         title: "Pro 1: Das Sandwich-Prinzip (Parität)",
         subtitle: "Mathematische Dreier-Sperre in Lücken",
-        mathPrinciple: "Ausschluss durch Dreier-Verbot: ∀ x ∈ G: ¬(val(x) = val(x+1) = val(x+2))",
-        description: `**Das Prinzip**:\nWenn zwei identische Symbole ein leeres Feld umschließen (\`☀️ _ ☀️\` oder \`🌙 _ 🌙\`), MUSS dazwischen das gegenteilige Symbol stehen.\n\n**Mathematischer Beweis**:\nWürde man in die Lücke dasselbe Symbol setzen, entstünde eine Kette aus drei gleichen Symbolen (\`☀️☀️☀️\`). Da die maximale Kettenlänge laut Tango-Axiom $k_{max} = 2$ beträgt, existiert nur genau eine Belegung für die Lücke.\n\n*Übung: Vervollständige die Sandwich-Lücken in Zeile 1 und Spalte 4!*`,
+        mathPrinciple: "Ausschluss durch Dreier-Verbot: Niemals 3 gleiche Symbole in Reihe",
+        description: `**Das Prinzip**:\nWenn zwei identische Symbole ein leeres Feld umschließen (\`☀️ _ ☀️\` oder \`🌙 _ 🌙\`), MUSS dazwischen das gegenteilige Symbol stehen.\n\n**Mathematischer Beweis**:\nWürde man in die Lücke dasselbe Symbol setzen, entstünde eine Kette aus drei gleichen Symbolen (\`☀️☀️☀️\`). Da die maximale Kettenlänge laut Tango-Regeln maximal 2 beträgt, existiert nur genau eine Belegung für die Lücke.\n\n*Übung: Vervollständige die Sandwich-Lücken in Zeile 1 und Spalte 4!*`,
         size: 4,
         initialGrid: [
             [SUN, EMPTY, SUN, MOON],
@@ -1817,8 +1820,8 @@ const TUTORIAL_PRO_STEPS = [
         id: 2,
         title: "Pro 2: Die Kanten-Kaskade (Kopplungs-Logik)",
         subtitle: "Vorzeichen-Vererbung über Gleichheitsketten",
-        mathPrinciple: "Transitiver Gleichheits-Beweis: (x = y) ∧ (val(w) = A) ⇒ (val(x) = val(y) = ¬A)",
-        description: `**Das Prinzip**:\nZwei durch ein Gleichheitszeichen verbundene Felder (\`[=]\`) bilden ein gekoppeltes Paar $(x, y)$ mit $val(x) = val(y)$. Steht davor ein bekanntes Symbol $A$, MÜSSEN beide Felder das Gegenteil $\\neg A$ annehmen.\n\n**Mathematischer Beweis**:\nNähmen $x$ und $y$ den Wert $A$ an, entstünde die unzulässige 3er-Reihe $A - A - A$. Folglich gilt zwingend $val(x) = val(y) = \\neg A$.\n\n*Übung: Nutze das Gleichheitszeichen [=] in Zeile 1, um die beiden leeren Felder rechts von der Sonne auszufüllen!*`,
+        mathPrinciple: "Kanten-Kopplung: [=] nach Symbol A erzwingt Gegenteil",
+        description: `**Das Prinzip**:\nZwei durch ein Gleichheitszeichen verbundene Felder (\`[=]\`) bilden ein gekoppeltes Paar mit identischem Wert. Steht direkt davor ein bekanntes Symbol (z. B. eine Sonne ☀️), MÜSSEN beide verbundenen Felder das Gegenteil (🌙 🌙) annehmen.\n\n**Mathematischer Beweis**:\nWürden beide Felder denselben Wert wie das Nachbarfeld annehmen, entstünde eine unzulässige 3er-Reihe (☀️ ☀️ ☀️). Folglich müssen beide Felder zwingend das entgegengesetzte Symbol tragen.\n\n*Übung: Nutze das Gleichheitszeichen [=] in Zeile 1, um die beiden leeren Felder rechts von der Sonne auszufüllen!*`,
         size: 4,
         initialGrid: [
             [SUN, EMPTY, EMPTY, EMPTY],
@@ -1844,8 +1847,8 @@ const TUTORIAL_PRO_STEPS = [
         id: 3,
         title: "Pro 3: Taubenschlag-Prinzip (Zeilen-Balance)",
         subtitle: "Abzählende Zeilen- und Spaltenvollständigkeit",
-        mathPrinciple: "Summen-Schranke: ∑ ☀️ = N/2 ⟹ ∀ (r,c) ∈ EMPTY: val(r,c) = 🌙",
-        description: `**Das Prinzip**:\nIn einem $N \\times N$ Gitter enthält jede Zeile und Spalte exakt $N/2$ Sonnen und $N/2$ Monde. Sobald alle $N/2$ Sonnen platziert sind, MÜSSEN alle restlichen leeren Felder Monde sein.\n\n**Mathematischer Beweis**:\nSei $S$ die Anzahl der Sonnen in Zeile $r$. Ist $S = N/2$, verbleiben $N/2 - S = 0$ freie Kapazitäten für Sonnen. Nach dem Schubfachprinzip müssen die verbleibenden $|E|$ leeren Felder mit Monden aufgefüllt werden.\n\n*Übung: Fülle die verbleibenden Felder in Zeile 1 und Spalte 1 auf!*`,
+        mathPrinciple: "Zeilen-Balance: Summe Sonnen = N/2 ⟹ Rest = Monde",
+        description: `**Das Prinzip**:\nIn jedem Gitter enthält jede Zeile und Spalte exakt gleich viele Sonnen wie Monde (z. B. je 2 bei 4×4, je 3 bei 6×6). Sobald alle Sonnen einer Reihe platziert sind, MÜSSEN alle restlichen leeren Felder Monde sein.\n\n**Mathematischer Beweis**:\nIst das Kontingent an Sonnen für eine Zeile vollständig erschöpft, verbleiben 0 freie Kapazitäten für weitere Sonnen. Nach dem Abzähl- und Balance-Prinzip müssen alle verbleibenden leeren Felder mit Monden aufgefüllt werden.\n\n*Übung: Fülle die verbleibenden Felder in Zeile 1 und Spalte 1 auf!*`,
         size: 4,
         initialGrid: [
             [SUN, SUN, EMPTY, EMPTY],
@@ -1871,8 +1874,8 @@ const TUTORIAL_PRO_STEPS = [
         id: 4,
         title: "Pro 4: Indirekte Gegenteils-Kopplung (× Inversion)",
         subtitle: "Vorzeichenumkehr über Gegenteilskanten",
-        mathPrinciple: "Inversions-Logik: val(x) = A ∧ (x × y) ⟹ val(y) = ¬A",
-        description: `**Das Prinzip**:\nEin Gegenteilszeichen (\`[×]\`) schaltet den logischen Zustand um: $val(y) = \\neg val(x)$.\n\n**Mathematischer Beweis**:\nIn einem binären System $\\Sigma = \\{\\text{☀️}, \\text{🌙}\\}$ existieren nur zwei Zustände. Das Operator-Signal $x \\times y$ erzwingt $val(x) \\neq val(y)$. Ist $val(x) = \\text{☀️}$, folgt unausweichlich $val(y) = \\text{🌙}$.\n\n*Übung: Löse die Gegenteilskanten [×] in Zeile 1 und Spalte 2 auf!*`,
+        mathPrinciple: "Inversions-Logik: [×] schaltet Symbol um (☀️ ↔ 🌙)",
+        description: `**Das Prinzip**:\nEin Gegenteilszeichen (\`[×]\`) schaltet den logischen Zustand direkt um: Ist eine Seite bekannt, ist die andere Seite zwingend das Gegenteil.\n\n**Mathematischer Beweis**:\nIn einem binären System mit nur zwei Symbolen (☀️ und 🌙) erzwingt die Kante [×] stets unterschiedliche Werte. Ist ein Nachbar eine Sonne ☀️, folgt unausweichlich, dass der verbundene Partner ein Mond 🌙 sein muss.\n\n*Übung: Löse die Gegenteilskanten [×] in Zeile 1 und Spalte 2 auf!*`,
         size: 4,
         initialGrid: [
             [SUN, EMPTY, EMPTY, EMPTY],
@@ -1901,8 +1904,8 @@ const TUTORIAL_PRO_STEPS = [
         id: 5,
         title: "Pro 5: Ausschluss identischer Zeilen",
         subtitle: "Verhinderung von Zeilen-Duplikaten",
-        mathPrinciple: "Unizitäts-Axiom: ∀ r_1 ≠ r_2: row(r_1) ≠ row(r_2)",
-        description: `**Das Prinzip**:\nKeine zwei Zeilen dürfen vollständig identisch belegt sein. Wenn eine Belegung eine identische Zeile erzeugen würde, MUSS die alternative Belegung gewählt werden.\n\n**Mathematischer Beweis**:\nZeile 1 ist \`☀️ 🌙 ☀️ 🌙\`. Zeile 2 beginnt mit \`☀️ 🌙 _ _\`. Die Belegung \`☀️ 🌙\` für die Lücken würde Zeile 2 identisch zu Zeile 1 machen ($row(1) = row(2)$). Daher MUSS nach dem Unizitäts-Axiom die Belegung \`🌙 ☀️\` gewählt werden.\n\n*Übung: Vervollständige Zeile 2 so, dass sie NICHT identisch zu Zeile 1 wird!*`,
+        mathPrinciple: "Eindeutigkeit: Keine zwei Zeilen dürfen identisch sein",
+        description: `**Das Prinzip**:\nKeine zwei Zeilen dürfen vollständig identisch belegt sein. Wenn eine Belegung eine identische Zeile erzeugen würde, MUSS die alternative Belegung gewählt werden.\n\n**Mathematischer Beweis**:\nZeile 1 ist \`☀️ 🌙 ☀️ 🌙\`. Zeile 2 beginnt mit \`☀️ 🌙 _ _\`. Die Belegung \`☀️ 🌙\` für die Lücken würde Zeile 2 identisch zu Zeile 1 machen (Zeile 1 = Zeile 2). Daher MUSS nach der Eindeutigkeits-Regel die Belegung \`🌙 ☀️\` gewählt werden.\n\n*Übung: Vervollständige Zeile 2 so, dass sie NICHT identisch zu Zeile 1 wird!*`,
         size: 4,
         initialGrid: [
             [SUN, MOON, SUN, MOON],
@@ -1931,7 +1934,7 @@ const TUTORIAL_PRO_STEPS = [
         id: 6,
         title: "Pro 6: Das Rand-Doppel-Prinzip",
         subtitle: "Doppelseitige Klammerung von Pärchen",
-        mathPrinciple: "Rand-Einschluss: val(x) = val(x+1) ⟹ val(x-1) = val(x+2) = ¬val(x)",
+        mathPrinciple: "Rand-Einschluss: Pärchen [☀️☀️] wird von [🌙] eingeklammert",
         description: `**Das Prinzip**:\nWenn zwei gleiche Symbole nebeneinander stehen (\`_ ☀️ ☀️ _\`), MÜSSEN BEIDE Außenfelder das Gegenteil sein (\`🌙 ☀️ ☀️ 🌙\`).\n\n**Mathematischer Beweis**:\nWürde eines der Außenfelder auch eine Sonne \`☀️\` sein, entstünde sofort die verbotene 3er-Kette \`☀️ ☀️ ☀️\`. Folglich müssen BEIDE Außenpositionen zwingend Monde \`🌙\` sein.\n\n*Übung: Klammere das Sonnen-Paar in Zeile 1 mit Monden ein!*`,
         size: 4,
         initialGrid: [
@@ -1961,8 +1964,8 @@ const TUTORIAL_PRO_STEPS = [
         id: 7,
         title: "Pro 7: Das Paritäts-Trippel (2-aus-3 Logik)",
         subtitle: "Gegenteils-Kanten als Zähleinheit",
-        mathPrinciple: "(x × y) ⟹ val(x) + val(y) = 1 ⟹ Restliches Feld z = ¬A",
-        description: `**Das Prinzip**:\nZwei durch \`[×]\` verbundene Felder enthalten garantiert genau 1 Sonne und 1 Mond. Steht vor dem Paar eine Sonne \`☀️\`, ist für die Zeile bereits die 2. Sonne verbraucht — das 4. Feld MUSS ein Mond \`🌙\` sein!\n\n**Mathematischer Beweis**:\nDie \`[×]\`-Kante erzwingt $val(1,2) + val(1,3) = 1 \\text{ Sonne} + 1 \\text{ Mond}$. Da Pos (1,1) bereits eine \`☀️\` ist, enthält das Trio (Pos 1,2,3) zusammen exakt 2 Sonnen (das Maximum für 4x4). Daher kann das 4. Feld Pos (1,4) keine Sonne mehr sein und MUSS ein Mond \`🌙\` werden.\n\n*Übung: Bestimme das 4. Feld in Zeile 1 durch die 2-aus-3 Logik!*`,
+        mathPrinciple: "Parität: [×] bindet 1☀️ + 1🌙 ⟹ 4. Feld ist bestimmt",
+        description: `**Das Prinzip**:\nZwei durch \`[×]\` verbundene Felder enthalten garantiert genau 1 Sonne und 1 Mond. Steht vor dem Paar eine Sonne \`☀️\`, ist für die Zeile bereits die 2. Sonne vergeben — das 4. Feld MUSS ein Mond \`🌙\` sein!\n\n**Mathematischer Beweis**:\nDie \`[×]\`-Kante bindet exakt 1 Sonne + 1 Mond. Da Position 1 bereits eine \`☀️\` ist, enthält die 3er-Gruppe (Pos 1–3) zusammen bereits 2 Sonnen (das Maximum bei 4×4). Daher kann das 4. Feld an Position 4 keine Sonne mehr sein und MUSS ein Mond \`🌙\` werden.\n\n*Übung: Bestimme das 4. Feld in Zeile 1 durch die 2-aus-3 Logik!*`,
         size: 4,
         initialGrid: [
             [SUN, EMPTY, EMPTY, EMPTY],
@@ -1990,8 +1993,8 @@ const TUTORIAL_PRO_STEPS = [
         id: 8,
         title: "Pro 8: Die 2×2 Quadrat-Kanten-Schleife",
         subtitle: "Kanten-Algebra in Blöcken",
-        mathPrinciple: "2×2 Schleifen-Inversion: (x × y) ∧ (x × z) ⟹ val(y) = val(z)",
-        description: `**Das Prinzip**:\nWenn eine Ecke $(0,0)$ mit zwei gegensätzlichen Nachbarn über \`[×]\` verbunden ist, müssen die beiden Nachbarn untereinander GLEICH sein ($val(x) = val(y)$).\n\n**Mathematischer Beweis**:\nEs gilt $val(0,1) = \\neg val(0,0)$ und $val(1,0) = \\neg val(0,0)$. Nach der Transitivität der Negation folgt $val(0,1) = val(1,0)$. Ist Pos (0,0) eine \`☀️\`, MÜSSEN Pos (0,1) und Pos (1,0) beide Monde \`🌙\` sein!\n\n*Übung: Löse die beiden Nachbarfelder in Zeile 1 und Spalte 1 auf!*`,
+        mathPrinciple: "Eck-Kopplung: Zwei [×] an einer Zelle erzwingen Gleichheit",
+        description: `**Das Prinzip**:\nWenn eine Zelle (z. B. oben links) mit zwei Nachbarn über \`[×]\` verbunden ist, müssen beide Nachbarn untereinander exakt GLEICH sein.\n\n**Mathematischer Beweis**:\nBeide Nachbarfelder sind das Gegenteil derselben Ausgangszelle. Da es nur 2 Symbole gibt, haben beide Nachbarn denselben Wert. Ist die Eckzelle eine \`☀️\`, MÜSSEN beide Nachbarfelder Monde \`🌙\` sein!\n\n*Übung: Löse die beiden Nachbarfelder in Zeile 1 und Spalte 1 auf!*`,
         size: 4,
         initialGrid: [
             [SUN, EMPTY, EMPTY, EMPTY],
@@ -2015,6 +2018,297 @@ const TUTORIAL_PRO_STEPS = [
             { r: 1, c: 0, val: MOON }
         ],
         explanation: "Meisterklasse! Kanten-Algebra in 2x2 Blöcken durchschaut komplexe Abhängigkeiten blitzschnell."
+    }
+];
+
+// === Source: js\data\tutorial_patterns.js ===
+/**
+ * Tango Tutorial Regelmäßigkeiten
+ * Tiefgehende Lektionen zu feldgrößenspezifischen Gesetzen,
+ * Domino-Zerlegungen, Paar-Budgets und Unizitäts-Axiomen.
+ */
+
+
+const TUTORIAL_PATTERNS_STEPS = [
+    {
+        id: 1,
+        title: "Regelmäßigkeit 1: 4×4 Paar-Inversion",
+        subtitle: "Budget-Erschöpfung im Mini-Gitter",
+        mathPrinciple: "4×4 Paar-Inversion: 2 Sonnen verbrauchen Zeilen-Budget ⟹ Rest = Monde",
+        description: `**Das Prinzip (4×4)**:\nIn einem 4×4 Gitter dürfen in jeder Zeile und Spalte genau **2 Sonnen** und **2 Monde** stehen. Sobald ein Paar aus zwei gleichen Symbolen existiert (\`☀️ ☀️ _ _\`), MÜSSEN die verbleibenden beiden Felder zwingend das **gegenteilige Paar** (\`🌙 🌙\`) sein!\n\n**Mathematischer Beweis**:\nDas Zeilen-Budget beträgt maximal 2 Sonnen. Zwei Sonnen verbrauchen das gesamte Kontingent (2 - 2 = 0). Für die restlichen 2 Felder verbleiben ausschließlich Monde.\n\n*Übung: Fülle die verbleibenden Felder in Zeile 1 und Zeile 3 durch Paar-Inversion aus!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, SUN, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, MOON, MOON],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 2, val: MOON },
+            { r: 0, c: 3, val: MOON },
+            { r: 2, c: 0, val: SUN },
+            { r: 2, c: 1, val: SUN }
+        ],
+        explanation: "Exzellent! Im 4x4 Gitter kippt ein Paar sofort alle restlichen Felder ins Gegenteil."
+    },
+    {
+        id: 2,
+        title: "Regelmäßigkeit 2: 6×6 Paar-Limit",
+        subtitle: "Maximal ein Paar desselben Symbols pro Zeile",
+        mathPrinciple: "6×6 Paar-Limit: Max. 1 Sonnen-Paar pro 6er-Reihe erlaubt",
+        description: `**Das Prinzip (6×6)**:\nIn einer 6er-Reihe (3 Sonnen, 3 Monde) kann es **höchstens EIN Sonnen-Paar** (\`☀️ ☀️\`) und **höchstens EIN Mond-Paar** (\`🌙 🌙\`) geben, da zwei Paare bereits 2 + 2 = 4 Symbole erfordern würden.\n\n**Mathematischer Beweis**:\nIn Zeile 1 stehen bereits das Sonnen-Paar an Pos 1–2 und eine 3. Sonne an Pos 4 (\`☀️ ☀️ 🌙 ☀️ _ _\`). Das Sonnen-Budget von 3 ist komplett aufgebraucht! Das durch \`[=]\` verbundene Paar an Pos 5–6 MUSS zwingend ein Mond-Paar (\`🌙 🌙\`) sein.\n\n*Übung: Bestimme den Wert des [=] Paares an Position 5 und 6!*`,
+        size: 6,
+        initialGrid: [
+            [SUN, SUN, MOON, SUN, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_EQUAL],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 4, val: MOON },
+            { r: 0, c: 5, val: MOON }
+        ],
+        explanation: "Brillant kombiniert! Da 6x6 maximal 1 Sonnen-Paar erlaubt und alle 3 Sonnen platziert sind, muss das [=] Paar aus Monden bestehen."
+    },
+    {
+        id: 3,
+        title: "Regelmäßigkeit 3: 6×6 Domino-Zerlegung (3-Blöcke-×)",
+        subtitle: "Globales Zähl-Axiom disjunkter Gegenteilspaare",
+        mathPrinciple: "6×6 Domino-Parität: Zwei [×]-Blöcke binden 2☀️ + 2🌙 ⟹ Block 3 = 1☀️ + 1🌙",
+        description: `**Das Prinzip (6×6)**:\nJede 6er-Reihe lässt sich in drei 2er-Blöcke unterteilen: (Pos 1–2), (Pos 3–4), (Pos 5–6). Jedes \`[×]\` auf einem Block bindet exakt 1 Sonne und 1 Mond.\n\n**Mathematischer Beweis**:\nLiegen auf zwei Blöcken \`[×]\`-Kanten, sind bereits 2 Sonnen und 2 Monde vergeben. Für den 3. Block verbleibt genau **1 Sonne und 1 Mond**. Ist ein Feld des 3. Blocks bekannt, folgt das Nachbarfeld sofort als Inversion!\n\n*Übung: Bestimme Feld 6 in Zeile 1 mit Hilfe der Domino-Zerlegung!*`,
+        size: 6,
+        initialGrid: [
+            [EMPTY, EMPTY, EMPTY, EMPTY, SUN, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_OPPOSITE, EDGE_NONE, EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 5, val: MOON }
+        ],
+        explanation: "Perfekt! Die beiden [×]-Dominos verbrauchen 2 Sonnen & 2 Monde – Feld 6 muss der Gegenpart zu Feld 5 sein."
+    },
+    {
+        id: 4,
+        title: "Regelmäßigkeit 4: Rand-Dopplung & 3er-Restfeld",
+        subtitle: "Verhinderung verdeckter 3er-Ketten",
+        mathPrinciple: "Restfeld-Ausschluss: [☀️☀️ 🌙🌙 _ _] ⟹ Pos 5 = ☀️, Pos 6 = 🌙 (3er-Schutz)",
+        description: `**Das Prinzip (6×6)**:\nSteht am Zeilenanfang ein Paar \`[☀️ ☀️ 🌙 🌙 _ _]\`, fehlen in der Zeile noch genau **1 Sonne und 1 Mond**.\n\n**Mathematischer Beweis**:\nWürde an Position 5 ein Mond gesetzt, stünden dort drei Monde (\`🌙 🌙 🌙\`). Um die verbotene 3er-Kette zu verhindern, MUSS Position 5 die verbleibende Sonne (\`☀️\`) und Position 6 der Mond (\`🌙\`) sein!\n\n*Übung: Verhindere die 3er-Kette im Restfeld von Zeile 1!*`,
+        size: 6,
+        initialGrid: [
+            [SUN, SUN, MOON, MOON, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 4, val: SUN },
+            { r: 0, c: 5, val: MOON }
+        ],
+        explanation: "Hervorragend! Durch das 3er-Verbot muss die verbleibende Sonne an Position 5 stehen."
+    },
+    {
+        id: 5,
+        title: "Regelmäßigkeit 5: Das 14-Muster-Gesetz",
+        subtitle: "Strikte Zeilen-Unizität in 6×6",
+        mathPrinciple: "6×6 Eindeutigkeit: 14 Zeilenmuster ⟹ Duplikate strikt verboten",
+        description: `**Das Prinzip (6×6)**:\nEs gibt mathematisch überhaupt nur **14 gültige Zeilenmuster** für ein 6er-Gitter. Da 6 Zeilen im Gitter vorkommen, ist die Wahrscheinlichkeit für Duplikate extrem hoch.\n\n**Mathematischer Beweis**:\nZeile 1 ist \`☀️ 🌙 ☀️ 🌙 🌙 ☀️\`. Zeile 2 beginnt mit \`☀️ 🌙 ☀️ 🌙 _ _\`. Würde man für die Lücken \`🌙 ☀️\` wählen, wäre Zeile 2 identisch zu Zeile 1. Nach dem Unizitäts-Axiom MUSS daher zwingend \`☀️ 🌙\` gesetzt werden!\n\n*Übung: Fülle Zeile 2 so aus, dass kein Duplikat zu Zeile 1 entsteht!*`,
+        size: 6,
+        initialGrid: [
+            [SUN, MOON, SUN, MOON, MOON, SUN],
+            [SUN, MOON, SUN, MOON, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 1, c: 4, val: SUN },
+            { r: 1, c: 5, val: MOON }
+        ],
+        explanation: "Perfekt! Das Unizitäts-Gesetz schließt das Zeilenduplikat zwingend aus."
+    },
+    {
+        id: 6,
+        title: "Regelmäßigkeit 6: Skalierendes Paar-Budget (8×8)",
+        subtitle: "Budget von 2 Paaren pro Zeile",
+        mathPrinciple: "8×8 Paar-Budget: Max. 2 Sonnen-Paare (2×2=4) ⟹ Rest = Monde",
+        description: `**Das Prinzip (8×8)**:\nIn einem 8×8 Gitter (4 Sonnen, 4 Monde) darf es maximal **zwei Sonnen-Paare** geben (2 × 2 = 4).\n\n**Mathematischer Beweis**:\nSind in einer Zeile bereits zwei Sonnen-Paare gesetzt (\`☀️ ☀️\` an Pos 1-2 und Pos 5-6), ist das Sonnen-Budget von 4 vollständig erschöpft. Die verbleibenden leeren Felder an Pos 7 und 8 MÜSSEN Monde sein!\n\n*Übung: Fülle die verbleibenden Felder am Ende der 8er-Zeile auf!*`,
+        size: 8,
+        initialGrid: [
+            [SUN, SUN, MOON, MOON, SUN, SUN, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 6, val: MOON },
+            { r: 0, c: 7, val: MOON }
+        ],
+        explanation: "Klasse! Bei 8x8 verbrauchen 2 Sonnen-Paare das gesamte Budget von 4 Sonnen."
+    },
+    {
+        id: 7,
+        title: "Regelmäßigkeit 7: Die universell verbotene =-Kette",
+        subtitle: "Transitives Verbot von Doppel-Gleichheitskanten",
+        mathPrinciple: "Axiom: Verbot von Doppel-Gleichheitsketten (= = Verstoß gegen 3er-Regel)",
+        description: `**Das Prinzip (Alle Feldgrößen)**:\nZwei aufeinanderfolgende Gleichheitszeichen (\`_ = _ = _\`) sind auf JEDER Feldgröße strikt unzulässig!\n\n**Mathematischer Beweis**:\nSind Feld 1 und Feld 2 gleich und Feld 2 und Feld 3 ebenfalls gleich, müssten alle 3 Felder dasselbe Symbol tragen. Dies erzwingt eine verbotene 3er-Kette. Folglich kann nach einem \`[=]\` niemals sofort ein zweites \`[=]\` folgen – dort MUSS immer ein \`[×]\` oder keine Kante liegen.\n\n*Übung: Da Feld 1 und 2 durch [=] gleich sind, MUSS Feld 3 das Gegenteil sein!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_EQUAL, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 1, val: SUN },
+            { r: 0, c: 2, val: MOON }
+        ],
+        explanation: "Exzellent! Nach jedem [=] muss das nächste Feld das Gegenteil sein, um 3er-Ketten zu meiden."
+    },
+    {
+        id: 8,
+        title: "Regelmäßigkeit 8: Meisterprüfung der Regelmäßigkeiten",
+        subtitle: "Wende alle Feldgrößen-Gesetze auf ein 6×6 Gitter an",
+        mathPrinciple: "Synthese aller Axiome: Domino-Zerlegung + Paar-Limits + Zeilen-Eindeutigkeit",
+        description: `**Die Meisterprüfung**:\nNutze alle gelernten Regelmäßigkeiten:\n1. **Paar-Budget** (max. 1 Paar pro Symbol bei 6×6)\n2. **Domino-Parität** (\`[×]\`-Blöcke binden je 1S + 1M)\n3. **3er-Sperre & Zeilen-Eindeutigkeit**\n\n*Aufgabe: Löse dieses anspruchsvolle 6×6 Gitter fehlerfrei!*`,
+        size: 6,
+        initialGrid: [
+            [EMPTY, EMPTY, SUN, EMPTY, MOON, EMPTY],
+            [EMPTY, MOON, EMPTY, MOON, EMPTY, MOON],
+            [MOON, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, MOON, EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, MOON, EMPTY, SUN, EMPTY],
+            [EMPTY, EMPTY, MOON, EMPTY, MOON, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_OPPOSITE, EDGE_NONE, EDGE_EQUAL, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_OPPOSITE, EDGE_OPPOSITE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_EQUAL, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_OPPOSITE, EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_EQUAL, EDGE_EQUAL, EDGE_NONE, EDGE_OPPOSITE, EDGE_NONE],
+            [EDGE_OPPOSITE, EDGE_NONE, EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_OPPOSITE, EDGE_EQUAL],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_OPPOSITE, EDGE_OPPOSITE, EDGE_OPPOSITE],
+            [EDGE_OPPOSITE, EDGE_NONE, EDGE_EQUAL, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: null, // Komplett lösen
+        explanation: "Grandios! Du hast alle Feldgrößen-Gesetze gemeistert und bist nun ein wahrer Tango-Großmeister!"
     }
 ];
 
@@ -2677,6 +2971,10 @@ class TangoApp {
             this.toggleModal('menuModal', false);
             this.startTutorialPro(0);
         });
+        document.getElementById('navTutorialPatterns')?.addEventListener('click', () => {
+            this.toggleModal('menuModal', false);
+            this.startTutorialPatterns(0);
+        });
         document.getElementById('navCampaign').addEventListener('click', () => {
             this.toggleModal('menuModal', false);
             this.openLevelSelectModal();
@@ -2713,6 +3011,12 @@ class TangoApp {
             } else if (this.currentMode === 'tutorial_pro') {
                 if (this.tutorialStepIndex + 1 < TUTORIAL_PRO_STEPS.length) {
                     this.startTutorialPro(this.tutorialStepIndex + 1);
+                } else {
+                    this.startTutorialPatterns(0);
+                }
+            } else if (this.currentMode === 'tutorial_patterns') {
+                if (this.tutorialStepIndex + 1 < TUTORIAL_PATTERNS_STEPS.length) {
+                    this.startTutorialPatterns(this.tutorialStepIndex + 1);
                 } else {
                     this.startCampaignLevel(0);
                 }
@@ -2986,7 +3290,7 @@ class TangoApp {
             if (mathBadge) mathBadge.style.display = 'none';
             document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         }
-        document.getElementById('levelTitle').textContent = `Tutorial ${stepIndex + 1}/${TUTORIAL_STEPS.length}`;
+        document.getElementById('levelTitle').textContent = `Grundlagen ${stepIndex + 1}/${TUTORIAL_STEPS.length}`;
 
         this.renderGrid();
         this.updateKeypadVisibility();
@@ -3026,7 +3330,47 @@ class TangoApp {
             }
             document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         }
-        document.getElementById('levelTitle').textContent = `Tutorial Pro ${stepIndex + 1}/${TUTORIAL_PRO_STEPS.length}`;
+        document.getElementById('levelTitle').textContent = `Mathematik ${stepIndex + 1}/${TUTORIAL_PRO_STEPS.length}`;
+
+        this.renderGrid();
+        this.updateKeypadVisibility();
+    }
+
+    startTutorialPatterns(stepIndex = 0) {
+        this.currentMode = 'tutorial_patterns';
+        this.tutorialStepIndex = stepIndex;
+        const step = TUTORIAL_PATTERNS_STEPS[stepIndex];
+        
+        this.engine.loadPuzzle({
+            size: step.size,
+            initialGrid: step.initialGrid,
+            hEdges: step.hEdges,
+            vEdges: step.vEdges
+        });
+
+        this.selectedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = true;
+        this.startTimer();
+
+        this.scrollToTop();
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) {
+            tutHeader.scrollTop = 0;
+            tutHeader.style.display = 'block';
+            document.getElementById('tutTitle').textContent = step.title;
+            document.getElementById('tutSubtitle').textContent = step.subtitle;
+            const mathBadge = document.getElementById('tutMathPrinciple');
+            if (mathBadge) {
+                mathBadge.style.display = 'block';
+                mathBadge.textContent = step.mathPrinciple;
+            }
+            document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+        document.getElementById('levelTitle').textContent = `Muster ${stepIndex + 1}/${TUTORIAL_PATTERNS_STEPS.length}`;
 
         this.renderGrid();
         this.updateKeypadVisibility();
@@ -3229,7 +3573,7 @@ class TangoApp {
                     cellEl.innerHTML = `<span class="icon-moon">${getMoonSvg('cell-moon')}</span>`;
                 } else {
                     // Marker für Tutorial-Zielzellen
-                    const tutStep = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS[this.tutorialStepIndex] : (this.currentMode === 'tutorial_pro' ? TUTORIAL_PRO_STEPS[this.tutorialStepIndex] : null);
+                    const tutStep = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS[this.tutorialStepIndex] : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS[this.tutorialStepIndex] : ((this.currentMode === 'tutorial_patterns') ? TUTORIAL_PATTERNS_STEPS[this.tutorialStepIndex] : null));
                     const targetCellInfo = (tutStep && tutStep.targetCells) ? tutStep.targetCells.find(t => t.r === r && t.c === c) : null;
                     if (targetCellInfo) {
                         cellEl.classList.add('tutorial-target');
@@ -3537,8 +3881,8 @@ class TangoApp {
     }
 
     checkCompletion() {
-        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro') {
-            const steps = this.currentMode === 'tutorial' ? TUTORIAL_STEPS : TUTORIAL_PRO_STEPS;
+        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
+            const steps = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS : TUTORIAL_PATTERNS_STEPS);
             const step = steps[this.tutorialStepIndex];
             let stepSuccess = true;
             if (step && step.targetCells) {
@@ -3548,6 +3892,8 @@ class TangoApp {
                         break;
                     }
                 }
+            } else if (step && !step.targetCells) {
+                stepSuccess = this.engine.isCompleted();
             }
             if (stepSuccess) {
                 this.onLevelVictory(step.explanation || '');
@@ -3560,7 +3906,7 @@ class TangoApp {
         }
     }
 
-    onLevelVictory() {
+    onLevelVictory(customExplanation = null) {
         this.isGameActive = false;
         this.stopTimer();
         audio.playVictory();
@@ -3584,11 +3930,11 @@ class TangoApp {
 
         const expEl = document.getElementById('victoryExplanation');
         if (expEl) {
-            if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro') {
-                const steps = this.currentMode === 'tutorial' ? TUTORIAL_STEPS : TUTORIAL_PRO_STEPS;
+            if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
+                const steps = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS : TUTORIAL_PATTERNS_STEPS);
                 const step = steps[this.tutorialStepIndex];
-                expEl.textContent = step.explanation || '';
-                expEl.style.display = step.explanation ? 'block' : 'none';
+                expEl.textContent = customExplanation || step?.explanation || '';
+                expEl.style.display = expEl.textContent ? 'block' : 'none';
             } else {
                 expEl.style.display = 'none';
             }
@@ -3630,8 +3976,8 @@ class TangoApp {
     }
 
     recordGameStats(won) {
-        // Tutorials und Tutorial Pro fließen nicht in die Statistik oder Bestzeiten ein
-        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro') {
+        // Tutorials fließen nicht in die Statistik oder Bestzeiten ein
+        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
             return;
         }
         try {

@@ -17,6 +17,7 @@ def build_bundle():
         BASE_DIR / "js" / "data" / "i18n.js",
         BASE_DIR / "js" / "data" / "tutorial.js",
         BASE_DIR / "js" / "data" / "tutorial_pro.js",
+        BASE_DIR / "js" / "data" / "tutorial_patterns.js",
         BASE_DIR / "js" / "data" / "levels.js",
         BASE_DIR / "js" / "ui" / "audio.js",
         BASE_DIR / "js" / "ui" / "animations.js",

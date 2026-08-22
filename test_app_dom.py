@@ -294,19 +294,30 @@ class TestTangoAppDOM(unittest.TestCase):
         # Sicherstellen, dass keine störenden nativen <select>-Tags verblieben sind
         self.assertNotIn('<select', html_content, "Es dürfen keine nativen HTML <select> Tags mehr in index.html existieren")
 
-    def test_version_number_consistency_v1_1_4(self):
-        """Überprüft, dass Version 1.1.4 (Code 16) in allen Konfigurationsdateien konsistent ist"""
+    def test_two_line_tutorial_buttons_structure(self):
+        """Überprüft, dass die Tutorial-Buttons zweizeilig strukturiert sind (Icon + Text)"""
+        html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
+        css_content = (BASE_DIR / "css" / "main.css").read_text(encoding='utf-8')
+        
+        self.assertIn('class="secondary-btn tut-nav-btn"', html_content, "Tutorial-Buttons müssen Klasse tut-nav-btn haben")
+        self.assertIn('class="tut-btn-icon"', html_content, "Tutorial-Buttons müssen tut-btn-icon für die 1. Zeile enthalten")
+        self.assertIn('class="tut-btn-text"', html_content, "Tutorial-Buttons müssen tut-btn-text für die 2. Zeile enthalten")
+        self.assertIn('.tut-btn-icon', css_content, "main.css muss CSS für .tut-btn-icon definieren")
+        self.assertIn('.tut-btn-text', css_content, "main.css muss CSS für .tut-btn-text definieren")
+
+    def test_version_number_consistency_v1_2_3(self):
+        """Überprüft, dass Version 1.2.3 (Code 20) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('tango-app-v1.1.4', sw_content, "sw.js muss Cache tango-app-v1.1.4 enthalten")
-        self.assertIn('id="appVersionBadge">v1.1.4<', html_content, "index.html muss appVersionBadge mit v1.1.4 enthalten")
-        self.assertIn('versionName = "1.1.4"', gradle_content, "build.gradle.kts muss versionName 1.1.4 enthalten")
-        self.assertIn('versionCode = 16', gradle_content, "build.gradle.kts muss versionCode 16 enthalten")
-        self.assertIn('android:versionName="1.1.4"', manifest_content, "AndroidManifest.xml muss versionName 1.1.4 enthalten")
-        self.assertIn('android:versionCode="16"', manifest_content, "AndroidManifest.xml muss versionCode 16 enthalten")
+        self.assertIn('tango-app-v1.2.3', sw_content, "sw.js muss Cache tango-app-v1.2.3 enthalten")
+        self.assertIn('id="appVersionBadge">v1.2.3<', html_content, "index.html muss appVersionBadge mit v1.2.3 enthalten")
+        self.assertIn('versionName = "1.2.3"', gradle_content, "build.gradle.kts muss versionName 1.2.3 enthalten")
+        self.assertIn('versionCode = 20', gradle_content, "build.gradle.kts muss versionCode 20 enthalten")
+        self.assertIn('android:versionName="1.2.3"', manifest_content, "AndroidManifest.xml muss versionName 1.2.3 enthalten")
+        self.assertIn('android:versionCode="20"', manifest_content, "AndroidManifest.xml muss versionCode 20 enthalten")
 
 
 if __name__ == "__main__":
