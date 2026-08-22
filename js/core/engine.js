@@ -34,7 +34,7 @@ export class TangoEngine {
     /**
      * Lädt ein Level mit vorgegebenen Zellen und Kanten
      */
-    loadPuzzle({ size, initialGrid, hEdges, vEdges }) {
+    loadPuzzle({ size, initialGrid, hEdges, vEdges, solution }) {
         this.size = size;
         this.grid = Array(size).fill(0).map(() => Array(size).fill(EMPTY));
         this.initialGrid = Array(size).fill(0).map(() => Array(size).fill(EMPTY));
@@ -42,6 +42,7 @@ export class TangoEngine {
         this.notes = Array(size).fill(0).map(() => Array(size).fill(0).map(() => new Set()));
         this.undoStack = [];
         this.redoStack = [];
+        this.solution = solution ? solution.map(row => [...row]) : null;
 
         this.hEdges = hEdges ? hEdges.map(row => [...row]) : Array(size).fill(0).map(() => Array(size - 1).fill(EDGE_NONE));
         this.vEdges = vEdges ? vEdges.map(row => [...row]) : Array(size - 1).fill(0).map(() => Array(size).fill(EDGE_NONE));
@@ -57,6 +58,87 @@ export class TangoEngine {
                 }
             }
         }
+    }
+
+    /**
+     * Gibt die Lösung des aktuellen Puzzles zurück oder berechnet sie
+     */
+    getSolution() {
+        if (this.solution) return this.solution;
+        if (typeof TangoSolver !== 'undefined' && TangoSolver.solve) {
+            const sol = TangoSolver.solve(this, 1);
+            if (sol && sol.length > 0) {
+                this.solution = sol[0].map(row => [...row]);
+                return this.solution;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Findet Fehler im bisherigen Lösungsweg des Spielers:
+     * 1. Regelverletzungen (z. B. 3er-Reihe, Kantenkonflikt, Balance-Überschreitung)
+     * 2. Abweichungen von der echten Lösung (grid[r][c] !== solution[r][c])
+     */
+    findMistakes() {
+        const sol = this.getSolution();
+        const ruleCheck = this.validateRules();
+
+        // 1. Priorität: Direkte Regelverletzungen
+        if (!ruleCheck.isValid && ruleCheck.errors.length > 0) {
+            const firstErr = ruleCheck.errors[0];
+            const conflictArr = Array.from(ruleCheck.conflictCells || []).map(str => {
+                const [r, c] = str.split(',').map(Number);
+                return { r, c };
+            });
+
+            let targetCell = conflictArr.find(pos => !this.locked[pos.r][pos.c]) || conflictArr[0];
+            if (!targetCell && firstErr.cells && firstErr.cells.length > 0) {
+                targetCell = firstErr.cells.find(pos => !this.locked[pos.r][pos.c]) || firstErr.cells[0];
+            }
+            if (!targetCell && firstErr.row !== undefined && firstErr.cols) {
+                targetCell = { r: firstErr.row, c: firstErr.cols.find(c => !this.locked[firstErr.row][c]) ?? firstErr.cols[0] };
+            }
+            if (!targetCell && firstErr.col !== undefined && firstErr.rows) {
+                targetCell = { r: firstErr.rows.find(r => !this.locked[r][firstErr.col]) ?? firstErr.rows[0], c: firstErr.col };
+            }
+
+            const r = targetCell ? targetCell.r : 0;
+            const c = targetCell ? targetCell.c : 0;
+            const expectedVal = sol ? sol[r][c] : (this.grid[r][c] === SUN ? MOON : SUN);
+
+            return {
+                type: 'rule_violation',
+                r, c,
+                currentVal: this.grid[r][c],
+                expectedVal,
+                highlightCells: conflictArr.length > 0 ? conflictArr : [{ r, c }],
+                message: `Regelverstoß: ${firstErr.message}. Bitte korrigiere oder entferne das Symbol an Position (${r + 1},${c + 1}).`
+            };
+        }
+
+        // 2. Priorität: Vom Spieler gesetzte Felder, die nicht zur Gesamtlösung passen
+        if (sol) {
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    const current = this.grid[r][c];
+                    if (current !== EMPTY && !this.locked[r][c] && current !== sol[r][c]) {
+                        const wrongName = current === SUN ? 'Sonne' : 'Mond';
+                        const correctName = sol[r][c] === SUN ? 'Sonne' : 'Mond';
+                        return {
+                            type: 'solution_mismatch',
+                            r, c,
+                            currentVal: current,
+                            expectedVal: sol[r][c],
+                            highlightCells: [{ r, c }],
+                            message: `Fehler im Lösungsweg: An Position (${r + 1},${c + 1}) wurde fälschlicherweise ein ${wrongName} gesetzt. Laut der Logik und Abhängigkeiten gehört dort ein ${correctName} hin.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

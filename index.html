@@ -322,7 +322,7 @@
                         <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
                     </div>
                     <div class="settings-version-info" style="text-align:center; margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:11px; opacity:0.65;">
-                        Tango App <span id="appVersionBadge">v1.0.7</span> • 100% Offline &amp; Werbefrei
+                        Tango App <span id="appVersionBadge">v1.0.8</span> • 100% Offline &amp; Werbefrei
                     </div>
                 </div>
             </div>
@@ -348,6 +348,48 @@
             </div>
             <div class="modal-actions">
                 <button id="btnVictoryNext" class="primary-btn" data-i18n="btn_continue">Weiter</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sicherheitsabfrage Lösungsaufdeckung Modal -->
+    <div id="confirmRevealModal" class="modal-overlay">
+        <div class="modal-card" style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 8px;">⚠️</div>
+            <h2 class="modal-title" data-i18n="reveal_confirm_title" style="color: var(--accent-opposite);">Lösung aufdecken?</h2>
+            <p style="line-height: 1.5; font-size: 0.92rem; margin: 12px 0; white-space: pre-line; text-align: left;" data-i18n="reveal_confirm_desc">
+                Du hast alle 3 Hinweise verbraucht. Möchtest du das Rätsel aufgeben und die vollständige Lösung aufdecken?
+                
+                ⚠️ Das nächste Level wird dabei nicht freigeschaltet und in der Statistik wird eine Niederlage vermerkt.
+            </p>
+            <div class="modal-actions" style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+                <button id="btnCancelReveal" class="secondary-btn" style="flex: 1;" data-i18n="btn_cancel">Abbrechen</button>
+                <button id="btnConfirmReveal" class="danger-btn" style="flex: 1;" data-i18n="btn_reveal_solution">Lösung aufdecken</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Abschlussfenster nach Lösungsaufdeckung Modal -->
+    <div id="solutionRevealedModal" class="modal-overlay">
+        <div class="modal-card" style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 8px;">🔓</div>
+            <h2 class="modal-title" data-i18n="reveal_defeat_title" style="color: var(--accent-sun);">Rätsel aufgegeben</h2>
+            <p data-i18n="reveal_defeat_msg" style="line-height: 1.45; font-size: 0.92rem; margin: 10px 0;">
+                Die Lösung wurde hinterlegt und Fehler wurden rot markiert. Das nächste Level bleibt gesperrt und in deiner Statistik wurde eine Niederlage verbucht.
+            </p>
+            <div style="display: flex; justify-content: space-around; background: var(--cell-bg); padding: 12px; border-radius: var(--radius-md); margin: 12px 0;">
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);" data-i18n="status_time">Zeit</div>
+                    <div id="revealTime" style="font-size: 1.2rem; font-weight: 700;">00:00</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);" data-i18n="status_moves">Züge</div>
+                    <div id="revealMoves" style="font-size: 1.2rem; font-weight: 700;">0</div>
+                </div>
+            </div>
+            <div class="modal-actions" style="display: flex; gap: 10px; justify-content: center;">
+                <button id="btnRevealRestart" class="primary-btn" style="flex: 1;" data-i18n="btn_retry_level">Level wiederholen</button>
+                <button id="btnRevealMenu" class="secondary-btn" style="flex: 1;" data-i18n="btn_back_menu">Hauptmenü</button>
             </div>
         </div>
     </div>
@@ -470,7 +512,7 @@
                     <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
                 </div>
                 <div class="settings-version-info" style="text-align:center; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08); font-size:12px; opacity:0.65;">
-                    Tango App <span id="appVersionBadge">v1.0.7</span> • 100% Offline &amp; Werbefrei
+                    Tango App <span id="appVersionBadge">v1.0.8</span> • 100% Offline &amp; Werbefrei
                 </div>
             </div>
         </div>
@@ -491,6 +533,10 @@
                 <div class="setting-row">
                     <span class="setting-label" data-i18n="stats_total_won">Gelöste Rätsel</span>
                     <span id="statWonModal" style="font-weight: 700;">0</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="stats_total_lost">Niederlagen / Aufgegeben</span>
+                    <span id="statLostModal" style="font-weight: 700;">0</span>
                 </div>
                 <div class="setting-row">
                     <span class="setting-label" data-i18n="stats_win_rate">Erfolgsquote</span>

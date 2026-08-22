@@ -42,7 +42,7 @@ class TangoEngine {
     /**
      * Lädt ein Level mit vorgegebenen Zellen und Kanten
      */
-    loadPuzzle({ size, initialGrid, hEdges, vEdges }) {
+    loadPuzzle({ size, initialGrid, hEdges, vEdges, solution }) {
         this.size = size;
         this.grid = Array(size).fill(0).map(() => Array(size).fill(EMPTY));
         this.initialGrid = Array(size).fill(0).map(() => Array(size).fill(EMPTY));
@@ -50,6 +50,7 @@ class TangoEngine {
         this.notes = Array(size).fill(0).map(() => Array(size).fill(0).map(() => new Set()));
         this.undoStack = [];
         this.redoStack = [];
+        this.solution = solution ? solution.map(row => [...row]) : null;
 
         this.hEdges = hEdges ? hEdges.map(row => [...row]) : Array(size).fill(0).map(() => Array(size - 1).fill(EDGE_NONE));
         this.vEdges = vEdges ? vEdges.map(row => [...row]) : Array(size - 1).fill(0).map(() => Array(size).fill(EDGE_NONE));
@@ -65,6 +66,87 @@ class TangoEngine {
                 }
             }
         }
+    }
+
+    /**
+     * Gibt die Lösung des aktuellen Puzzles zurück oder berechnet sie
+     */
+    getSolution() {
+        if (this.solution) return this.solution;
+        if (typeof TangoSolver !== 'undefined' && TangoSolver.solve) {
+            const sol = TangoSolver.solve(this, 1);
+            if (sol && sol.length > 0) {
+                this.solution = sol[0].map(row => [...row]);
+                return this.solution;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Findet Fehler im bisherigen Lösungsweg des Spielers:
+     * 1. Regelverletzungen (z. B. 3er-Reihe, Kantenkonflikt, Balance-Überschreitung)
+     * 2. Abweichungen von der echten Lösung (grid[r][c] !== solution[r][c])
+     */
+    findMistakes() {
+        const sol = this.getSolution();
+        const ruleCheck = this.validateRules();
+
+        // 1. Priorität: Direkte Regelverletzungen
+        if (!ruleCheck.isValid && ruleCheck.errors.length > 0) {
+            const firstErr = ruleCheck.errors[0];
+            const conflictArr = Array.from(ruleCheck.conflictCells || []).map(str => {
+                const [r, c] = str.split(',').map(Number);
+                return { r, c };
+            });
+
+            let targetCell = conflictArr.find(pos => !this.locked[pos.r][pos.c]) || conflictArr[0];
+            if (!targetCell && firstErr.cells && firstErr.cells.length > 0) {
+                targetCell = firstErr.cells.find(pos => !this.locked[pos.r][pos.c]) || firstErr.cells[0];
+            }
+            if (!targetCell && firstErr.row !== undefined && firstErr.cols) {
+                targetCell = { r: firstErr.row, c: firstErr.cols.find(c => !this.locked[firstErr.row][c]) ?? firstErr.cols[0] };
+            }
+            if (!targetCell && firstErr.col !== undefined && firstErr.rows) {
+                targetCell = { r: firstErr.rows.find(r => !this.locked[r][firstErr.col]) ?? firstErr.rows[0], c: firstErr.col };
+            }
+
+            const r = targetCell ? targetCell.r : 0;
+            const c = targetCell ? targetCell.c : 0;
+            const expectedVal = sol ? sol[r][c] : (this.grid[r][c] === SUN ? MOON : SUN);
+
+            return {
+                type: 'rule_violation',
+                r, c,
+                currentVal: this.grid[r][c],
+                expectedVal,
+                highlightCells: conflictArr.length > 0 ? conflictArr : [{ r, c }],
+                message: `Regelverstoß: ${firstErr.message}. Bitte korrigiere oder entferne das Symbol an Position (${r + 1},${c + 1}).`
+            };
+        }
+
+        // 2. Priorität: Vom Spieler gesetzte Felder, die nicht zur Gesamtlösung passen
+        if (sol) {
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    const current = this.grid[r][c];
+                    if (current !== EMPTY && !this.locked[r][c] && current !== sol[r][c]) {
+                        const wrongName = current === SUN ? 'Sonne' : 'Mond';
+                        const correctName = sol[r][c] === SUN ? 'Sonne' : 'Mond';
+                        return {
+                            type: 'solution_mismatch',
+                            r, c,
+                            currentVal: current,
+                            expectedVal: sol[r][c],
+                            highlightCells: [{ r, c }],
+                            message: `Fehler im Lösungsweg: An Position (${r + 1},${c + 1}) wurde fälschlicherweise ein ${wrongName} gesetzt. Laut der Logik und Abhängigkeiten gehört dort ein ${correctName} hin.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1198,8 +1280,16 @@ const translations = {
 
         // Hinweise & Feedback
         hint_title: "Logischer Hinweis",
+        hint_error_title: "Fehler gefunden",
         hint_button_apply: "Zug ausführen",
+        hint_button_fix: "Feld korrigieren",
         hint_limit_reached: "Maximale Anzahl an Hinweisen für dieses Level erreicht (3/3).",
+        reveal_confirm_title: "Lösung aufdecken?",
+        reveal_confirm_desc: "Du hast alle 3 Hinweise verbraucht. Möchtest du das Rätsel aufgeben und die vollständige Lösung aufdecken?\n\n⚠️ Das nächste Level wird dabei nicht freigeschaltet und in der Statistik wird eine Niederlage vermerkt.",
+        btn_reveal_solution: "Lösung aufdecken",
+        reveal_defeat_title: "Rätsel aufgegeben",
+        reveal_defeat_msg: "Die Lösung wurde hinterlegt und Fehler wurden rot markiert. Das nächste Level bleibt gesperrt und in deiner Statistik wurde eine Niederlage verbucht.",
+        btn_retry_level: "Level wiederholen",
         error_title: "Regelverstoß",
         victory_title: "Glückwunsch!",
         victory_msg: "Du hast dieses Rätsel erfolgreich und fehlerfrei gelöst!",
@@ -1247,6 +1337,7 @@ const translations = {
         stats_title: "Deine Statistiken",
         stats_total_played: "Gespielte Rätsel",
         stats_total_won: "Gelöste Rätsel",
+        stats_total_lost: "Niederlagen / Aufgegeben",
         stats_win_rate: "Erfolgsquote",
         stats_best_time: "Bestzeit",
         stats_avg_time: "Durchschnittszeit",
@@ -1344,7 +1435,16 @@ const translations = {
         status_streak: "Streak",
         status_completed: "Solved!",
         hint_title: "Logical Hint",
+        hint_error_title: "Mistake Found",
         hint_button_apply: "Apply Move",
+        hint_button_fix: "Fix Cell",
+        hint_limit_reached: "Maximum number of hints reached (3/3).",
+        reveal_confirm_title: "Reveal Solution?",
+        reveal_confirm_desc: "You have used all 3 hints. Do you want to surrender this puzzle and reveal the complete solution?\n\n⚠️ The next level will not be unlocked and a defeat will be recorded in your statistics.",
+        btn_reveal_solution: "Reveal Solution",
+        reveal_defeat_title: "Puzzle Surrendered",
+        reveal_defeat_msg: "The solution has been revealed and mistakes highlighted in red. The next level remains locked and a defeat has been recorded in your statistics.",
+        btn_retry_level: "Retry Level",
         error_title: "Rule Violation",
         victory_title: "Congratulations!",
         victory_msg: "You solved this puzzle perfectly!",
@@ -1386,6 +1486,7 @@ const translations = {
         stats_title: "Your Statistics",
         stats_total_played: "Puzzles Played",
         stats_total_won: "Puzzles Solved",
+        stats_total_lost: "Puzzles Lost / Surrendered",
         stats_win_rate: "Win Rate",
         stats_best_time: "Best Time",
         stats_avg_time: "Average Time",
@@ -2417,6 +2518,7 @@ class TangoApp {
         this.secondsElapsed = 0;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = false;
         this.ignoreClickUntil = 0;
 
@@ -2592,6 +2694,22 @@ class TangoApp {
         document.getElementById('btnCloseHint').addEventListener('click', () => this.toggleModal('hintModal', false));
         document.getElementById('btnCloseLevelSelect')?.addEventListener('click', () => this.toggleModal('levelSelectModal', false));
 
+        // Sicherheitsabfrage & Lösungsaufdeckung Listener
+        document.getElementById('btnCancelReveal')?.addEventListener('click', () => this.toggleModal('confirmRevealModal', false));
+        document.getElementById('btnConfirmReveal')?.addEventListener('click', () => this.revealSolutionAndSurrender());
+        document.getElementById('btnRevealRestart')?.addEventListener('click', () => {
+            this.toggleModal('solutionRevealedModal', false);
+            this.restartCurrentPuzzle();
+        });
+        document.getElementById('btnRevealMenu')?.addEventListener('click', () => {
+            this.toggleModal('solutionRevealedModal', false);
+            if (this.currentMode === 'campaign') {
+                this.openLevelSelectModal();
+            } else {
+                this.openMenuTab('play');
+            }
+        });
+
         // Kampagnen-Kapitel Tabs
         const chapterTabs = document.getElementById('campaignChapterTabs');
         if (chapterTabs) {
@@ -2719,6 +2837,7 @@ class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -2755,6 +2874,7 @@ class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -2788,6 +2908,7 @@ class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -2808,6 +2929,7 @@ class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -2827,6 +2949,7 @@ class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -2843,10 +2966,14 @@ class TangoApp {
             size: this.engine.size,
             initialGrid: this.engine.initialGrid,
             hEdges: this.engine.hEdges,
-            vEdges: this.engine.vEdges
+            vEdges: this.engine.vEdges,
+            solution: this.engine.solution
         });
         this.selectedCell = null;
         this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.isGameActive = true;
         this.startTimer();
         this.renderGrid();
         audio.playClear();
@@ -2887,6 +3014,7 @@ class TangoApp {
         gridEl.className = `tango-grid size-${size}`;
 
         const validation = this.autoCheck ? this.engine.validateRules() : { conflictCells: new Set() };
+        const solution = this.solutionRevealed ? this.engine.getSolution() : null;
 
         for (let r = 0; r < size; r++) {
             const rowEl = document.createElement('div');
@@ -2900,14 +3028,35 @@ class TangoApp {
 
                 const val = this.engine.grid[r][c];
                 const isLocked = this.engine.locked[r][c];
-                const isConflict = validation.conflictCells.has(`${r},${c}`);
-                const isSelected = this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
+                const isConflict = !this.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
+                const isSelected = !this.solutionRevealed && this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
 
                 if (isLocked) cellEl.classList.add('locked');
                 if (isConflict) cellEl.classList.add('conflict');
                 if (isSelected) cellEl.classList.add('selected');
 
-                if (val === SUN) {
+                if (this.solutionRevealed && solution) {
+                    const solVal = solution[r][c];
+                    if (val === EMPTY) {
+                        cellEl.classList.add('cell-revealed-solution');
+                        cellEl.innerHTML = `<span class="revealed-ghost ${solVal === SUN ? 'ghost-sun' : 'ghost-moon'}">${solVal === SUN ? getSunSvg('tango-sun') : getMoonSvg('tango-moon')}</span>`;
+                    } else if (val === solVal) {
+                        cellEl.classList.add(val === SUN ? 'val-sun' : 'val-moon', 'cell-revealed-correct');
+                        cellEl.innerHTML = `<span class="${val === SUN ? 'icon-sun' : 'icon-moon'}">${val === SUN ? getSunSvg('cell-sun') : getMoonSvg('cell-moon')}</span>`;
+                    } else {
+                        // Fehlerhafter Zug des Spielers (wird rot hervorgehoben mit Lösungssymbol)
+                        cellEl.classList.add(val === SUN ? 'val-sun' : 'val-moon', 'cell-revealed-error');
+                        const wrongIcon = val === SUN ? getSunSvg('cell-sun') : getMoonSvg('cell-moon');
+                        const correctIcon = solVal === SUN ? getSunSvg('mini-icon') : getMoonSvg('mini-icon');
+                        cellEl.innerHTML = `
+                            <span class="wrong-marker-cross">✕</span>
+                            <span class="${val === SUN ? 'icon-sun' : 'icon-moon'}">${wrongIcon}</span>
+                            <div class="revealed-correct-sub">
+                                <span class="mini-badge ${solVal === SUN ? 'badge-sun' : 'badge-moon'}">${correctIcon}</span>
+                            </div>
+                        `;
+                    }
+                } else if (val === SUN) {
                     cellEl.classList.add('val-sun');
                     cellEl.innerHTML = `<span class="icon-sun">${getSunSvg('cell-sun')}</span>`;
                 } else if (val === MOON) {
@@ -3114,29 +3263,60 @@ class TangoApp {
     }
 
     handleHint() {
-        if (!this.isGameActive) return;
+        if (!this.isGameActive || this.solutionRevealed) return;
 
         const MAX_HINTS = 3;
         const applyBtn = document.getElementById('btnHintApply');
         const hintTitleEl = document.querySelector('#hintModal .modal-title');
 
         if (this.hintsUsed >= MAX_HINTS) {
-            if (applyBtn) applyBtn.style.display = 'none';
-            if (hintTitleEl) hintTitleEl.textContent = `${t('hint_title')} (3/3)`;
-            document.getElementById('hintText').textContent = t('hint_limit_reached');
-            this.currentHint = null;
-            this.toggleModal('hintModal', true);
+            // Öffne Sicherheitsabfrage zur Lösungsaufdeckung
+            this.toggleModal('confirmRevealModal', true);
             audio.playError();
             return;
         }
 
+        // 1. Priorität: Fehlerprüfung im bisherigen Lösungsweg
+        const mistake = this.engine.findMistakes();
+        if (mistake) {
+            this.currentHint = {
+                r: mistake.r,
+                c: mistake.c,
+                value: mistake.expectedVal,
+                highlightCells: mistake.highlightCells
+            };
+            this.hintsUsed++;
+            audio.playError();
+
+            if (applyBtn) {
+                applyBtn.style.display = 'inline-block';
+                applyBtn.textContent = t('hint_button_fix');
+            }
+            if (hintTitleEl) hintTitleEl.textContent = `${t('hint_error_title')} (${this.hintsUsed}/${MAX_HINTS})`;
+            document.getElementById('hintText').textContent = mistake.message;
+            this.toggleModal('hintModal', true);
+
+            this.renderGrid();
+            if (mistake.highlightCells) {
+                mistake.highlightCells.forEach(cell => {
+                    const el = document.querySelector(`.grid-cell[data-r="${cell.r}"][data-c="${cell.c}"]`);
+                    if (el) el.classList.add('hint-highlight', 'error-highlight');
+                });
+            }
+            return;
+        }
+
+        // 2. Priorität: Regulärer logischer Tipp für den nächsten Zug
         const hint = TangoSolver.findLogicalHint(this.engine);
         if (hint) {
             this.currentHint = hint;
             this.hintsUsed++;
             audio.playHint();
 
-            if (applyBtn) applyBtn.style.display = 'inline-block';
+            if (applyBtn) {
+                applyBtn.style.display = 'inline-block';
+                applyBtn.textContent = t('hint_button_apply');
+            }
             if (hintTitleEl) hintTitleEl.textContent = `${t('hint_title')} (${this.hintsUsed}/${MAX_HINTS})`;
             document.getElementById('hintText').textContent = hint.message;
             this.toggleModal('hintModal', true);
@@ -3150,6 +3330,33 @@ class TangoApp {
                 });
             }
         }
+    }
+
+    revealSolutionAndSurrender() {
+        this.toggleModal('confirmRevealModal', false);
+        this.isGameActive = false;
+        this.solutionRevealed = true;
+        this.stopTimer();
+        audio.playClear();
+
+        // Statistiken erfassen: Niederlage verbuchen (won = false)
+        if (this.currentMode === 'campaign' || this.currentMode === 'daily' || this.currentMode === 'free') {
+            this.recordGameStats(false);
+        }
+
+        // Rendere das Spielfeld mit visualisierten Fehlern und hinterlegter Lösung
+        this.renderGrid();
+
+        const mins = Math.floor(this.secondsElapsed / 60).toString().padStart(2, '0');
+        const secs = (this.secondsElapsed % 60).toString().padStart(2, '0');
+        const revealTimeEl = document.getElementById('revealTime');
+        const revealMovesEl = document.getElementById('revealMoves');
+        if (revealTimeEl) revealTimeEl.textContent = `${mins}:${secs}`;
+        if (revealMovesEl) revealMovesEl.textContent = this.movesCount;
+
+        setTimeout(() => {
+            this.toggleModal('solutionRevealedModal', true);
+        }, 300);
     }
 
     checkCompletion() {
@@ -3251,7 +3458,7 @@ class TangoApp {
             return;
         }
         try {
-            const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
+            const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"lost":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
             if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
                 stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
             }
@@ -3266,6 +3473,8 @@ class TangoApp {
                 if (stats.bestTimes[sizeKey] === null || stats.bestTimes[sizeKey] === undefined || this.secondsElapsed < stats.bestTimes[sizeKey]) {
                     stats.bestTimes[sizeKey] = this.secondsElapsed;
                 }
+            } else {
+                stats.lost = (stats.lost || 0) + 1;
             }
             localStorage.setItem('tango_stats', JSON.stringify(stats));
         } catch (e) {}
@@ -3372,9 +3581,9 @@ class TangoApp {
     }
 
     openStatsModal() {
-        let stats = { played: 0, won: 0, bestTime: null, bestTimes: { '4': null, '6': null, '8': null, '10': null }, totalTime: 0 };
+        let stats = { played: 0, won: 0, lost: 0, bestTime: null, bestTimes: { '4': null, '6': null, '8': null, '10': null }, totalTime: 0 };
         try {
-            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
+            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"lost":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
             if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
                 stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
             }
@@ -3390,6 +3599,7 @@ class TangoApp {
         const el = (id) => document.getElementById(id);
         if (el('statPlayedModal')) el('statPlayedModal').textContent = stats.played || 0;
         if (el('statWonModal')) el('statWonModal').textContent = stats.won || 0;
+        if (el('statLostModal')) el('statLostModal').textContent = stats.lost || 0;
         if (el('statWinRateModal')) el('statWinRateModal').textContent = stats.played > 0 ? `${Math.round(((stats.won || 0) / stats.played) * 100)}%` : '0%';
         if (el('statCurrentStreakModal')) el('statCurrentStreakModal').textContent = `${streaks.currentStreak} 🔥`;
         if (el('statMaxStreakModal')) el('statMaxStreakModal').textContent = `${streaks.maxStreak} 🏆`;

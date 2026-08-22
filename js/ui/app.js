@@ -106,6 +106,7 @@ export class TangoApp {
         this.secondsElapsed = 0;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = false;
         this.ignoreClickUntil = 0;
 
@@ -281,6 +282,22 @@ export class TangoApp {
         document.getElementById('btnCloseHint').addEventListener('click', () => this.toggleModal('hintModal', false));
         document.getElementById('btnCloseLevelSelect')?.addEventListener('click', () => this.toggleModal('levelSelectModal', false));
 
+        // Sicherheitsabfrage & Lösungsaufdeckung Listener
+        document.getElementById('btnCancelReveal')?.addEventListener('click', () => this.toggleModal('confirmRevealModal', false));
+        document.getElementById('btnConfirmReveal')?.addEventListener('click', () => this.revealSolutionAndSurrender());
+        document.getElementById('btnRevealRestart')?.addEventListener('click', () => {
+            this.toggleModal('solutionRevealedModal', false);
+            this.restartCurrentPuzzle();
+        });
+        document.getElementById('btnRevealMenu')?.addEventListener('click', () => {
+            this.toggleModal('solutionRevealedModal', false);
+            if (this.currentMode === 'campaign') {
+                this.openLevelSelectModal();
+            } else {
+                this.openMenuTab('play');
+            }
+        });
+
         // Kampagnen-Kapitel Tabs
         const chapterTabs = document.getElementById('campaignChapterTabs');
         if (chapterTabs) {
@@ -408,6 +425,7 @@ export class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -444,6 +462,7 @@ export class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -477,6 +496,7 @@ export class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -497,6 +517,7 @@ export class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -516,6 +537,7 @@ export class TangoApp {
         this.selectedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.solutionRevealed = false;
         this.isGameActive = true;
         this.startTimer();
 
@@ -532,10 +554,14 @@ export class TangoApp {
             size: this.engine.size,
             initialGrid: this.engine.initialGrid,
             hEdges: this.engine.hEdges,
-            vEdges: this.engine.vEdges
+            vEdges: this.engine.vEdges,
+            solution: this.engine.solution
         });
         this.selectedCell = null;
         this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.isGameActive = true;
         this.startTimer();
         this.renderGrid();
         audio.playClear();
@@ -576,6 +602,7 @@ export class TangoApp {
         gridEl.className = `tango-grid size-${size}`;
 
         const validation = this.autoCheck ? this.engine.validateRules() : { conflictCells: new Set() };
+        const solution = this.solutionRevealed ? this.engine.getSolution() : null;
 
         for (let r = 0; r < size; r++) {
             const rowEl = document.createElement('div');
@@ -589,14 +616,35 @@ export class TangoApp {
 
                 const val = this.engine.grid[r][c];
                 const isLocked = this.engine.locked[r][c];
-                const isConflict = validation.conflictCells.has(`${r},${c}`);
-                const isSelected = this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
+                const isConflict = !this.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
+                const isSelected = !this.solutionRevealed && this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
 
                 if (isLocked) cellEl.classList.add('locked');
                 if (isConflict) cellEl.classList.add('conflict');
                 if (isSelected) cellEl.classList.add('selected');
 
-                if (val === SUN) {
+                if (this.solutionRevealed && solution) {
+                    const solVal = solution[r][c];
+                    if (val === EMPTY) {
+                        cellEl.classList.add('cell-revealed-solution');
+                        cellEl.innerHTML = `<span class="revealed-ghost ${solVal === SUN ? 'ghost-sun' : 'ghost-moon'}">${solVal === SUN ? getSunSvg('tango-sun') : getMoonSvg('tango-moon')}</span>`;
+                    } else if (val === solVal) {
+                        cellEl.classList.add(val === SUN ? 'val-sun' : 'val-moon', 'cell-revealed-correct');
+                        cellEl.innerHTML = `<span class="${val === SUN ? 'icon-sun' : 'icon-moon'}">${val === SUN ? getSunSvg('cell-sun') : getMoonSvg('cell-moon')}</span>`;
+                    } else {
+                        // Fehlerhafter Zug des Spielers (wird rot hervorgehoben mit Lösungssymbol)
+                        cellEl.classList.add(val === SUN ? 'val-sun' : 'val-moon', 'cell-revealed-error');
+                        const wrongIcon = val === SUN ? getSunSvg('cell-sun') : getMoonSvg('cell-moon');
+                        const correctIcon = solVal === SUN ? getSunSvg('mini-icon') : getMoonSvg('mini-icon');
+                        cellEl.innerHTML = `
+                            <span class="wrong-marker-cross">✕</span>
+                            <span class="${val === SUN ? 'icon-sun' : 'icon-moon'}">${wrongIcon}</span>
+                            <div class="revealed-correct-sub">
+                                <span class="mini-badge ${solVal === SUN ? 'badge-sun' : 'badge-moon'}">${correctIcon}</span>
+                            </div>
+                        `;
+                    }
+                } else if (val === SUN) {
                     cellEl.classList.add('val-sun');
                     cellEl.innerHTML = `<span class="icon-sun">${getSunSvg('cell-sun')}</span>`;
                 } else if (val === MOON) {
@@ -803,29 +851,60 @@ export class TangoApp {
     }
 
     handleHint() {
-        if (!this.isGameActive) return;
+        if (!this.isGameActive || this.solutionRevealed) return;
 
         const MAX_HINTS = 3;
         const applyBtn = document.getElementById('btnHintApply');
         const hintTitleEl = document.querySelector('#hintModal .modal-title');
 
         if (this.hintsUsed >= MAX_HINTS) {
-            if (applyBtn) applyBtn.style.display = 'none';
-            if (hintTitleEl) hintTitleEl.textContent = `${t('hint_title')} (3/3)`;
-            document.getElementById('hintText').textContent = t('hint_limit_reached');
-            this.currentHint = null;
-            this.toggleModal('hintModal', true);
+            // Öffne Sicherheitsabfrage zur Lösungsaufdeckung
+            this.toggleModal('confirmRevealModal', true);
             audio.playError();
             return;
         }
 
+        // 1. Priorität: Fehlerprüfung im bisherigen Lösungsweg
+        const mistake = this.engine.findMistakes();
+        if (mistake) {
+            this.currentHint = {
+                r: mistake.r,
+                c: mistake.c,
+                value: mistake.expectedVal,
+                highlightCells: mistake.highlightCells
+            };
+            this.hintsUsed++;
+            audio.playError();
+
+            if (applyBtn) {
+                applyBtn.style.display = 'inline-block';
+                applyBtn.textContent = t('hint_button_fix');
+            }
+            if (hintTitleEl) hintTitleEl.textContent = `${t('hint_error_title')} (${this.hintsUsed}/${MAX_HINTS})`;
+            document.getElementById('hintText').textContent = mistake.message;
+            this.toggleModal('hintModal', true);
+
+            this.renderGrid();
+            if (mistake.highlightCells) {
+                mistake.highlightCells.forEach(cell => {
+                    const el = document.querySelector(`.grid-cell[data-r="${cell.r}"][data-c="${cell.c}"]`);
+                    if (el) el.classList.add('hint-highlight', 'error-highlight');
+                });
+            }
+            return;
+        }
+
+        // 2. Priorität: Regulärer logischer Tipp für den nächsten Zug
         const hint = TangoSolver.findLogicalHint(this.engine);
         if (hint) {
             this.currentHint = hint;
             this.hintsUsed++;
             audio.playHint();
 
-            if (applyBtn) applyBtn.style.display = 'inline-block';
+            if (applyBtn) {
+                applyBtn.style.display = 'inline-block';
+                applyBtn.textContent = t('hint_button_apply');
+            }
             if (hintTitleEl) hintTitleEl.textContent = `${t('hint_title')} (${this.hintsUsed}/${MAX_HINTS})`;
             document.getElementById('hintText').textContent = hint.message;
             this.toggleModal('hintModal', true);
@@ -839,6 +918,33 @@ export class TangoApp {
                 });
             }
         }
+    }
+
+    revealSolutionAndSurrender() {
+        this.toggleModal('confirmRevealModal', false);
+        this.isGameActive = false;
+        this.solutionRevealed = true;
+        this.stopTimer();
+        audio.playClear();
+
+        // Statistiken erfassen: Niederlage verbuchen (won = false)
+        if (this.currentMode === 'campaign' || this.currentMode === 'daily' || this.currentMode === 'free') {
+            this.recordGameStats(false);
+        }
+
+        // Rendere das Spielfeld mit visualisierten Fehlern und hinterlegter Lösung
+        this.renderGrid();
+
+        const mins = Math.floor(this.secondsElapsed / 60).toString().padStart(2, '0');
+        const secs = (this.secondsElapsed % 60).toString().padStart(2, '0');
+        const revealTimeEl = document.getElementById('revealTime');
+        const revealMovesEl = document.getElementById('revealMoves');
+        if (revealTimeEl) revealTimeEl.textContent = `${mins}:${secs}`;
+        if (revealMovesEl) revealMovesEl.textContent = this.movesCount;
+
+        setTimeout(() => {
+            this.toggleModal('solutionRevealedModal', true);
+        }, 300);
     }
 
     checkCompletion() {
@@ -940,7 +1046,7 @@ export class TangoApp {
             return;
         }
         try {
-            const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
+            const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"lost":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
             if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
                 stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
             }
@@ -955,6 +1061,8 @@ export class TangoApp {
                 if (stats.bestTimes[sizeKey] === null || stats.bestTimes[sizeKey] === undefined || this.secondsElapsed < stats.bestTimes[sizeKey]) {
                     stats.bestTimes[sizeKey] = this.secondsElapsed;
                 }
+            } else {
+                stats.lost = (stats.lost || 0) + 1;
             }
             localStorage.setItem('tango_stats', JSON.stringify(stats));
         } catch (e) {}
@@ -1061,9 +1169,9 @@ export class TangoApp {
     }
 
     openStatsModal() {
-        let stats = { played: 0, won: 0, bestTime: null, bestTimes: { '4': null, '6': null, '8': null, '10': null }, totalTime: 0 };
+        let stats = { played: 0, won: 0, lost: 0, bestTime: null, bestTimes: { '4': null, '6': null, '8': null, '10': null }, totalTime: 0 };
         try {
-            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
+            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"lost":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
             if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
                 stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
             }
@@ -1079,6 +1187,7 @@ export class TangoApp {
         const el = (id) => document.getElementById(id);
         if (el('statPlayedModal')) el('statPlayedModal').textContent = stats.played || 0;
         if (el('statWonModal')) el('statWonModal').textContent = stats.won || 0;
+        if (el('statLostModal')) el('statLostModal').textContent = stats.lost || 0;
         if (el('statWinRateModal')) el('statWinRateModal').textContent = stats.played > 0 ? `${Math.round(((stats.won || 0) / stats.played) * 100)}%` : '0%';
         if (el('statCurrentStreakModal')) el('statCurrentStreakModal').textContent = `${streaks.currentStreak} 🔥`;
         if (el('statMaxStreakModal')) el('statMaxStreakModal').textContent = `${streaks.maxStreak} 🏆`;

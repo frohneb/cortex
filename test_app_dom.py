@@ -242,6 +242,39 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('calculateStreaks', bundle_content, 'calculateStreaks Funktion muss im Bundle vorhanden sein')
         self.assertIn('bestTimes', bundle_content, 'bestTimes Objekt muss im Bundle vorhanden sein')
 
+    def test_reveal_confirmation_and_defeat_modals(self):
+        """Überprüft, dass confirmRevealModal, solutionRevealedModal und statLostModal im DOM vorhanden sind"""
+        html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
+        bundle_content = (BASE_DIR / "js" / "bundle.js").read_text(encoding='utf-8')
+
+        # Modal IDs & Button IDs
+        self.assertIn('id="confirmRevealModal"', html_content, "confirmRevealModal muss in index.html vorhanden sein")
+        self.assertIn('id="solutionRevealedModal"', html_content, "solutionRevealedModal muss in index.html vorhanden sein")
+        self.assertIn('id="btnConfirmReveal"', html_content, "btnConfirmReveal Button muss in index.html vorhanden sein")
+        self.assertIn('id="btnCancelReveal"', html_content, "btnCancelReveal Button muss in index.html vorhanden sein")
+        self.assertIn('id="btnRevealRestart"', html_content, "btnRevealRestart Button muss in index.html vorhanden sein")
+        self.assertIn('id="statLostModal"', html_content, "statLostModal muss in index.html vorhanden sein")
+
+        # JS Methoden
+        self.assertIn('findMistakes', bundle_content, "findMistakes Methode muss im Bundle vorhanden sein")
+        self.assertIn('revealSolutionAndSurrender', bundle_content, "revealSolutionAndSurrender Methode muss im Bundle vorhanden sein")
+        self.assertIn('stats.lost', bundle_content, "stats.lost Erfassung muss im Bundle vorhanden sein")
+
+    def test_version_number_consistency_v1_0_8(self):
+        """Überprüft, dass Version 1.0.8 (Code 8) in allen Konfigurationsdateien konsistent ist"""
+        sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
+        html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
+        gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
+        manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
+
+        self.assertIn('tango-app-v1.0.8', sw_content, "sw.js muss Cache tango-app-v1.0.8 enthalten")
+        self.assertIn('v1.0.8', html_content, "index.html muss v1.0.8 Badge enthalten")
+        self.assertIn('versionName = "1.0.8"', gradle_content, "build.gradle.kts muss versionName 1.0.8 enthalten")
+        self.assertIn('versionCode = 8', gradle_content, "build.gradle.kts muss versionCode 8 enthalten")
+        self.assertIn('android:versionName="1.0.8"', manifest_content, "AndroidManifest.xml muss versionName 1.0.8 enthalten")
+        self.assertIn('android:versionCode="8"', manifest_content, "AndroidManifest.xml muss versionCode 8 enthalten")
+
 
 if __name__ == "__main__":
     unittest.main()
+

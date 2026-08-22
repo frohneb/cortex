@@ -305,10 +305,106 @@ html, body {
     animation: hintPulse 1.2s infinite ease-in-out;
 }
 
+.grid-cell.hint-highlight.error-highlight {
+    border-color: var(--accent-opposite) !important;
+    background: rgba(239, 68, 68, 0.22) !important;
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.55);
+}
+
 .grid-cell.tutorial-target {
     border-color: var(--accent-sun) !important;
     animation: hintPulse 1.5s infinite ease-in-out;
     box-shadow: 0 0 14px rgba(245, 158, 11, 0.45);
+}
+
+/* ==================== REVEALED SOLUTION & MISTAKE STYLES ==================== */
+.grid-cell.cell-revealed-error {
+    border-color: #ef4444 !important;
+    background: radial-gradient(circle at center, rgba(239, 68, 68, 0.28) 0%, var(--cell-bg) 85%) !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5) !important;
+    position: relative;
+}
+
+.grid-cell.cell-revealed-error .wrong-marker-cross {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: #ef4444;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+    z-index: 3;
+}
+
+.grid-cell.cell-revealed-error .icon-sun,
+.grid-cell.cell-revealed-error .icon-moon {
+    opacity: 0.5;
+    filter: grayscale(0.6) contrast(1.2);
+}
+
+.grid-cell.cell-revealed-error .revealed-correct-sub {
+    position: absolute;
+    bottom: 2px;
+    left: 2px;
+    right: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.grid-cell.cell-revealed-error .revealed-correct-sub .mini-badge {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--accent-sun);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 0.65rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.grid-cell.cell-revealed-error .revealed-correct-sub .mini-badge.badge-moon {
+    border-color: var(--accent-moon);
+}
+
+.grid-cell.cell-revealed-correct {
+    border-color: rgba(34, 197, 94, 0.55) !important;
+    box-shadow: inset 0 0 8px rgba(34, 197, 94, 0.15);
+}
+
+.grid-cell.cell-revealed-solution {
+    background: var(--cell-bg);
+}
+
+.grid-cell .revealed-ghost {
+    opacity: 0.75;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 68%;
+    height: 68%;
+    pointer-events: none;
+    animation: symbolPop 0.25s ease-out;
+}
+
+.grid-cell .revealed-ghost .tango-symbol {
+    width: 100%;
+    height: 100%;
+}
+
+.grid-cell .revealed-ghost.ghost-sun {
+    color: var(--accent-sun);
+    filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.85));
+}
+
+.grid-cell .revealed-ghost.ghost-moon {
+    color: var(--accent-moon);
+    filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.85));
 }
 
 /* ==================== TANGO VECTOR SYMBOLS ==================== */
