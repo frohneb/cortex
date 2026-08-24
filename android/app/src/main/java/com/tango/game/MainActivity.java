@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
 
         // Sicherheit: Kein Netzwerkzugriff notwendig
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        webView.clearCache(true);
         settings.setBlockNetworkImage(true);
         settings.setBlockNetworkLoads(true);
 

@@ -81,6 +81,8 @@ def build_apk():
             'manifest.json',
             'sw.js',
             'css/main.css',
+            'css/puzzles/tango.css',
+            'css/puzzles/sudoku.css',
             'js/bundle.js',
             'assets/favicon.svg',
             'assets/favicon.png',
@@ -105,10 +107,10 @@ def build_apk():
     print("=== 8. Keystore & Signieren (apksigner) ===")
     keystore = os.path.join(BASE_DIR, "tango.keystore")
     if not os.path.exists(keystore):
-        cmd_key = f'"{KEYTOOL}" -genkeypair -v -keystore "{keystore}" -alias tango -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Tango, OU=Game, O=Tango, L=Local, ST=Local, C=DE"'
+        cmd_key = f'"{KEYTOOL}" -genkeypair -v -keystore "{keystore}" -alias tango -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Cortex, OU=Game, O=Cortex, L=Local, ST=Local, C=DE"'
         run_cmd(cmd_key)
 
-    output_apk = os.path.join(BASE_DIR, "Tango.apk")
+    output_apk = os.path.join(BASE_DIR, "Cortex.apk")
     cmd_sign = f'"{APKSIGNER}" sign --ks "{keystore}" --ks-pass pass:android --out "{output_apk}" "{aligned_apk}"'
     run_cmd(cmd_sign)
 

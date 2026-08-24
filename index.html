@@ -6,13 +6,15 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Tango">
-    <title>Tango - Logikrätsel</title>
+    <meta name="apple-mobile-web-app-title" content="Cortex">
+    <title>Cortex – Logikrätsel</title>
 
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none';">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
     <link rel="stylesheet" href="./css/main.css">
+    <link rel="stylesheet" href="./css/puzzles/tango.css">
+    <link rel="stylesheet" href="./css/puzzles/sudoku.css">
 </head>
 <body class="theme-dark">
     <!-- On-screen Error Banner for Diagnostics -->
@@ -117,8 +119,8 @@
         <div class="modal-card menu-hub-card">
             <div class="modal-header">
                 <div class="menu-hub-title-box">
-                    <span class="menu-hub-icon">☀️🌙</span>
-                    <h2 class="modal-title" data-i18n="app_title">Tango</h2>
+                    <span class="menu-hub-icon">🧠</span>
+                    <h2 class="modal-title" data-i18n="app_title">Cortex</h2>
                 </div>
                 <button id="btnCloseMenu" class="modal-close-btn">✕</button>
             </div>
@@ -146,16 +148,20 @@
             <div class="modal-body menu-hub-body">
                 <!-- TAB 1: SPIELEN -->
                 <div id="menuSecPlay" class="menu-hub-sec">
-                    <div class="menu-modes-grid">
-                        <button id="navCampaign" class="menu-mode-card primary-mode">
-                            <div class="mode-icon-box">🏆</div>
-                            <div class="mode-text-box">
-                                <strong data-i18n="nav_campaign">Kampagne</strong>
-                                <span data-i18n="campaign_desc">30 handgefertigte Level</span>
-                            </div>
+                    <!-- Zurück zu allen Rätseln & Aktives Rätsel Header -->
+                    <div class="puzzle-header-nav" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+                        <button type="button" id="btnBackToAllPuzzles" class="secondary-btn" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.85rem; font-weight: 700; border-radius: var(--radius-sm);">
+                            <span style="font-size: 1.1rem; line-height: 1;">‹</span>
+                            <span data-i18n="btn_back_to_all_puzzles">Alle Rätsel</span>
                         </button>
+                        <div style="display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 1.05rem; color: var(--accent-sun);">
+                            <span id="activePuzzleIcon">☀️🌙</span>
+                            <span id="activePuzzleName">Tango</span>
+                        </div>
+                    </div>
 
-                        <button id="navDaily" class="menu-mode-card">
+                    <div class="menu-modes-grid">
+                        <button id="navDaily" class="menu-mode-card primary-mode" style="border-color: var(--accent-sun);">
                             <div class="mode-icon-box">📅</div>
                             <div class="mode-text-box">
                                 <strong data-i18n="nav_daily">Tägliches Rätsel</strong>
@@ -164,11 +170,19 @@
                             <span id="dailyBadge" class="nav-badge" style="display: none;" data-i18n="reminder_badge_new">Neu</span>
                         </button>
 
+                        <button id="navCampaign" class="menu-mode-card">
+                            <div class="mode-icon-box">🏆</div>
+                            <div class="mode-text-box">
+                                <strong data-i18n="nav_campaign">Kampagne</strong>
+                                <span id="campaignDescText" data-i18n="campaign_desc">120 handgefertigte Level</span>
+                            </div>
+                        </button>
+
                         <button id="navFree" class="menu-mode-card">
                             <div class="mode-icon-box">🎲</div>
                             <div class="mode-text-box">
                                 <strong data-i18n="nav_free">Freies Spiel</strong>
-                                <span data-i18n="free_desc">4×4 bis 10×10, beliebige Stufe</span>
+                                <span data-i18n="free_desc">Beliebige Größe &amp; Stufe</span>
                             </div>
                         </button>
 
@@ -232,6 +246,12 @@
 
                 <!-- TAB 3: STATISTIKEN -->
                 <div id="menuSecStats" class="menu-hub-sec" style="display: none;">
+                    <div class="stats-filter-tabs">
+                        <button type="button" class="stats-filter-btn active" data-stats-tab="all" data-i18n="stats_tab_all">Gesamt</button>
+                        <button type="button" class="stats-filter-btn" data-stats-tab="tango">☀️🌙 Tango</button>
+                        <button type="button" class="stats-filter-btn" data-stats-tab="sudoku">🔢 Sudoku</button>
+                    </div>
+
                     <div class="stats-grid">
                         <div class="stat-card">
                             <span class="stat-val" id="statPlayed">0</span>
@@ -256,7 +276,7 @@
                     </div>
 
                     <div class="stats-section-title" data-i18n="stats_best_times_title">⚡ Bestzeiten</div>
-                    <div class="stats-grid">
+                    <div id="statsBestTimesGrid" class="stats-grid">
                         <div class="stat-card">
                             <span class="stat-val" id="statBestTime4">-</span>
                             <span class="stat-lbl" data-i18n="stats_best_time_4">Bestzeit 4×4</span>
@@ -342,7 +362,7 @@
                         <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
                     </div>
                     <div class="settings-version-info" style="text-align:center; margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:11px; opacity:0.65;">
-                        Tango App <span id="appVersionBadge">v1.2.6</span> • 100% Offline &amp; Werbefrei
+                        Cortex App <span id="appVersionBadge">v2.0.0</span> • 100% Offline &amp; Werbefrei
                     </div>
                 </div>
             </div>
@@ -418,14 +438,17 @@
     <div id="hintModal" class="modal-overlay">
         <div class="modal-card">
             <div class="modal-header">
-                <h2 class="modal-title" data-i18n="hint_title">Logischer Hinweis</h2>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.4rem;">💡</span>
+                    <h2 id="hintModalTitle" class="modal-title" data-i18n="hint_title">Logischer Hinweis</h2>
+                </div>
                 <button id="btnCloseHint" class="modal-close-btn">✕</button>
             </div>
             <div class="modal-body">
-                <div id="hintText" style="line-height: 1.5; font-size: 1rem;">...</div>
+                <div id="hintModalDesc" style="line-height: 1.5; font-size: 0.95rem; color: var(--text-primary);">...</div>
             </div>
-            <div class="modal-actions">
-                <button id="btnHintApply" class="primary-btn" data-i18n="hint_button_apply">Zug ausführen</button>
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button id="btnHintApply" class="primary-btn" style="width: 100%;" data-i18n="hint_button_apply">Zug ausführen</button>
             </div>
         </div>
     </div>
@@ -666,6 +689,25 @@
             <div class="modal-actions" style="display: flex; gap: 8px;">
                 <button id="btnRevealRestart" class="primary-btn" style="flex: 1;" data-i18n="btn_retry_level">Level wiederholen</button>
                 <button id="btnRevealMenu" class="secondary-btn" style="flex: 1;" data-i18n="btn_back_menu">Hauptmenü</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Puzzle Auswahl Modal -->
+    <div id="puzzleSelectModal" class="modal-overlay" style="display: none; z-index: 9999;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.4rem;">🧠</span>
+                    <h2 class="modal-title" data-i18n="puzzle_select_title">Wähle dein Rätsel</h2>
+                </div>
+                <button type="button" id="btnClosePuzzleSelect" class="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;" data-i18n="puzzle_select_desc">Vollständig offline, werbefrei und logisch deduzierbar.</p>
+                <div id="puzzleSelectionGrid" class="puzzle-select-grid">
+                    <!-- Dynamisch aus der Registry befüllt -->
+                </div>
             </div>
         </div>
     </div>

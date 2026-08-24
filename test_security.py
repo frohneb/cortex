@@ -9,7 +9,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-APK_PATH = os.path.join(BASE_DIR, "Tango.apk")
+APK_PATH = os.path.join(BASE_DIR, "Cortex.apk")
 JAVA_HOME = r"C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot"
 BUILD_TOOLS = os.path.join(BASE_DIR, "android-sdk", "build-tools", "34.0.0")
 AAPT = os.path.join(BUILD_TOOLS, "aapt.exe")
@@ -27,11 +27,11 @@ def check(name, condition, detail=""):
         errors.append(f"  [FAIL] {name}: {detail}")
 
 print("=" * 60)
-print("SICHERHEITSAUDIT: Tango.apk")
+print("SICHERHEITSAUDIT: Cortex.apk")
 print("=" * 60)
 
 # 1. APK existiert
-check("APK-Datei existiert", os.path.exists(APK_PATH), "Tango.apk nicht gefunden")
+check("APK-Datei existiert", os.path.exists(APK_PATH), "Cortex.apk nicht gefunden")
 
 # 2. APK-Signatur pruefen
 if os.path.exists(APK_PATH):
@@ -122,9 +122,9 @@ res = subprocess.run("git ls-files tango.keystore", shell=True, capture_output=T
 check("Keystore nicht in Git versioniert",
       res.stdout.strip() == "", "tango.keystore ist in Git tracked!")
 
-res = subprocess.run("git ls-files Tango.apk", shell=True, capture_output=True, text=True, cwd=BASE_DIR)
+res = subprocess.run("git ls-files Cortex.apk Tango.apk", shell=True, capture_output=True, text=True, cwd=BASE_DIR)
 check("APK nicht in Git versioniert",
-      res.stdout.strip() == "", "Tango.apk ist in Git tracked!")
+      res.stdout.strip() == "", "APK ist in Git tracked!")
 
 # Ergebnis
 print("\n" + "=" * 60)

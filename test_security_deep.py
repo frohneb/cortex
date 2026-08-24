@@ -10,7 +10,7 @@ import zipfile
 import hashlib
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-APK_PATH = os.path.join(BASE_DIR, "Tango.apk")
+APK_PATH = os.path.join(BASE_DIR, "Cortex.apk")
 JAVA_HOME = r"C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot"
 BUILD_TOOLS = os.path.join(BASE_DIR, "android-sdk", "build-tools", "34.0.0")
 AAPT = os.path.join(BUILD_TOOLS, "aapt.exe")
@@ -44,7 +44,7 @@ def sha256_file(path):
     return h.hexdigest()
 
 print("=" * 70)
-print("ERWEITERTER SICHERHEITSAUDIT (DEEP SCAN): Tango APK & Quellcode")
+print("ERWEITERTER SICHERHEITSAUDIT (DEEP SCAN): Cortex APK & Quellcode")
 print("=" * 70)
 
 # ============================================================
@@ -52,7 +52,7 @@ print("=" * 70)
 # ============================================================
 print("\n--- 1. APK-Integritaet & Signatur ---")
 
-check("APK-Datei existiert", os.path.exists(APK_PATH), "Tango.apk nicht gefunden")
+check("APK-Datei existiert", os.path.exists(APK_PATH), "Cortex.apk nicht gefunden")
 
 if os.path.exists(APK_PATH):
     res = subprocess.run(
@@ -349,7 +349,7 @@ print("\n--- 7. Git & Build-Pipeline ---")
 gitignore = load_file(os.path.join(BASE_DIR, ".gitignore"))
 check("tango.keystore in .gitignore", "tango.keystore" in gitignore,
       "Keystore koennte versioniert werden")
-check("Tango.apk in .gitignore", "Tango.apk" in gitignore,
+check("Cortex.apk in .gitignore", "Cortex.apk" in gitignore,
       "APK koennte versioniert werden")
 check("android-sdk/ in .gitignore", "android-sdk/" in gitignore,
       "SDK koennte versioniert werden")
@@ -360,9 +360,9 @@ res = subprocess.run("git ls-files tango.keystore", shell=True, capture_output=T
 check("Keystore nicht in Git-Index", res.stdout.strip() == "",
       "tango.keystore ist in Git tracked")
 
-res = subprocess.run("git ls-files Tango.apk", shell=True, capture_output=True, text=True, cwd=BASE_DIR)
+res = subprocess.run("git ls-files Cortex.apk Tango.apk", shell=True, capture_output=True, text=True, cwd=BASE_DIR)
 check("APK nicht in Git-Index", res.stdout.strip() == "",
-      "Tango.apk ist in Git tracked")
+      "APK ist in Git tracked")
 
 # ============================================================
 # ERGEBNIS

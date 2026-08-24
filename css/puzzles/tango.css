@@ -1,0 +1,158 @@
+/* ==========================================================================
+   Tango Puzzle Specific Stylesheet
+   ========================================================================== */
+
+.tango-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100%;
+    height: 100%;
+    max-width: 440px;
+    max-height: 440px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 30px var(--shadow-color);
+    border: 2.5px solid var(--accent-sun) !important;
+    box-sizing: border-box;
+}
+
+body.theme-cyberpunk .tango-grid {
+    border-color: #ff007f !important;
+}
+
+body.theme-minimal .tango-grid {
+    border-color: var(--border-color) !important;
+}
+
+/* Dynamic Proportional Scaling per Grid Size (4x4, 6x6, 8x8, 10x10) */
+.tango-grid.size-4 { gap: 6px !important; padding: 8px !important; border-radius: 14px !important; }
+.tango-grid.size-4 .grid-row { gap: 6px !important; }
+.tango-grid.size-4 .grid-cell { font-size: clamp(1.4rem, 5.5vw, 2.2rem); border-width: 2px; }
+.tango-grid.size-4 .edge-marker { width: 22px; height: 22px; font-size: 0.85rem; }
+.tango-grid.size-4 .edge-marker.edge-h { right: -14px; }
+.tango-grid.size-4 .edge-marker.edge-v { bottom: -14px; }
+
+.tango-grid.size-6 { gap: 4px !important; padding: 6px !important; border-radius: 12px !important; }
+.tango-grid.size-6 .grid-row { gap: 4px !important; }
+.tango-grid.size-6 .grid-cell { font-size: clamp(1.1rem, 4.2vw, 1.7rem); border-width: 2px; }
+.tango-grid.size-6 .edge-marker { width: 17px; height: 17px; font-size: 0.7rem; }
+.tango-grid.size-6 .edge-marker.edge-h { right: -10px; }
+.tango-grid.size-6 .edge-marker.edge-v { bottom: -10px; }
+
+.tango-grid.size-8 { gap: 3px !important; padding: 5px !important; border-radius: 9px !important; }
+.tango-grid.size-8 .grid-row { gap: 3px !important; }
+.tango-grid.size-8 .grid-cell { font-size: clamp(0.85rem, 3.2vw, 1.3rem); border-width: 1.5px; border-radius: 6px; }
+.tango-grid.size-8 .edge-marker { width: 13px; height: 13px; font-size: 0.55rem; border-width: 1px; }
+.tango-grid.size-8 .edge-marker.edge-h { right: -8px; }
+.tango-grid.size-8 .edge-marker.edge-v { bottom: -8px; }
+
+.tango-grid.size-10 { gap: 2px !important; padding: 4px !important; border-radius: 7px !important; }
+.tango-grid.size-10 .grid-row { gap: 2px !important; }
+.tango-grid.size-10 .grid-cell { font-size: clamp(0.68rem, 2.5vw, 1.05rem); border-width: 1px; border-radius: 4px; }
+.tango-grid.size-10 .edge-marker { width: 10px; height: 10px; font-size: 0.42rem; border-width: 1px; }
+.tango-grid.size-10 .edge-marker.edge-h { right: -6px; }
+.tango-grid.size-10 .edge-marker.edge-v { bottom: -6px; }
+
+.tango-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--cell-bg);
+    border: 1px solid var(--cell-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Edge Markers */
+.edge-marker {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 13px;
+    z-index: 5;
+    pointer-events: none;
+    line-height: 1;
+    border-radius: 4px;
+}
+
+.edge-h {
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+}
+
+.edge-v {
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 16px;
+}
+
+.edge-equal {
+    color: var(--accent-equal);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--accent-equal);
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+.edge-opposite {
+    color: var(--accent-opposite);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--accent-opposite);
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+/* Tango Symbole */
+.tango-symbol {
+    width: 65%;
+    height: 65%;
+    display: block;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tango-sun {
+    color: var(--accent-sun);
+}
+
+.tango-moon {
+    color: var(--accent-moon);
+}
+
+.val-sun .icon-sun svg {
+    color: var(--accent-sun);
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+    transform: scale(1.05);
+}
+
+.val-moon .icon-moon svg {
+    color: var(--accent-moon);
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
+    transform: scale(1.05);
+}
+
+/* Tango Notizen */
+.cell-notes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    height: 100%;
+}
+
+.cell-notes .mini-sun svg,
+.cell-notes .mini-moon svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.85;
+}

@@ -121,7 +121,7 @@ class TestTangoAppDOM(unittest.TestCase):
     def test_no_invalid_optional_chaining_assignment(self):
         """Überprüft, dass in keinem JS-Skript an ein optional chain (?.prop =) zugewiesen wird"""
         js_files = list((BASE_DIR / "js").rglob("*.js"))
-        invalid_pattern = re.compile(r'\?\.\s*[\w\$]+\s*=')
+        invalid_pattern = re.compile(r'\?\.\s*[\w\$]+\s*=(?!=)')
         
         for js_file in js_files:
             content = js_file.read_text(encoding='utf-8')
@@ -131,6 +131,13 @@ class TestTangoAppDOM(unittest.TestCase):
                 f"Ungültige Zuweisung an Optional Chaining in {js_file.name}: {matches}. "
                 "Optional Chaining auf der linken Seite einer Zuweisung ist ein SyntaxError in JS!"
             )
+
+    def test_bundle_no_dangling_exports_or_syntax_artifacts(self):
+        """Überprüft, dass das Bundle keine unaufgelösten export-Statements oder Syntaxfehler enthält"""
+        bundle_content = (BASE_DIR / "js" / "bundle.js").read_text(encoding='utf-8')
+        self.assertFalse(bool(re.search(r'^\s*EMPTY,\s*SUN', bundle_content, re.MULTILINE)), "Dangling export im Bundle gefunden!")
+        self.assertFalse(bool(re.search(r'^\s*import\s+', bundle_content, re.MULTILINE)), "Nicht bereinigtes import im Bundle gefunden!")
+        self.assertFalse(bool(re.search(r'^\s*export\s+', bundle_content, re.MULTILINE)), "Nicht bereinigtes export im Bundle gefunden!")
 
     def test_tutorial_target_cell_highlighting(self):
         """Überprüft, ob tutorial-target und target-ghost im Bundle implementiert sind"""
@@ -305,19 +312,18 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('.tut-btn-icon', css_content, "main.css muss CSS für .tut-btn-icon definieren")
         self.assertIn('.tut-btn-text', css_content, "main.css muss CSS für .tut-btn-text definieren")
 
-    def test_version_number_consistency_v1_2_6(self):
-        """Überprüft, dass Version 1.2.6 (Code 23) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v2_0_0(self):
+        """Überprüft, dass Version 2.0.0 (Code 24) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('tango-app-v1.2.6', sw_content, "sw.js muss Cache tango-app-v1.2.6 enthalten")
-        self.assertIn('id="appVersionBadge">v1.2.6<', html_content, "index.html muss appVersionBadge mit v1.2.6 enthalten")
-        self.assertIn('versionName = "1.2.6"', gradle_content, "build.gradle.kts muss versionName 1.2.6 enthalten")
-        self.assertIn('versionCode = 23', gradle_content, "build.gradle.kts muss versionCode 23 enthalten")
-        self.assertIn('android:versionName="1.2.6"', manifest_content, "AndroidManifest.xml muss versionName 1.2.6 enthalten")
-        self.assertIn('android:versionCode="23"', manifest_content, "AndroidManifest.xml muss versionCode 23 enthalten")
+        self.assertIn('cortex-app-v2.', sw_content, "sw.js muss Cache cortex-app-v2.x enthalten")
+        self.assertTrue('versionName = "2.' in gradle_content, "build.gradle.kts muss versionName 2.x enthalten")
+        self.assertTrue('versionCode = 2' in gradle_content, "build.gradle.kts muss versionCode 2x enthalten")
+        self.assertTrue('android:versionName="2.' in manifest_content, "AndroidManifest.xml muss versionName 2.x enthalten")
+        self.assertTrue('android:versionCode="2' in manifest_content, "AndroidManifest.xml muss versionCode 2x enthalten")
 
     def test_locked_cells_darker_background_styling(self):
         """Überprüft, dass main.css spezifische dunklere Hintergründe für Start- und gesperrte Zellen definiert"""

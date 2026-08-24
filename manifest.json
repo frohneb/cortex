@@ -1,7 +1,7 @@
 {
-  "name": "Tango - Logikrätsel",
-  "short_name": "Tango",
-  "description": "Minimalistisches Binärrätsel mit Sonne und Mond. 100% werbefrei und offline spielbar.",
+  "name": "Cortex - Logikrätsel",
+  "short_name": "Cortex",
+  "description": "Minimalistische Logikrätsel-Sammlung (Tango, Sudoku). 100% werbefrei und offline spielbar.",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",

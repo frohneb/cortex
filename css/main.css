@@ -76,16 +76,16 @@ body.theme-cyberpunk {
     --bg-primary: #090914;
     --bg-secondary: #16162d;
     --bg-card: rgba(22, 22, 45, 0.95);
-    --border-color: rgba(236, 72, 153, 0.3);
+    --border-color: rgba(255, 255, 255, 0.1);
     --text-primary: #00f0ff;
     --text-secondary: #f472b6;
     --accent-sun: #ffe600;
     --accent-moon: #00f0ff;
     --accent-equal: #00ff66;
     --accent-opposite: #ff0055;
-    --cell-bg: #191938;
-    --cell-border: #2a2a5a;
-    --cell-locked-bg: #070712;
+    --cell-bg: #16162d;
+    --cell-border: rgba(255, 255, 255, 0.1);
+    --cell-locked-bg: #0a0a16;
 }
 
 * {
@@ -1524,14 +1524,16 @@ input:checked + .slider:before {
 }
 
 .menu-sub-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    display: flex;
     gap: 6px;
     margin-top: 6px;
+    width: 100%;
 }
 
 .menu-sub-row .secondary-btn,
 .menu-sub-row .tut-nav-btn {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2080,5 +2082,119 @@ input:checked + .slider:before {
     font-size: 0.76rem;
     color: var(--text-secondary);
     line-height: 1.2;
+}
+
+/* ==================== CORTEX MULTI-PUZZLE SYSTEM ==================== */
+.puzzle-picker-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-color);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    transition: all 0.15s ease;
+}
+
+.puzzle-picker-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--accent-sun);
+}
+
+.puzzle-select-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    width: 100%;
+    margin: 12px 0;
+}
+
+.puzzle-select-card {
+    background: var(--cell-bg);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.puzzle-select-card:hover, .puzzle-select-card.active {
+    border-color: var(--accent-sun);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(251, 191, 36, 0.2);
+}
+
+.puzzle-select-card .puzzle-icon {
+    font-size: 2.2rem;
+    line-height: 1;
+}
+
+.puzzle-select-card .puzzle-name {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.puzzle-select-card .puzzle-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.2;
+}
+
+.puzzle-select-card .puzzle-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: var(--accent-sun-bg);
+    color: var(--accent-sun);
+    border: 1px solid var(--accent-sun);
+}
+
+.puzzle-select-card.coming-soon {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* Stats Multi-Tabs */
+.stats-filter-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    background: var(--bg-primary);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    width: 100%;
+}
+
+.stats-filter-btn {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.stats-filter-btn.active {
+    background: var(--bg-card);
+    color: var(--accent-sun);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 

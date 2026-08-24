@@ -1,0 +1,289 @@
+/* ==========================================================================
+   Sudoku Puzzle Specific Stylesheet
+   Harmonisches, nahtloses Grid mit durchgehenden, unterbrechungsfreien Block-Linien
+   ========================================================================== */
+
+.sudoku-grid {
+    display: grid !important;
+    width: 100%;
+    height: 100%;
+    max-width: 440px;
+    max-height: 440px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    gap: 0 !important;
+    padding: 0 !important;
+    background-color: var(--cell-bg);
+    border: 2.5px solid var(--accent-sun) !important;
+    border-radius: var(--radius-md) !important;
+    overflow: hidden;
+    box-shadow: 0 10px 30px var(--shadow-color);
+    box-sizing: border-box;
+}
+
+body.theme-cyberpunk .sudoku-grid {
+    border-color: #ff007f !important;
+}
+
+body.theme-minimal .sudoku-grid {
+    border-color: var(--border-color) !important;
+}
+
+/* Alle Sudoku-Zellen: Reine mathematische Kacheln ohne Versatz/Artefakte */
+.sudoku-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--cell-bg);
+    border-top: none !important;
+    border-left: none !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    font-weight: 700;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body.theme-light .sudoku-cell {
+    border-right: 1px solid rgba(0, 0, 0, 0.12) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12) !important;
+}
+
+body.theme-cyberpunk .sudoku-cell {
+    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.sudoku-cell:active:not(.locked) {
+    transform: none !important;
+    filter: brightness(1.2);
+}
+
+/* Letzte Spalte & letzte Zeile: Kein rechter/unterer Innenrand am Außenrahmen */
+.sudoku-grid.size-4 .sudoku-cell[data-c="3"],
+.sudoku-grid.size-6 .sudoku-cell[data-c="5"],
+.sudoku-grid.size-9 .sudoku-cell[data-c="8"],
+.sudoku-grid.size-16 .sudoku-cell[data-c="15"] {
+    border-right: none !important;
+}
+
+.sudoku-grid.size-4 .sudoku-cell[data-r="3"],
+.sudoku-grid.size-6 .sudoku-cell[data-r="5"],
+.sudoku-grid.size-9 .sudoku-cell[data-r="8"],
+.sudoku-grid.size-16 .sudoku-cell[data-r="15"] {
+    border-bottom: none !important;
+}
+
+/* Ausschließlich die Kammer-Blocktrenner (2x2, 3x3, 4x4) sind auffällige Linien */
+.sudoku-cell.box-edge-right {
+    border-right: 2.5px solid var(--accent-sun) !important;
+}
+
+.sudoku-cell.box-edge-bottom {
+    border-bottom: 2.5px solid var(--accent-sun) !important;
+}
+
+body.theme-cyberpunk .sudoku-cell.box-edge-right {
+    border-right-color: #ff007f !important;
+}
+
+body.theme-cyberpunk .sudoku-cell.box-edge-bottom {
+    border-bottom-color: #ff007f !important;
+}
+
+body.theme-minimal .sudoku-cell.box-edge-right {
+    border-right-color: var(--text-primary) !important;
+}
+
+body.theme-minimal .sudoku-cell.box-edge-bottom {
+    border-bottom-color: var(--text-primary) !important;
+}
+
+/* Schriftgrößen nach Gittergröße */
+.sudoku-grid.size-4 .val-digit { font-size: 2.4rem; }
+.sudoku-grid.size-9 .val-digit { font-size: 1.55rem; }
+.sudoku-grid.size-16 .val-digit { font-size: 0.95rem; }
+
+/* Ziffernfarben & Typografie */
+.sudoku-cell .icon-digit {
+    color: var(--text-primary);
+    line-height: 1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    font-weight: 700;
+}
+
+.sudoku-cell.locked {
+    background-color: var(--cell-locked-bg) !important;
+}
+
+.sudoku-cell.locked .icon-digit {
+    font-weight: 900;
+    color: var(--accent-moon);
+}
+
+body.theme-cyberpunk .sudoku-cell.locked .icon-digit {
+    color: #00f0ff;
+    text-shadow: 0 0 6px rgba(0, 240, 255, 0.6);
+}
+
+/* Harmonische Feld-Hervorhebungen */
+.sudoku-grid .sudoku-cell.peer-highlight {
+    background-color: rgba(56, 189, 248, 0.08) !important;
+}
+
+body.theme-light .sudoku-grid .sudoku-cell.peer-highlight {
+    background-color: rgba(2, 132, 199, 0.07) !important;
+}
+
+.sudoku-grid .sudoku-cell.same-value-highlight {
+    background-color: rgba(251, 191, 36, 0.22) !important;
+}
+
+.sudoku-grid .sudoku-cell.selected {
+    background-color: rgba(251, 191, 36, 0.35) !important;
+    box-shadow: inset 0 0 0 2px var(--accent-sun) !important;
+    z-index: 2;
+}
+
+body.theme-cyberpunk .sudoku-grid .sudoku-cell.selected {
+    background-color: rgba(0, 240, 255, 0.25) !important;
+    box-shadow: inset 0 0 0 2px #00f0ff !important;
+}
+
+.sudoku-grid .sudoku-cell.conflict {
+    background-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+.sudoku-grid .sudoku-cell.conflict .icon-digit {
+    color: #ef4444;
+}
+
+/* Notizen-Gitter in Zellen */
+.sudoku-note-grid {
+    display: grid;
+    width: 92%;
+    height: 92%;
+    pointer-events: none;
+    align-items: center;
+    justify-items: center;
+    gap: 1px;
+}
+
+.sudoku-note-grid.grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+
+.sudoku-note-grid.grid-9 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+}
+
+.sudoku-note-grid.grid-16 {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+}
+
+.note-digit {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    line-height: 1;
+    font-family: monospace;
+}
+
+.sudoku-grid.size-4 .note-digit { font-size: 0.95rem; }
+.sudoku-grid.size-9 .note-digit { font-size: 0.65rem; }
+.sudoku-grid.size-16 .note-digit { font-size: 0.42rem; }
+
+/* Sudoku Zahlenpad */
+.sudoku-keypad {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    max-width: 480px;
+    margin: 8px auto;
+    padding: 0 4px;
+}
+
+.sudoku-key {
+    flex: 1;
+    min-width: 0;
+    height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--cell-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 700;
+    position: relative;
+    transition: transform 0.1s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.sudoku-key:active {
+    transform: scale(0.92);
+}
+
+.sudoku-key.completed-digit {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.sudoku-key .key-digit {
+    font-size: 1.15rem;
+    line-height: 1;
+    font-weight: 800;
+}
+
+.sudoku-key .key-remaining {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    line-height: 1;
+    margin-top: 2px;
+}
+
+.sudoku-key.key-clear {
+    background-color: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+/* 16x16 Hex Keypad Layout (2 Zeilen) */
+.sudoku-keypad.keypad-hex-layout {
+    flex-direction: column;
+    gap: 4px;
+    padding: 0;
+}
+
+.keypad-hex-row {
+    display: flex;
+    width: 100%;
+    gap: 4px;
+    justify-content: center;
+}
+
+.keypad-hex-row .sudoku-key {
+    height: 38px;
+    border-radius: 4px;
+}
+
+.keypad-hex-row .sudoku-key .key-digit {
+    font-size: 0.95rem;
+}
+
+.keypad-hex-row .sudoku-key .key-remaining {
+    font-size: 0.55rem;
+}

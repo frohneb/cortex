@@ -1,11 +1,2928 @@
 /**
- * Tango Combined Monolithic Bundle
+ * Cortex Combined Monolithic Bundle
  * 100% kompatibel mit allen mobilen WebViews, iOS Safari und Android Chrome
  */
 (function() {
   'use strict';
 
-// === Source: js\core\engine.js ===
+// === Source: js\shared\puzzle-interface.js ===
+/**
+ * Cortex Puzzle Plugin Interface Definition & Types
+ * Jedes Puzzle-Plugin implementiert diesen Vertrag.
+ */
+
+/**
+ * @typedef {Object} PuzzleSizeOption
+ * @property {string|number} id
+ * @property {string} label
+ * @property {number} gridSize
+ */
+
+/**
+ * @typedef {Object} PuzzleDifficultyOption
+ * @property {string} id
+ * @property {string} label
+ */
+
+/**
+ * @typedef {Object} PuzzlePlugin
+ * @property {string} id - Eindeutige ID (z.B. 'tango', 'sudoku')
+ * @property {string} name - Anzeigename (z.B. 'Tango', 'Sudoku')
+ * @property {string} icon - Emoji / Kurzicon (z.B. '☀️🌙', '🔢')
+ * @property {string} description - Kurzbeschreibung für Selektor
+ * @property {string} [badge] - Optionales Badge (z.B. 'Neu', 'Beliebt')
+ * @property {Function} getSizes - () => PuzzleSizeOption[]
+ * @property {Function} getDifficulties - () => PuzzleDifficultyOption[]
+ * @property {Function} getValues - () => number[]
+ * @property {Function} getInputConfig - () => { type: 'cycle'|'keypad', keys?: number[] }
+ * @property {Function} createEngine - (size: number) => Object
+ * @property {Function} generatePuzzle - (opts: {size: number, difficulty: string, seed?: number}) => Object
+ * @property {Function} solvePuzzle - (engine: Object, maxSolutions?: number) => any[]
+ * @property {Function} renderBoard - (container: HTMLElement, engine: Object, state: Object, onCellInteraction?: Function) => void
+ * @property {Function} renderKeypad - (container: HTMLElement, engine: Object, state: Object, onKeyInput?: Function) => void
+ * @property {Function} getSymbolSvg - (value: number, extraClass?: string) => string
+ * @property {Function} getHint - (engine: Object, options?: Object) => Object|null
+ * @property {Function} getRules - (lang: string) => string
+ * @property {Function} getCampaignConfig - () => { totalLevels: number, chapters: Array }
+ * @property {Function} getCampaignLevel - (levelIndex: number) => Object
+ * @property {Function} getDailyConfig - (dateStr: string) => Object
+ * @property {Function} getTutorialSteps - () => { sections: Array<{ id: string, name: string, steps: Array }> }
+ * @property {Function} getI18nStrings - (lang: string) => Object
+ */
+
+const PuzzleInterfaceVersion = '1.0.0';
+
+// === Source: js\shared\storage.js ===
+/**
+ * Cortex Storage Manager
+ * Zentralisierte, ausfallsichere LocalStorage-Verwaltung mit automatischer
+ * Migration von älteren Tango-Versionen (tango_* -> cortex_*).
+ */
+
+const PREFIX = 'cortex_';
+
+const StorageKeys = {
+    MIGRATED: `${PREFIX}migrated`,
+    
+    // Globale Einstellungen
+    THEME: `${PREFIX}theme`,
+    SOUND: `${PREFIX}sound`,
+    VIBRATION: `${PREFIX}vibration`,
+    VIBRATION_STRENGTH: `${PREFIX}vibration_strength`,
+    AUTO_CHECK: `${PREFIX}auto_check`,
+    INPUT_MODE: `${PREFIX}input_mode`,
+    LANGUAGE: `${PREFIX}language`,
+    ACTIVE_PUZZLE: `${PREFIX}active_puzzle`,
+    
+    // Tägliche Erinnerungen & Benachrichtigungen
+    REMINDER_ENABLED: `${PREFIX}reminder_enabled`,
+    REMINDER_TIME: `${PREFIX}reminder_time`,
+    LAST_NOTIF_DATE: `${PREFIX}last_notif_date`,
+
+    // Globales Tagesrätsel-Tracking
+    DAILY_HISTORY: `${PREFIX}daily_history`,
+
+    // Puzzle-spezifische Key-Factory
+    puzzleKey: (puzzleId, key) => `${PREFIX}p_${puzzleId}_${key}`
+};
+
+class StorageManager {
+    /**
+     * Führt eine einmütige Migration von 'tango_*' Keys zu 'cortex_*' durch.
+     */
+    static checkAndMigrate() {
+        try {
+            if (localStorage.getItem(StorageKeys.MIGRATED) === '1') {
+                return;
+            }
+
+            // Globale Einstellungen migrieren
+            const globalMappings = [
+                ['tango_theme', StorageKeys.THEME],
+                ['tango_sound', StorageKeys.SOUND],
+                ['tango_vibration', StorageKeys.VIBRATION],
+                ['tango_vibration_strength', StorageKeys.VIBRATION_STRENGTH],
+                ['tango_auto_check', StorageKeys.AUTO_CHECK],
+                ['tango_input_mode', StorageKeys.INPUT_MODE],
+                ['tango_reminder_enabled', StorageKeys.REMINDER_ENABLED],
+                ['tango_reminder_time', StorageKeys.REMINDER_TIME],
+                ['tango_last_notif_date', StorageKeys.LAST_NOTIF_DATE],
+                ['tango_daily_history', StorageKeys.DAILY_HISTORY]
+            ];
+
+            for (const [oldKey, newKey] of globalMappings) {
+                const val = localStorage.getItem(oldKey);
+                if (val !== null && localStorage.getItem(newKey) === null) {
+                    localStorage.setItem(newKey, val);
+                }
+            }
+
+            // Tango-spezifische Spielstände migrieren
+            const tangoSpecific = [
+                ['tango_campaign_completed', StorageKeys.puzzleKey('tango', 'campaign_completed')],
+                ['tango_campaign_stars', StorageKeys.puzzleKey('tango', 'campaign_stars')],
+                ['tango_stats', StorageKeys.puzzleKey('tango', 'stats')]
+            ];
+
+            for (const [oldKey, newKey] of tangoSpecific) {
+                const val = localStorage.getItem(oldKey);
+                if (val !== null && localStorage.getItem(newKey) === null) {
+                    localStorage.setItem(newKey, val);
+                }
+            }
+
+            // Aktives Puzzle initial auf 'tango' setzen, falls nicht gesetzt
+            if (!localStorage.getItem(StorageKeys.ACTIVE_PUZZLE)) {
+                localStorage.setItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
+            }
+
+            localStorage.setItem(StorageKeys.MIGRATED, '1');
+        } catch (e) {
+            console.warn('StorageManager Migration Warnung:', e);
+        }
+    }
+
+    static getItem(key, fallback = null) {
+        try {
+            const val = localStorage.getItem(key);
+            return val !== null ? val : fallback;
+        } catch (e) {
+            return fallback;
+        }
+    }
+
+    static setItem(key, value) {
+        try {
+            localStorage.setItem(key, String(value));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    static getJSON(key, fallback = null) {
+        try {
+            const val = localStorage.getItem(key);
+            if (val === null) return fallback;
+            return JSON.parse(val);
+        } catch (e) {
+            return fallback;
+        }
+    }
+
+    static setJSON(key, value) {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    static removeItem(key) {
+        try {
+            localStorage.removeItem(key);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
+     * Setzt alle Daten eines bestimmten Puzzles zurück
+     */
+    static resetPuzzleData(puzzleId) {
+        try {
+            localStorage.removeItem(StorageKeys.puzzleKey(puzzleId, 'campaign_completed'));
+            localStorage.removeItem(StorageKeys.puzzleKey(puzzleId, 'campaign_stars'));
+            localStorage.removeItem(StorageKeys.puzzleKey(puzzleId, 'stats'));
+            // Für Tango auch Legacy Keys bereinigen
+            if (puzzleId === 'tango') {
+                localStorage.removeItem('tango_campaign_completed');
+                localStorage.removeItem('tango_campaign_stars');
+                localStorage.removeItem('tango_stats');
+            }
+        } catch (e) {}
+    }
+
+    /**
+     * Setzt alle Statistiken zurück
+     */
+    static resetAllStats(puzzleIds = ['tango', 'sudoku']) {
+        try {
+            for (const pid of puzzleIds) {
+                localStorage.removeItem(StorageKeys.puzzleKey(pid, 'stats'));
+            }
+            localStorage.removeItem('tango_stats');
+        } catch (e) {}
+    }
+}
+
+// === Source: js\shared\timer.js ===
+/**
+ * Cortex Game Timer
+ * Präzise Zeitmessung für Rätsel.
+ */
+
+function formatTime(seconds) {
+    if (typeof seconds !== 'number' || seconds === null || isNaN(seconds) || seconds < 0) {
+        return '-';
+    }
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+}
+
+class GameTimer {
+    constructor(onTick = null) {
+        this.secondsElapsed = 0;
+        this.timerInterval = null;
+        this.onTick = onTick;
+        this.isRunning = false;
+    }
+
+    start(initialSeconds = 0) {
+        this.stop();
+        this.secondsElapsed = initialSeconds;
+        this.isRunning = true;
+        if (this.onTick) this.onTick(this.secondsElapsed, this.getFormatted());
+
+        this.timerInterval = setInterval(() => {
+            if (this.isRunning) {
+                this.secondsElapsed++;
+                if (this.onTick) this.onTick(this.secondsElapsed, this.getFormatted());
+            }
+        }, 1000);
+    }
+
+    pause() {
+        this.isRunning = false;
+    }
+
+    resume() {
+        this.isRunning = true;
+    }
+
+    stop() {
+        this.isRunning = false;
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+    }
+
+    reset() {
+        this.stop();
+        this.secondsElapsed = 0;
+        if (this.onTick) this.onTick(0, '00:00');
+    }
+
+    getFormatted() {
+        return formatTime(this.secondsElapsed);
+    }
+}
+
+// === Source: js\shared\stats.js ===
+/**
+ * Cortex Statistics & Streaks Module
+ * Berechnet aggregierte Statistiken, Streaks und Bestzeiten.
+ */
+
+
+
+function calculateStreaks(history = [], todayStr = null) {
+    if (!Array.isArray(history) || history.length === 0) {
+        return { currentStreak: 0, maxStreak: 0 };
+    }
+
+    const validDates = history.filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d));
+    if (validDates.length === 0) {
+        return { currentStreak: 0, maxStreak: 0 };
+    }
+
+    const parseToUtcDays = (dateStr) => {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+    };
+
+    const uniqueDays = Array.from(new Set(validDates.map(parseToUtcDays))).sort((a, b) => a - b);
+    if (uniqueDays.length === 0) {
+        return { currentStreak: 0, maxStreak: 0 };
+    }
+
+    let maxStreak = 0;
+    let currentRun = 0;
+    let prevDay = null;
+
+    for (const day of uniqueDays) {
+        if (prevDay !== null && day === prevDay + 1) {
+            currentRun++;
+        } else {
+            currentRun = 1;
+        }
+        if (currentRun > maxStreak) {
+            maxStreak = currentRun;
+        }
+        prevDay = day;
+    }
+
+    const now = new Date();
+    const todayFormatted = todayStr || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayDay = parseToUtcDays(todayFormatted);
+
+    const daySet = new Set(uniqueDays);
+    let currentStreak = 0;
+
+    if (daySet.has(todayDay)) {
+        let check = todayDay;
+        while (daySet.has(check)) {
+            currentStreak++;
+            check--;
+        }
+    } else if (daySet.has(todayDay - 1)) {
+        let check = todayDay - 1;
+        while (daySet.has(check)) {
+            currentStreak++;
+            check--;
+        }
+    } else {
+        currentStreak = 0;
+    }
+
+    return { currentStreak, maxStreak };
+}
+
+class StatsManager {
+    /**
+     * Lädt die Statistiken für ein bestimmtes Puzzle
+     */
+    static getPuzzleStats(puzzleId) {
+        const defaultStats = {
+            played: 0,
+            won: 0,
+            lost: 0,
+            bestTime: null,
+            bestTimes: {},
+            totalTime: 0
+        };
+        const key = StorageKeys.puzzleKey(puzzleId, 'stats');
+        return StorageManager.getJSON(key, defaultStats);
+    }
+
+    /**
+     * Speichert einen Spielabschluss (Gewonnen/Aufgegeben) für ein Puzzle
+     */
+    static recordGame(puzzleId, size, secondsElapsed, won = true) {
+        const stats = this.getPuzzleStats(puzzleId);
+        stats.played = (stats.played || 0) + 1;
+
+        if (won) {
+            stats.won = (stats.won || 0) + 1;
+            stats.totalTime = (stats.totalTime || 0) + secondsElapsed;
+
+            if (stats.bestTime === null || secondsElapsed < stats.bestTime) {
+                stats.bestTime = secondsElapsed;
+            }
+
+            const sizeKey = String(size);
+            if (!stats.bestTimes) stats.bestTimes = {};
+            if (stats.bestTimes[sizeKey] === null || stats.bestTimes[sizeKey] === undefined || secondsElapsed < stats.bestTimes[sizeKey]) {
+                stats.bestTimes[sizeKey] = secondsElapsed;
+            }
+        } else {
+            stats.lost = (stats.lost || 0) + 1;
+        }
+
+        StorageManager.setJSON(StorageKeys.puzzleKey(puzzleId, 'stats'), stats);
+
+        // Für Abwärtskompatibilität auch altes tango_stats synchron halten
+        if (puzzleId === 'tango') {
+            StorageManager.setJSON('tango_stats', stats);
+        }
+
+        return stats;
+    }
+
+    /**
+     * Berechnet die Gesamt-Statistiken über alle Puzzles hinweg
+     */
+    static getAggregatedStats(puzzleIds = ['tango', 'sudoku']) {
+        let totalPlayed = 0;
+        let totalWon = 0;
+        let totalLost = 0;
+        let totalTime = 0;
+        let bestOverallTime = null;
+
+        for (const id of puzzleIds) {
+            const s = this.getPuzzleStats(id);
+            totalPlayed += s.played || 0;
+            totalWon += s.won || 0;
+            totalLost += s.lost || 0;
+            totalTime += s.totalTime || 0;
+            if (s.bestTime !== null && s.bestTime !== undefined) {
+                if (bestOverallTime === null || s.bestTime < bestOverallTime) {
+                    bestOverallTime = s.bestTime;
+                }
+            }
+        }
+
+        const winRate = totalPlayed > 0 ? Math.round((totalWon / totalPlayed) * 100) : 0;
+        const dailyHistory = StorageManager.getJSON(StorageKeys.DAILY_HISTORY, []);
+        const streaks = calculateStreaks(dailyHistory);
+
+        return {
+            played: totalPlayed,
+            won: totalWon,
+            lost: totalLost,
+            winRate: `${winRate}%`,
+            winRateNum: winRate,
+            totalTime,
+            bestTime: bestOverallTime,
+            streaks
+        };
+    }
+}
+
+// === Source: js\shared\themes.js ===
+/**
+ * Cortex Themes Manager
+ * 5 handgefertigte Farbwelten: Dark, AMOLED, Light, Wood, Cyberpunk.
+ */
+
+
+
+const THEMES = [
+    { id: 'dark', labelKey: 'setting_theme_dark', subtitle: 'Ausgewogen & modern' },
+    { id: 'amoled', labelKey: 'setting_theme_amoled', subtitle: 'Tiefschwarz & stromsparend' },
+    { id: 'light', labelKey: 'setting_theme_light', subtitle: 'Hell & minimalistisch' },
+    { id: 'wood', labelKey: 'setting_theme_wood', subtitle: 'Natürliche Holztöne' },
+    { id: 'cyberpunk', labelKey: 'setting_theme_cyberpunk', subtitle: 'Futuristisch & leuchtend' }
+];
+
+class ThemeManager {
+    static getCurrentTheme() {
+        return StorageManager.getItem(StorageKeys.THEME, 'dark');
+    }
+
+    static applyTheme(themeName) {
+        const valid = THEMES.some(t => t.id === themeName) ? themeName : 'dark';
+        document.body.className = `theme-${valid}`;
+        StorageManager.setItem(StorageKeys.THEME, valid);
+        // Auch für Legacy Kompatibilität
+        StorageManager.setItem('tango_theme', valid);
+        return valid;
+    }
+}
+
+// === Source: js\shared\audio.js ===
+/**
+ * Cortex Web Audio Synthesizer
+ * Erzeugt hochwertige, latenzfreie Soundeffekte ohne externe MP3/WAV-Dateien.
+ */
+
+
+
+class AudioManager {
+    constructor() {
+        this.ctx = null;
+        this.enabled = true;
+        this.vibrationEnabled = true;
+        this.vibrationStrength = 'medium';
+
+        try {
+            const savedSound = StorageManager.getItem(StorageKeys.SOUND, localStorage.getItem('tango_sound'));
+            if (savedSound !== null) this.enabled = savedSound === 'true';
+
+            const savedVib = StorageManager.getItem(StorageKeys.VIBRATION, localStorage.getItem('tango_vibration'));
+            if (savedVib !== null) this.vibrationEnabled = savedVib === 'true';
+
+            const savedVibStr = StorageManager.getItem(StorageKeys.VIBRATION_STRENGTH, localStorage.getItem('tango_vibration_strength'));
+            if (savedVibStr !== null) this.vibrationStrength = savedVibStr;
+        } catch (e) {
+            console.warn('localStorage in audio.js nicht zugreifbar:', e);
+        }
+    }
+
+    init() {
+        if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+                this.ctx = new AudioCtx();
+            }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    setSound(enabled) {
+        this.enabled = enabled;
+        StorageManager.setItem(StorageKeys.SOUND, enabled);
+        StorageManager.setItem('tango_sound', enabled);
+    }
+
+    setVibration(enabled) {
+        this.vibrationEnabled = enabled;
+        StorageManager.setItem(StorageKeys.VIBRATION, enabled);
+        StorageManager.setItem('tango_vibration', enabled);
+    }
+
+    setVibrationStrength(strength) {
+        this.vibrationStrength = strength;
+        StorageManager.setItem(StorageKeys.VIBRATION_STRENGTH, strength);
+        StorageManager.setItem('tango_vibration_strength', strength);
+        this.vibrate(40);
+    }
+
+    getVibrationMultiplier() {
+        switch (this.vibrationStrength) {
+            case 'ultra': return 2.2;
+            case 'strong': return 1.5;
+            case 'soft': return 0.5;
+            case 'medium':
+            default: return 1.0;
+        }
+    }
+
+    vibrate(pattern = 70) {
+        if (this.vibrationEnabled && 'vibrate' in navigator) {
+            try {
+                const mult = this.getVibrationMultiplier();
+                let scaledPattern;
+                if (typeof pattern === 'number') {
+                    scaledPattern = Math.max(30, Math.round(pattern * mult));
+                } else if (Array.isArray(pattern)) {
+                    scaledPattern = pattern.map((val, idx) => {
+                        return (idx % 2 === 0) ? Math.max(30, Math.round(val * mult)) : val;
+                    });
+                } else {
+                    scaledPattern = pattern;
+                }
+                navigator.vibrate(scaledPattern);
+            } catch (e) {
+                // Ignore if not permitted
+            }
+        }
+    }
+
+    playSun() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(780, now + 0.08);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.12);
+        this.vibrate(70);
+    }
+
+    playMoon() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(240, now + 0.1);
+
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.15);
+        this.vibrate(95);
+    }
+
+    playDigit(val = 1) {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        // Harmonische Frequenzskala für Ziffern 1 bis 9 (Pentatonisch / C-Dur)
+        const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99];
+        const freq = scale[(val - 1) % scale.length] || 440;
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.2, now + 0.06);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.09);
+        this.vibrate(40);
+    }
+
+    playClear() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(200, now);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.05);
+        this.vibrate(50);
+    }
+
+    playHint() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const notes = [587.33, 880, 1174.66]; // D5, A5, D6
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+            gain.gain.setValueAtTime(0.18, now + idx * 0.06);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.25);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            osc.start(now + idx * 0.06);
+            osc.stop(now + idx * 0.06 + 0.25);
+        });
+        this.vibrate([70, 50, 90]);
+    }
+
+    playError() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.setValueAtTime(110, now + 0.08);
+
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.2);
+        this.vibrate([100, 50, 100, 50, 100]);
+    }
+
+    playVictory() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const chords = [
+            { freq: 261.63, time: 0.0, dur: 0.15 },
+            { freq: 329.63, time: 0.12, dur: 0.15 },
+            { freq: 392.00, time: 0.24, dur: 0.18 },
+            { freq: 523.25, time: 0.40, dur: 0.60 }
+        ];
+
+        chords.forEach(c => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(c.freq, now + c.time);
+
+            gain.gain.setValueAtTime(0.25, now + c.time);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + c.time + c.dur);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            osc.start(now + c.time);
+            osc.stop(now + c.time + c.dur);
+        });
+
+        this.vibrate([80, 50, 90, 50, 120, 60, 200]);
+    }
+}
+
+const audio = new AudioManager();
+
+// === Source: js\shared\animations.js ===
+/**
+ * Cortex Visual FX & Animations
+ * Konfetti-Partikel und Siegesanimationen auf einem HTML5-Canvas.
+ */
+
+class AnimationManager {
+    constructor() {
+        this.canvas = null;
+        this.ctx = null;
+        this.particles = [];
+        this.animId = null;
+    }
+
+    init(canvas) {
+        this.canvas = canvas;
+        if (canvas) {
+            this.ctx = canvas.getContext('2d');
+            this.resize();
+            window.addEventListener('resize', () => this.resize());
+        }
+    }
+
+    resize() {
+        if (!this.canvas) return;
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+    }
+
+    launchConfetti() {
+        if (!this.canvas || !this.ctx) return;
+        this.resize();
+        this.particles = [];
+
+        const colors = ['#f59e0b', '#3b82f6', '#10b981', '#ec4899', '#8b5cf6', '#ef4444', '#ffd700'];
+        const count = 120;
+
+        for (let i = 0; i < count; i++) {
+            this.particles.push({
+                x: this.canvas.width * 0.5 + (Math.random() - 0.5) * 50,
+                y: this.canvas.height * 0.4 + (Math.random() - 0.5) * 50,
+                vx: (Math.random() - 0.5) * 16,
+                vy: (Math.random() - 0.9) * 18 - 4,
+                size: Math.random() * 8 + 4,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                rotation: Math.random() * 360,
+                rotSpeed: (Math.random() - 0.5) * 10,
+                gravity: 0.35,
+                opacity: 1,
+                shape: Math.random() > 0.4 ? 'rect' : 'circle'
+            });
+        }
+
+        if (this.animId) cancelAnimationFrame(this.animId);
+        this.render();
+    }
+
+    render() {
+        if (!this.ctx) return;
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        let activeParticles = 0;
+        for (const p of this.particles) {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += p.gravity;
+            p.vx *= 0.98;
+            p.rotation += p.rotSpeed;
+            p.opacity -= 0.008;
+
+            if (p.opacity > 0 && p.y < this.canvas.height + 50) {
+                activeParticles++;
+                this.ctx.save();
+                this.ctx.globalAlpha = Math.max(0, p.opacity);
+                this.ctx.translate(p.x, p.y);
+                this.ctx.rotate((p.rotation * Math.PI) / 180);
+                this.ctx.fillStyle = p.color;
+
+                if (p.shape === 'circle') {
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+                    this.ctx.fill();
+                } else {
+                    this.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                }
+
+                this.ctx.restore();
+            }
+        }
+
+        if (activeParticles > 0) {
+            this.animId = requestAnimationFrame(() => this.render());
+        } else {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+    }
+}
+
+const animations = new AnimationManager();
+
+// === Source: js\shared\i18n.js ===
+/**
+ * Cortex Internationalisierung (i18n)
+ * Zentrale Sprachverwaltung für die App-Shell und modulare Puzzle-Plugins.
+ */
+
+
+
+let currentLang = 'de';
+
+try {
+    const saved = StorageManager.getItem(StorageKeys.LANGUAGE, localStorage.getItem('tango_lang'));
+    if (saved === 'de' || saved === 'en') {
+        currentLang = saved;
+    }
+} catch (e) {}
+
+const baseTranslations = {
+    de: {
+        app_title: "Cortex Logikrätsel",
+        subtitle: "Deine minimalistische Rätselsammlung",
+        
+        // Navigation & Modi
+        nav_puzzles: "Rätsel-Auswahl",
+        nav_campaign: "Kampagne",
+        nav_daily: "Tagesrätsel",
+        nav_free: "Freies Spiel",
+        nav_tutorial: "Grundlagen",
+        nav_tutorial_pro: "Mathematik",
+        nav_tutorial_patterns: "Muster",
+        sudoku_tut_advanced: "Fortgeschritten",
+        nav_stats: "Statistiken",
+        nav_settings: "Optionen",
+        btn_switch_puzzle: "Anderes Rätsel wählen",
+        btn_back_to_all_puzzles: "Alle Rätsel",
+        puzzle_select_title: "Wähle dein Rätsel",
+        puzzle_all_btn: "Alle Rätsel ▾",
+        puzzle_select_desc: "Vollständig offline, werbefrei und logisch deduzierbar.",
+        
+        // Kampagnen-Tabs & Kapitel
+        campaign_tab_1: "Kapitel 1",
+        campaign_tab_2: "Kapitel 2",
+        campaign_tab_3: "Kapitel 3",
+        campaign_tab_4: "Kapitel 4",
+        chapter_1: "Kapitel 1",
+        chapter_2: "Kapitel 2",
+        chapter_3: "Kapitel 3",
+        chapter_4: "Kapitel 4",
+        campaign_desc: "120 handgefertigte Level",
+        daily_desc: "Täglich wechselnde Herausforderung",
+        free_desc: "Individuelle Größe & Stufe",
+
+        // Schwierigkeitsgrade
+        diff_beginner: "Anfänger",
+        diff_easy: "Einfach",
+        diff_medium: "Mittel",
+        diff_hard: "Schwer",
+        diff_expert: "Meister",
+
+        // Spielaktionen
+        btn_undo: "Rückgängig",
+        btn_redo: "Wiederholen",
+        btn_hint: "Hinweis",
+        btn_restart: "Neustart",
+        btn_notes: "Notizen",
+        btn_check: "Prüfen",
+        btn_next_level: "Nächstes Level",
+        btn_back_menu: "Hauptmenü",
+        btn_play_again: "Nochmal spielen",
+        btn_continue: "Weiter",
+        btn_start: "Starten",
+        btn_save: "Speichern",
+
+        // Status & Timer
+        status_time: "Zeit",
+        status_moves: "Züge",
+        status_hints_used: "Hinweise",
+        status_level: "Level",
+        status_daily_date: "Tagesrätsel vom",
+        status_streak: "Serie",
+        status_completed: "Gelöst!",
+
+        // Hinweise & Feedback
+        hint_title: "Logischer Hinweis",
+        hint_error_title: "Fehler gefunden",
+        hint_button_apply: "Zug ausführen",
+        hint_button_fix: "Feld korrigieren",
+        hint_limit_reached: "Maximale Anzahl an Hinweisen für dieses Level erreicht (3/3).",
+        reveal_confirm_title: "Lösung aufdecken?",
+        reveal_confirm_desc: "Du hast alle 3 Hinweise verbraucht. Möchtest du das Rätsel aufgeben und die vollständige Lösung aufdecken?\n\n⚠️ Das nächste Level wird dabei nicht freigeschaltet und in der Statistik wird eine Niederlage vermerkt.",
+        btn_reveal_solution: "Lösung aufdecken",
+        reveal_defeat_title: "Rätsel aufgegeben",
+        reveal_defeat_msg: "Die Lösung wurde hinterlegt und Fehler wurden rot markiert. Das nächste Level bleibt gesperrt und in deiner Statistik wurde eine Niederlage verbucht.",
+        reveal_banner_hint: "Lösung wird angezeigt. Tippe auf Weiter zum Fortfahren.",
+        btn_retry_level: "Level wiederholen",
+        error_title: "Regelverstoß",
+        victory_title: "Glückwunsch!",
+        victory_msg: "Du hast dieses Rätsel erfolgreich und fehlerfrei gelöst!",
+        victory_time_msg: "Benötigte Zeit:",
+        victory_perfect: "Perfekt gelöst ohne Hinweise!",
+
+        // Menü Hub Tabs
+        menu_tab_play: "Spielen",
+        menu_tab_rules: "Regeln",
+        menu_tab_stats: "Statistik",
+        menu_tab_settings: "Optionen",
+
+        // Regeln (Header & Fallbacks)
+        rules_header: "Spielregeln & Logik",
+        rule_1_title: "1. Gleiche Anzahl pro Zeile & Spalte",
+        rule_1_desc: "Jede Zeile und Spalte muss exakt gleich viele Sonnen ☀️ wie Monde 🌙 enthalten (z. B. 3☀️ & 3🌙 bei 6×6).",
+        rule_2_title: "2. Maximal 2 gleiche Symbole nebeneinander",
+        rule_2_desc: "Niemals dürfen 3 gleiche Symbole horizontal oder vertikal aufeinanderfolgen (kein ☀️☀️☀️ oder 🌙🌙🌙).",
+        rule_3_title: "3. Gleichheitszeichen =",
+        rule_3_desc: "Verbundene Nachbarfelder müssen dasselbe Symbol besitzen (beide ☀️ oder beide 🌙).",
+        rule_4_title: "4. Gegenteilszeichen ×",
+        rule_4_desc: "Verbundene Nachbarfelder müssen unterschiedliche Symbole besitzen (eine ☀️, ein 🌙).",
+        rule_5_title: "5. Eindeutigkeit",
+        rule_5_desc: "Keine zwei Zeilen und keine zwei Spalten dürfen vollständig identisch sein.",
+
+        // Einstellungen
+        settings_title: "Optionen",
+        setting_theme: "Farbdesign",
+        setting_theme_dark: "Modern Dark",
+        setting_theme_amoled: "AMOLED Schwarz",
+        setting_theme_light: "Hell / Clean",
+        setting_theme_wood: "Warmes Holz",
+        setting_theme_cyberpunk: "Cyberpunk Neon",
+        setting_sound: "Soundeffekte",
+        setting_vibration: "Haptisches Feedback (Vibration)",
+        setting_vibration_strength: "Vibrationsstärke",
+        setting_vib_ultra: "Ultra kräftig (Maximal)",
+        setting_vib_strong: "Kräftig (Empfohlen)",
+        setting_vib_medium: "Standard",
+        setting_vib_soft: "Sanft",
+        setting_auto_check: "Fehler sofort hervorheben",
+        setting_daily_reminder: "System-Benachrichtigung",
+        setting_input_mode: "Eingabemodus",
+        setting_input_cycle: "Direkt durchtippen",
+        setting_input_keypad: "Ziffern- / Symbolleiste unten",
+        setting_language: "Sprache",
+        setting_reset_data: "Spielstand zurücksetzen",
+        setting_reset_confirm: "Möchtest du deinen Kampagnen-Fortschritt für dieses Puzzle wirklich unwiderruflich löschen?",
+        btn_confirm_reset: "Ja, zurücksetzen",
+        btn_cancel: "Abbrechen",
+        confirm_title: "Bestätigung erforderlich",
+
+        // Freies Spiel Dialog
+        free_title: "Freies Spiel konfigurieren",
+        free_size: "Gittergröße",
+        free_size_4: "4 × 4 (Mini)",
+        free_size_6: "6 × 6 (Standard)",
+        free_size_8: "8 × 8 (Groß)",
+        free_size_9: "9 × 9 (Klassisch)",
+        free_size_10: "10 × 10 (Maxi)",
+        free_size_16: "16 × 16 (Hexadezimal)",
+        free_diff: "Schwierigkeitsgrad",
+        free_diff_easy: "Einfach",
+        free_diff_medium: "Mittel",
+        free_diff_hard: "Schwer",
+        free_btn_start: "Rätsel starten",
+
+        // Statistiken
+        stats_title: "Statistiken",
+        stats_tab_all: "Gesamt",
+        stats_total_played: "Gespielt",
+        stats_total_won: "Gelöst",
+        stats_total_lost: "Aufgegeben",
+        stats_win_rate: "Gewinnquote",
+        stats_current_streak: "Aktuelle Tages-Serie",
+        stats_max_streak: "Längste Tages-Serie",
+        stats_best_times_title: "⚡ Bestzeiten",
+        stats_best_time_prefix: "Bestzeit",
+        stats_best_times: "Bestzeiten",
+        stats_best_time: "Beste Gesamtzeit",
+        stats_best_time_4: "Bestzeit 4×4",
+        stats_best_time_6: "Bestzeit 6×6",
+        stats_best_time_8: "Bestzeit 8×8",
+        stats_best_time_9: "Bestzeit 9×9",
+        stats_best_time_10: "Bestzeit 10×10",
+        stats_best_time_16: "Bestzeit 16×16",
+        stats_total_time: "Gesamte Spielzeit",
+        stats_reset_btn: "Statistiken zurücksetzen",
+        stats_reset_confirm: "Möchtest du alle Spielstatistiken und Serien wirklich auf 0 zurücksetzen?",
+
+        // Tägliche Erinnerung & Benachrichtigungen
+        setting_reminder: "Tägliche Erinnerung",
+        setting_reminder_time: "Erinnerungszeit",
+        reminder_banner_title: "Tagesrätsel wartet!",
+        reminder_banner_desc: "Löse dein heutiges Rätsel für deine Serie.",
+        reminder_btn_play: "Jetzt spielen",
+        reminder_badge_new: "Neu",
+        notif_title: "🧠 Cortex Tagesrätsel",
+        notif_body: "Dein neues Tagesrätsel wartet auf dich! Halte deine Serie am Leben.",
+        notif_test_btn: "Test-Alarm senden",
+        notif_test_sent: "Test-Benachrichtigung wurde ausgelöst.",
+        notif_permission_denied: "Benachrichtigungsberechtigung wurde abgelehnt.",
+        daily_replay_title: "Tagesrätsel bereits gelöst",
+        daily_replay_confirm: "Du hast das heutige Tagesrätsel bereits erfolgreich gelöst! Möchtest du es zur Übung erneut spielen? (Die Serie bleibt unberührt)",
+        daily_btn_replay: "Erneut spielen"
+    },
+    en: {
+        app_title: "Cortex Logic Puzzles",
+        subtitle: "Your minimalist puzzle collection",
+        
+        // Navigation & Modes
+        nav_puzzles: "Select Puzzle",
+        nav_campaign: "Campaign",
+        nav_daily: "Daily Puzzle",
+        nav_free: "Free Play",
+        nav_tutorial: "Basics",
+        nav_tutorial_pro: "Math",
+        nav_tutorial_patterns: "Patterns",
+        sudoku_tut_advanced: "Advanced",
+        nav_stats: "Statistics",
+        nav_settings: "Settings",
+        btn_switch_puzzle: "Choose Another Puzzle",
+        btn_back_to_all_puzzles: "All Puzzles",
+        puzzle_select_title: "Choose Your Puzzle",
+        puzzle_all_btn: "All Puzzles ▾",
+        puzzle_select_desc: "Fully offline, ad-free and purely logical.",
+        
+        // Campaign tabs & chapters
+        campaign_tab_1: "Chapter 1",
+        campaign_tab_2: "Chapter 2",
+        campaign_tab_3: "Chapter 3",
+        campaign_tab_4: "Chapter 4",
+        chapter_1: "Chapter 1",
+        chapter_2: "Chapter 2",
+        chapter_3: "Chapter 3",
+        chapter_4: "Chapter 4",
+        campaign_desc: "120 handcrafted levels",
+        daily_desc: "Daily changing challenge",
+        free_desc: "Custom size & difficulty",
+
+        // Difficulties
+        diff_beginner: "Beginner",
+        diff_easy: "Easy",
+        diff_medium: "Medium",
+        diff_hard: "Hard",
+        diff_expert: "Master",
+
+        // Game actions
+        btn_undo: "Undo",
+        btn_redo: "Redo",
+        btn_hint: "Hint",
+        btn_restart: "Restart",
+        btn_notes: "Notes",
+        btn_check: "Check",
+        btn_next_level: "Next Level",
+        btn_back_menu: "Main Menu",
+        btn_play_again: "Play Again",
+        btn_continue: "Continue",
+        btn_start: "Start",
+        btn_save: "Save",
+
+        // Status & Timer
+        status_time: "Time",
+        status_moves: "Moves",
+        status_hints_used: "Hints",
+        status_level: "Level",
+        status_daily_date: "Daily Puzzle from",
+        status_streak: "Streak",
+        status_completed: "Completed!",
+
+        // Hints & Feedback
+        hint_title: "Logical Hint",
+        hint_error_title: "Mistake Found",
+        hint_button_apply: "Apply Move",
+        hint_button_fix: "Fix Cell",
+        hint_limit_reached: "Maximum hints reached for this level (3/3).",
+        reveal_confirm_title: "Reveal Solution?",
+        reveal_confirm_desc: "You have used all 3 hints. Do you want to forfeit and reveal the full solution?\n\n⚠️ Next level will not unlock and a defeat will be recorded.",
+        btn_reveal_solution: "Reveal Solution",
+        reveal_defeat_title: "Puzzle Forfeited",
+        reveal_defeat_msg: "The solution is revealed with mistakes highlighted. Next level remains locked.",
+        reveal_banner_hint: "Solution displayed. Tap Continue to proceed.",
+        btn_retry_level: "Retry Level",
+        error_title: "Rule Violation",
+        victory_title: "Congratulations!",
+        victory_msg: "You successfully solved this puzzle!",
+        victory_time_msg: "Time taken:",
+        victory_perfect: "Solved perfectly without hints!",
+
+        // Menu Hub Tabs
+        menu_tab_play: "Play",
+        menu_tab_rules: "Rules",
+        menu_tab_stats: "Stats",
+        menu_tab_settings: "Settings",
+
+        // Rules Header & Fallbacks
+        rules_header: "Rules & Logic",
+        rule_1_title: "1. Equal Number per Row & Column",
+        rule_1_desc: "Each row and column must contain an equal number of suns ☀️ and moons 🌙.",
+        rule_2_title: "2. Max 2 Consecutive Identical Symbols",
+        rule_2_desc: "Never place 3 matching symbols in a row or column (no ☀️☀️☀️ or 🌙🌙🌙).",
+        rule_3_title: "3. Equal Sign =",
+        rule_3_desc: "Connected adjacent cells must have the same symbol.",
+        rule_4_title: "4. Opposite Sign ×",
+        rule_4_desc: "Connected adjacent cells must have opposite symbols.",
+        rule_5_title: "5. Uniqueness",
+        rule_5_desc: "No two rows and no two columns can be completely identical.",
+
+        // Settings
+        settings_title: "Settings",
+        setting_theme: "Theme",
+        setting_theme_dark: "Modern Dark",
+        setting_theme_amoled: "AMOLED Black",
+        setting_theme_light: "Light / Clean",
+        setting_theme_wood: "Warm Wood",
+        setting_theme_cyberpunk: "Cyberpunk Neon",
+        setting_sound: "Sound Effects",
+        setting_vibration: "Haptic Feedback (Vibration)",
+        setting_vibration_strength: "Vibration Strength",
+        setting_vib_ultra: "Ultra Strong (Max)",
+        setting_vib_strong: "Strong (Recommended)",
+        setting_vib_medium: "Standard",
+        setting_vib_soft: "Soft",
+        setting_auto_check: "Highlight Mistakes Immediately",
+        setting_daily_reminder: "System Notification",
+        setting_input_mode: "Input Mode",
+        setting_input_cycle: "Direct Tap Cycle",
+        setting_input_keypad: "Bottom Number / Symbol Bar",
+        setting_language: "Language",
+        setting_reset_data: "Reset Progress",
+        setting_reset_confirm: "Are you sure you want to permanently delete your campaign progress for this puzzle?",
+        btn_confirm_reset: "Yes, Reset",
+        btn_cancel: "Cancel",
+        confirm_title: "Confirmation Required",
+
+        // Free play modal
+        free_title: "Configure Free Play",
+        free_size: "Grid Size",
+        free_size_4: "4 × 4 (Mini)",
+        free_size_6: "6 × 6 (Standard)",
+        free_size_8: "8 × 8 (Large)",
+        free_size_9: "9 × 9 (Classic)",
+        free_size_10: "10 × 10 (Maxi)",
+        free_size_16: "16 × 16 (Hexadecimal)",
+        free_diff: "Difficulty",
+        free_diff_easy: "Easy",
+        free_diff_medium: "Medium",
+        free_diff_hard: "Hard",
+        free_btn_start: "Start Puzzle",
+
+        // Stats
+        stats_title: "Statistics",
+        stats_tab_all: "Overall",
+        stats_total_played: "Played",
+        stats_total_won: "Won",
+        stats_total_lost: "Lost",
+        stats_win_rate: "Win Rate",
+        stats_current_streak: "Current Daily Streak",
+        stats_max_streak: "Longest Daily Streak",
+        stats_best_times_title: "⚡ Best Times",
+        stats_best_time_prefix: "Best Time",
+        stats_best_times: "Best Times",
+        stats_best_time: "Best Overall Time",
+        stats_best_time_4: "Best Time 4×4",
+        stats_best_time_6: "Best Time 6×6",
+        stats_best_time_8: "Best Time 8×8",
+        stats_best_time_9: "Best Time 9×9",
+        stats_best_time_10: "Best Time 10×10",
+        stats_best_time_16: "Best Time 16×16",
+        stats_total_time: "Total Playtime",
+        stats_reset_btn: "Reset Statistics",
+        stats_reset_confirm: "Do you really want to reset all game stats and streaks to zero?",
+
+        // Notifications
+        setting_reminder: "Daily Reminder",
+        setting_reminder_time: "Reminder Time",
+        reminder_banner_title: "Daily Puzzle is Ready!",
+        reminder_banner_desc: "Solve today's puzzle to maintain your streak.",
+        reminder_btn_play: "Play Now",
+        reminder_badge_new: "New",
+        notif_title: "🧠 Cortex Daily Puzzle",
+        notif_body: "Your daily logic challenge is waiting! Keep your streak alive.",
+        notif_test_btn: "Send Test Notification",
+        notif_test_sent: "Test notification sent.",
+        notif_permission_denied: "Notification permission denied.",
+        daily_replay_title: "Daily Puzzle Already Solved",
+        daily_replay_confirm: "You already solved today's daily puzzle! Do you want to play again for practice? (Your streak won't be affected)",
+        daily_btn_replay: "Play Again"
+    }
+};
+
+const pluginTranslations = {
+    de: {},
+    en: {}
+};
+
+function registerTranslations(pluginId, translationsObj) {
+    if (!translationsObj) return;
+    if (translationsObj.de) {
+        Object.assign(pluginTranslations.de, translationsObj.de);
+    }
+    if (translationsObj.en) {
+        Object.assign(pluginTranslations.en, translationsObj.en);
+    }
+}
+
+function t(key, params = {}) {
+    const langDict = { ...baseTranslations[currentLang], ...pluginTranslations[currentLang] };
+    const fallbackDict = { ...baseTranslations.de, ...pluginTranslations.de };
+    let text = langDict[key] || fallbackDict[key] || key;
+
+    for (const [k, v] of Object.entries(params)) {
+        text = text.replace(new RegExp(`{${k}}`, 'g'), v);
+    }
+    return text;
+}
+
+function setLang(lang) {
+    if (lang === 'de' || lang === 'en') {
+        currentLang = lang;
+        StorageManager.setItem(StorageKeys.LANGUAGE, lang);
+        StorageManager.setItem('tango_lang', lang);
+    }
+}
+
+function getLang() {
+    return currentLang;
+}
+
+// === Source: js\puzzles\sudoku\engine.js ===
+/**
+ * Sudoku Game Engine
+ * Unterstützt 4×4 (2×2 Boxen), 9×9 (3×3 Boxen) und 16×16 (4×4 Boxen, Hexadezimal 0–F).
+ * Verwaltet Spielfeld, Notizen, Undo/Redo, Regelvalidierung und Peer-Ermittlung.
+ */
+
+const SUDOKU_EMPTY = 0;
+
+const HEX_DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
+
+function formatSudokuValue(val, size = 9) {
+    if (!val || val <= 0) return '';
+    if (size === 16) {
+        return HEX_DIGITS[val - 1] || `${val}`;
+    }
+    return `${val}`;
+}
+
+class SudokuEngine {
+    constructor(size = 9) {
+        this.size = size;
+        this.maxValue = size;
+        
+        // Box-Dimensionen
+        if (size === 4) {
+            this.boxW = 2;
+            this.boxH = 2;
+        } else if (size === 16) {
+            this.boxW = 4;
+            this.boxH = 4;
+        } else {
+            this.boxW = 3;
+            this.boxH = 3;
+        }
+
+        this.grid = Array(size).fill(0).map(() => Array(size).fill(SUDOKU_EMPTY));
+        this.initialGrid = Array(size).fill(0).map(() => Array(size).fill(SUDOKU_EMPTY));
+        this.locked = Array(size).fill(0).map(() => Array(size).fill(false));
+        this.notes = Array(size).fill(0).map(() => Array(size).fill(0).map(() => new Set()));
+
+        this.undoStack = [];
+        this.redoStack = [];
+        this.solution = null;
+    }
+
+    loadPuzzle({ size = 9, initialGrid, solution = null }) {
+        this.size = size;
+        this.maxValue = size;
+
+        if (size === 4) {
+            this.boxW = 2;
+            this.boxH = 2;
+        } else if (size === 16) {
+            this.boxW = 4;
+            this.boxH = 4;
+        } else {
+            this.boxW = 3;
+            this.boxH = 3;
+        }
+
+        this.grid = Array(size).fill(0).map(() => Array(size).fill(SUDOKU_EMPTY));
+        this.initialGrid = Array(size).fill(0).map(() => Array(size).fill(SUDOKU_EMPTY));
+        this.locked = Array(size).fill(0).map(() => Array(size).fill(false));
+        this.notes = Array(size).fill(0).map(() => Array(size).fill(0).map(() => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+        this.solution = solution ? solution.map(row => [...row]) : null;
+
+        if (initialGrid) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const val = initialGrid[r][c];
+                    if (val > 0) {
+                        this.grid[r][c] = val;
+                        this.initialGrid[r][c] = val;
+                        this.locked[r][c] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    formatValue(val) {
+        return formatSudokuValue(val, this.size);
+    }
+
+    getSolution() {
+        if (this.solution) return this.solution;
+        if (typeof SudokuSolver !== 'undefined' && SudokuSolver.solve) {
+            const sol = SudokuSolver.solve(this, 1);
+            if (sol && sol.length > 0) {
+                this.solution = sol[0].map(row => [...row]);
+                return this.solution;
+            }
+        }
+        return null;
+    }
+
+    getBox(r, c) {
+        const startR = Math.floor(r / this.boxH) * this.boxH;
+        const startC = Math.floor(c / this.boxW) * this.boxW;
+        return {
+            startR,
+            startC,
+            endR: startR + this.boxH,
+            endC: startC + this.boxW
+        };
+    }
+
+    getPeers(r, c) {
+        const peers = new Set();
+        // Zeile
+        for (let cc = 0; cc < this.size; cc++) {
+            if (cc !== c) peers.add(`${r},${cc}`);
+        }
+        // Spalte
+        for (let rr = 0; rr < this.size; rr++) {
+            if (rr !== r) peers.add(`${rr},${c}`);
+        }
+        // Box
+        const box = this.getBox(r, c);
+        for (let rr = box.startR; rr < box.endR; rr++) {
+            for (let cc = box.startC; cc < box.endC; cc++) {
+                if (rr !== r || cc !== c) peers.add(`${rr},${cc}`);
+            }
+        }
+        return peers;
+    }
+
+    setCellValue(r, c, val, isNote = false) {
+        if (this.locked[r][c]) return false;
+
+        if (isNote) {
+            if (val <= 0 || val > this.maxValue) return false;
+            const cellNotes = this.notes[r][c];
+            const prevNotes = new Set(cellNotes);
+            if (cellNotes.has(val)) {
+                cellNotes.delete(val);
+            } else {
+                cellNotes.add(val);
+            }
+            this.undoStack.push({
+                type: 'note',
+                r, c,
+                prevNotes,
+                nextNotes: new Set(cellNotes)
+            });
+            this.redoStack = [];
+            return true;
+        }
+
+        const prevVal = this.grid[r][c];
+        const prevNotes = new Set(this.notes[r][c]);
+
+        if (prevVal === val && prevNotes.size === 0) return false;
+
+        this.undoStack.push({
+            type: 'cell',
+            r, c,
+            prevVal,
+            nextVal: val,
+            prevNotes
+        });
+        this.redoStack = [];
+
+        this.grid[r][c] = val;
+        this.notes[r][c].clear();
+
+        // Automatisch Notizen in Peers bereinigen wenn Zahl gesetzt wird
+        if (val > 0) {
+            for (const peerStr of this.getPeers(r, c)) {
+                const [pr, pc] = peerStr.split(',').map(Number);
+                if (this.notes[pr][pc].has(val)) {
+                    this.notes[pr][pc].delete(val);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    cycleCellValue(r, c) {
+        if (this.locked[r][c]) return null;
+        const current = this.grid[r][c];
+        let next = (current + 1) % (this.maxValue + 1);
+        this.setCellValue(r, c, next);
+        return next;
+    }
+
+    undo() {
+        if (this.undoStack.length === 0) return null;
+        const action = this.undoStack.pop();
+        this.redoStack.push(action);
+
+        if (action.type === 'cell') {
+            this.grid[action.r][action.c] = action.prevVal;
+            this.notes[action.r][action.c] = new Set(action.prevNotes);
+        } else if (action.type === 'note') {
+            this.notes[action.r][action.c] = new Set(action.prevNotes);
+        }
+        return action;
+    }
+
+    redo() {
+        if (this.redoStack.length === 0) return null;
+        const action = this.redoStack.pop();
+        this.undoStack.push(action);
+
+        if (action.type === 'cell') {
+            this.grid[action.r][action.c] = action.nextVal;
+        } else if (action.type === 'note') {
+            this.notes[action.r][action.c] = new Set(action.nextNotes);
+        }
+        return action;
+    }
+
+    validateRules() {
+        const errors = [];
+        const conflictCells = new Set();
+
+        // 1. Zeilen-Duplikate
+        for (let r = 0; r < this.size; r++) {
+            const seen = new Map();
+            for (let c = 0; c < this.size; c++) {
+                const v = this.grid[r][c];
+                if (v === SUDOKU_EMPTY) continue;
+                if (seen.has(v)) {
+                    conflictCells.add(`${r},${c}`);
+                    conflictCells.add(`${r},${seen.get(v)}`);
+                    errors.push({
+                        rule: 'row_duplicate',
+                        row: r,
+                        value: v,
+                        message: `Ziffer ${this.formatValue(v)} kommt mehrfach in Zeile ${r + 1} vor`
+                    });
+                } else {
+                    seen.set(v, c);
+                }
+            }
+        }
+
+        // 2. Spalten-Duplikate
+        for (let c = 0; c < this.size; c++) {
+            const seen = new Map();
+            for (let r = 0; r < this.size; r++) {
+                const v = this.grid[r][c];
+                if (v === SUDOKU_EMPTY) continue;
+                if (seen.has(v)) {
+                    conflictCells.add(`${r},${c}`);
+                    conflictCells.add(`${seen.get(v)},${c}`);
+                    errors.push({
+                        rule: 'col_duplicate',
+                        col: c,
+                        value: v,
+                        message: `Ziffer ${this.formatValue(v)} kommt mehrfach in Spalte ${c + 1} vor`
+                    });
+                } else {
+                    seen.set(v, r);
+                }
+            }
+        }
+
+        // 3. Block-/Box-Duplikate
+        for (let br = 0; br < this.size; br += this.boxH) {
+            for (let bc = 0; bc < this.size; bc += this.boxW) {
+                const seen = new Map();
+                for (let r = br; r < br + this.boxH; r++) {
+                    for (let c = bc; c < bc + this.boxW; c++) {
+                        const v = this.grid[r][c];
+                        if (v === SUDOKU_EMPTY) continue;
+                        if (seen.has(v)) {
+                            const [pr, pc] = seen.get(v);
+                            conflictCells.add(`${r},${c}`);
+                            conflictCells.add(`${pr},${pc}`);
+                            errors.push({
+                                rule: 'box_duplicate',
+                                value: v,
+                                message: `Ziffer ${this.formatValue(v)} kommt mehrfach im Block vor`
+                            });
+                        } else {
+                            seen.set(v, [r, c]);
+                        }
+                    }
+                }
+            }
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors,
+            conflictCells
+        };
+    }
+
+    findMistakes() {
+        const sol = this.getSolution();
+        const ruleCheck = this.validateRules();
+
+        if (!ruleCheck.isValid && ruleCheck.errors.length > 0) {
+            const firstErr = ruleCheck.errors[0];
+            const conflictArr = Array.from(ruleCheck.conflictCells || []).map(str => {
+                const [r, c] = str.split(',').map(Number);
+                return { r, c };
+            });
+
+            const targetCell = conflictArr.find(pos => !this.locked[pos.r][pos.c]) || conflictArr[0];
+            const r = targetCell ? targetCell.r : 0;
+            const c = targetCell ? targetCell.c : 0;
+            const expectedVal = sol ? sol[r][c] : 0;
+
+            return {
+                type: 'rule_violation',
+                r, c,
+                currentVal: this.grid[r][c],
+                expectedVal,
+                highlightCells: conflictArr.length > 0 ? conflictArr : [{ r, c }],
+                message: `Regelverstoß: ${firstErr.message}. Bitte korrigiere oder entferne das Symbol an Position (${r + 1},${c + 1}).`
+            };
+        }
+
+        if (sol) {
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    const current = this.grid[r][c];
+                    if (current !== SUDOKU_EMPTY && !this.locked[r][c] && current !== sol[r][c]) {
+                        return {
+                            type: 'solution_mismatch',
+                            r, c,
+                            currentVal: current,
+                            expectedVal: sol[r][c],
+                            highlightCells: [{ r, c }],
+                            message: `Fehler im Lösungsweg: An Position (${r + 1},${c + 1}) wurde ${this.formatValue(current)} gesetzt. Laut der Logik und Abhängigkeiten gehört dort ${this.formatValue(sol[r][c])} hin.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    isCompleted() {
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.grid[r][c] === SUDOKU_EMPTY) return false;
+            }
+        }
+        return this.validateRules().isValid;
+    }
+
+    getFilledCount() {
+        let count = 0;
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.grid[r][c] !== SUDOKU_EMPTY) count++;
+            }
+        }
+        return count;
+    }
+
+    getTotalCells() {
+        return this.size * this.size;
+    }
+}
+
+// === Source: js\puzzles\sudoku\solver.js ===
+/**
+ * Sudoku Solver & Strategic Hint Engine
+ * Löst Sudokus (4×4, 9×9, 16×16 Hexadezimal) via Backtracking & Constraint-Propagation,
+ * verifiziert Eindeutigkeit und findet didaktisch erklärte Lösungsschritte (10+ Strategien).
+ */
+
+
+
+class SudokuSolver {
+    /**
+     * Berechnet die verbleibenden Kandidaten für jede Zelle
+     */
+    static computeCandidates(engine) {
+        const size = engine.size;
+        const candidates = Array(size).fill(0).map(() => Array(size).fill(0).map(() => new Set()));
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (engine.grid[r][c] !== SUDOKU_EMPTY) continue;
+
+                for (let v = 1; v <= engine.maxValue; v++) {
+                    candidates[r][c].add(v);
+                }
+
+                // Peers eliminieren
+                for (const peerStr of engine.getPeers(r, c)) {
+                    const [pr, pc] = peerStr.split(',').map(Number);
+                    const peerVal = engine.grid[pr][pc];
+                    if (peerVal !== SUDOKU_EMPTY) {
+                        candidates[r][c].delete(peerVal);
+                    }
+                }
+            }
+        }
+        return candidates;
+    }
+
+    /**
+     * Findet den didaktisch und strategisch besten logischen Hinweis
+     */
+    static findLogicalHint(engine, options = {}) {
+        const mistakes = engine.findMistakes();
+        if (mistakes) return mistakes;
+
+        const candidates = SudokuSolver.computeCandidates(engine);
+        const focusCell = options.focusCell || null;
+
+        // 1. Strategie: Naked Single (Eindeutiger Kandidat)
+        const nakedSingles = [];
+        for (let r = 0; r < engine.size; r++) {
+            for (let c = 0; c < engine.size; c++) {
+                if (engine.grid[r][c] === SUDOKU_EMPTY && candidates[r][c].size === 1) {
+                    const val = Array.from(candidates[r][c])[0];
+                    nakedSingles.push({
+                        type: 'naked_single',
+                        strategy: 'Naked Single (Letzte Option)',
+                        r, c, value: val,
+                        highlightCells: [{ r, c }],
+                        message: `In Feld (${r + 1},${c + 1}) ist nur noch ${engine.formatValue(val)} möglich, da alle anderen Werte bereits in derselben Zeile, Spalte oder im Block vorkommen.`
+                    });
+                }
+            }
+        }
+
+        if (nakedSingles.length > 0) {
+            if (focusCell) {
+                const focused = nakedSingles.find(h => h.r === focusCell.r && h.c === focusCell.c);
+                if (focused) return focused;
+            }
+            return nakedSingles[0];
+        }
+
+        // 2. Strategie: Hidden Single in Zeilen
+        for (let r = 0; r < engine.size; r++) {
+            for (let v = 1; v <= engine.maxValue; v++) {
+                const possibleCols = [];
+                for (let c = 0; c < engine.size; c++) {
+                    if (engine.grid[r][c] === SUDOKU_EMPTY && candidates[r][c].has(v)) {
+                        possibleCols.push(c);
+                    }
+                }
+                if (possibleCols.length === 1) {
+                    const c = possibleCols[0];
+                    return {
+                        type: 'hidden_single_row',
+                        strategy: 'Hidden Single (Zeile)',
+                        r, c, value: v,
+                        highlightCells: [{ r, c }],
+                        message: `In Zeile ${r + 1} kann der Wert ${engine.formatValue(v)} ausschließlich auf Feld (${r + 1},${c + 1}) platziert werden, da er in allen anderen Feldern dieser Zeile blockiert ist.`
+                    };
+                }
+            }
+        }
+
+        // 3. Strategie: Hidden Single in Spalten
+        for (let c = 0; c < engine.size; c++) {
+            for (let v = 1; v <= engine.maxValue; v++) {
+                const possibleRows = [];
+                for (let r = 0; r < engine.size; r++) {
+                    if (engine.grid[r][c] === SUDOKU_EMPTY && candidates[r][c].has(v)) {
+                        possibleRows.push(r);
+                    }
+                }
+                if (possibleRows.length === 1) {
+                    const r = possibleRows[0];
+                    return {
+                        type: 'hidden_single_col',
+                        strategy: 'Hidden Single (Spalte)',
+                        r, c, value: v,
+                        highlightCells: [{ r, c }],
+                        message: `In Spalte ${c + 1} kann der Wert ${engine.formatValue(v)} ausschließlich auf Feld (${r + 1},${c + 1}) platziert werden, da er in allen anderen Feldern dieser Spalte blockiert ist.`
+                    };
+                }
+            }
+        }
+
+        // 4. Strategie: Hidden Single im Block / Box
+        for (let br = 0; br < engine.size; br += engine.boxH) {
+            for (let bc = 0; bc < engine.size; bc += engine.boxW) {
+                for (let v = 1; v <= engine.maxValue; v++) {
+                    const possibleCells = [];
+                    for (let r = br; r < br + engine.boxH; r++) {
+                        for (let c = bc; c < bc + engine.boxW; c++) {
+                            if (engine.grid[r][c] === SUDOKU_EMPTY && candidates[r][c].has(v)) {
+                                possibleCells.push({ r, c });
+                            }
+                        }
+                    }
+                    if (possibleCells.length === 1) {
+                        const { r, c } = possibleCells[0];
+                        return {
+                            type: 'hidden_single_box',
+                            strategy: 'Hidden Single (Block)',
+                            r, c, value: v,
+                            highlightCells: [{ r, c }],
+                            message: `In diesem Block kann der Wert ${engine.formatValue(v)} ausschließlich auf Feld (${r + 1},${c + 1}) gesetzt werden.`
+                        };
+                    }
+                }
+            }
+        }
+
+        // 5. Fallback: Lösungs-orientierter Hinweis
+        const sol = engine.getSolution();
+        if (sol) {
+            for (let r = 0; r < engine.size; r++) {
+                for (let c = 0; c < engine.size; c++) {
+                    if (engine.grid[r][c] === SUDOKU_EMPTY) {
+                        return {
+                            type: 'direct_step',
+                            strategy: 'Logischer Deduktionsschritt',
+                            r, c,
+                            value: sol[r][c],
+                            highlightCells: [{ r, c }],
+                            message: `Durch logisches Ausschließen in Zeile, Spalte und Block gehört auf Feld (${r + 1},${c + 1}) der Wert ${engine.formatValue(sol[r][c])}.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Findet alle Lösungen via Backtracking mit MRV Heuristik (Minimum Remaining Values)
+     */
+    static solve(engine, maxSolutions = 2) {
+        const size = engine.size;
+        const boxH = engine.boxH;
+        const boxW = engine.boxW;
+        const grid = engine.grid.map(row => [...row]);
+        const solutions = [];
+
+        function isValid(r, c, val) {
+            for (let i = 0; i < size; i++) {
+                if (grid[r][i] === val) return false;
+                if (grid[i][c] === val) return false;
+            }
+            const startR = Math.floor(r / boxH) * boxH;
+            const startC = Math.floor(c / boxW) * boxW;
+            for (let rr = startR; rr < startR + boxH; rr++) {
+                for (let cc = startC; cc < startC + boxW; cc++) {
+                    if (grid[rr][cc] === val) return false;
+                }
+            }
+            return true;
+        }
+
+        function findBestEmptyCell() {
+            let minCandidates = 999;
+            let best = null;
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === SUDOKU_EMPTY) {
+                        let candCount = 0;
+                        for (let v = 1; v <= size; v++) {
+                            if (isValid(r, c, v)) candCount++;
+                        }
+                        if (candCount === 0) return { r: -1, c: -1 }; // Widerspruch
+                        if (candCount < minCandidates) {
+                            minCandidates = candCount;
+                            best = { r, c };
+                            if (minCandidates === 1) return best;
+                        }
+                    }
+                }
+            }
+            return best;
+        }
+
+        function backtrack() {
+            if (solutions.length >= maxSolutions) return;
+
+            const cell = findBestEmptyCell();
+            if (cell && cell.r === -1) return;
+            if (!cell) {
+                solutions.push(grid.map(row => [...row]));
+                return;
+            }
+
+            const { r, c } = cell;
+            for (let val = 1; val <= size; val++) {
+                if (isValid(r, c, val)) {
+                    grid[r][c] = val;
+                    backtrack();
+                    grid[r][c] = SUDOKU_EMPTY;
+                    if (solutions.length >= maxSolutions) return;
+                }
+            }
+        }
+
+        backtrack();
+        return solutions;
+    }
+}
+
+// === Source: js\puzzles\sudoku\generator.js ===
+/**
+ * Sudoku Puzzle Generator
+ * Erzeugt prozedural eindeutig lösbare Sudokus (4×4, 9×9, 16×16 Hexadezimal)
+ * und Schwierigkeitsgrade mit deterministischer Seed-Unterstützung und 180° Rotationssymmetrie.
+ */
+
+
+
+
+class SudokuGenerator {
+    static seededRandom(seed) {
+        let s = Math.abs(seed) % 2147483647;
+        if (s <= 0) s += 2147483646;
+        return function() {
+            s = (s * 16807) % 2147483647;
+            return (s - 1) / 2147483646;
+        };
+    }
+
+    static shuffle(array, rng) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            const temp = array[i];
+            array[i] = array[j];
+            array[j] = temp;
+        }
+        return array;
+    }
+
+    /**
+     * Erzeugt ein volles, 100% regelkonformes Lösungs-Board
+     */
+    static generateFullBoard(size, rng = Math.random) {
+        const boxH = size === 4 ? 2 : (size === 16 ? 4 : 3);
+        const boxW = size === 4 ? 2 : (size === 16 ? 4 : 3);
+
+        // Basis-Shift Gitter
+        const grid = Array(size).fill(0).map(() => Array(size).fill(0));
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                grid[r][c] = ((r % boxH) * boxW + Math.floor(r / boxH) + c) % size + 1;
+            }
+        }
+
+        // 1. Ziffern-Permutation (Zufällige Ziffern-Zuordnung via Fisher-Yates)
+        const digits = [];
+        for (let i = 1; i <= size; i++) digits.push(i);
+        SudokuGenerator.shuffle(digits, rng);
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                grid[r][c] = digits[grid[r][c] - 1];
+            }
+        }
+
+        // 2. Zeilen innerhalb von Blöcken tauschen
+        for (let b = 0; b < size; b += boxH) {
+            for (let i = 0; i < boxH; i++) {
+                const swapWith = b + Math.floor(rng() * boxH);
+                const curRow = b + i;
+                const temp = grid[curRow];
+                grid[curRow] = grid[swapWith];
+                grid[swapWith] = temp;
+            }
+        }
+
+        // 3. Spalten innerhalb von Blöcken tauschen
+        for (let b = 0; b < size; b += boxW) {
+            for (let i = 0; i < boxW; i++) {
+                const swapWith = b + Math.floor(rng() * boxW);
+                const curCol = b + i;
+                for (let r = 0; r < size; r++) {
+                    const temp = grid[r][curCol];
+                    grid[r][curCol] = grid[r][swapWith];
+                    grid[r][swapWith] = temp;
+                }
+            }
+        }
+
+        return grid;
+    }
+
+    /**
+     * Erzeugt ein spielbares Sudoku mit garantiert eindeutiger Lösung
+     */
+    static generatePuzzle({ size = 9, difficulty = 'medium', seed = null }) {
+        const rng = seed !== null ? SudokuGenerator.seededRandom(seed) : Math.random;
+        
+        let fullSolution = null;
+        const testEngine = new SudokuEngine(size);
+
+        // Volles, fehlerfreies Brett erzeugen
+        for (let attempt = 0; attempt < 5; attempt++) {
+            fullSolution = SudokuGenerator.generateFullBoard(size, rng);
+            testEngine.loadPuzzle({ size, initialGrid: fullSolution });
+            if (testEngine.validateRules().isValid) break;
+        }
+
+        // Ziel-Clues nach Größe & Schwierigkeit
+        let targetClues;
+        if (size === 4) {
+            targetClues = difficulty === 'easy' ? 8 : (difficulty === 'medium' ? 6 : 4);
+        } else if (size === 16) {
+            targetClues = difficulty === 'easy' ? 140 : (difficulty === 'medium' ? 120 : 105);
+        } else {
+            // 9x9
+            targetClues = difficulty === 'easy' ? 36 : (difficulty === 'medium' ? 30 : 25);
+        }
+
+        const puzzleGrid = fullSolution.map(row => [...row]);
+
+        // Paarweise symmetrische Positionen (180° Rotationssymmetrie)
+        const pairs = [];
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                const symR = size - 1 - r;
+                const symC = size - 1 - c;
+                if ((r < symR) || (r === symR && c <= symC)) {
+                    pairs.push({ p1: { r, c }, p2: { r: symR, c: symC } });
+                }
+            }
+        }
+        SudokuGenerator.shuffle(pairs, rng);
+
+        let currentClues = size * size;
+
+        for (const pair of pairs) {
+            if (currentClues <= targetClues) break;
+            const { p1, p2 } = pair;
+            if (puzzleGrid[p1.r][p1.c] === SUDOKU_EMPTY) continue;
+
+            const val1 = puzzleGrid[p1.r][p1.c];
+            const val2 = puzzleGrid[p2.r][p2.c];
+
+            puzzleGrid[p1.r][p1.c] = SUDOKU_EMPTY;
+            puzzleGrid[p2.r][p2.c] = SUDOKU_EMPTY;
+
+            testEngine.loadPuzzle({ size, initialGrid: puzzleGrid });
+            const sols = SudokuSolver.solve(testEngine, 2);
+
+            if (sols.length !== 1) {
+                // Nicht mehr eindeutig -> wiederherstellen
+                puzzleGrid[p1.r][p1.c] = val1;
+                puzzleGrid[p2.r][p2.c] = val2;
+            } else {
+                currentClues -= (p1.r === p2.r && p1.c === p2.c) ? 1 : 2;
+            }
+        }
+
+        return {
+            size,
+            initialGrid: puzzleGrid,
+            solution: fullSolution,
+            difficulty
+        };
+    }
+}
+
+// === Source: js\puzzles\sudoku\renderer.js ===
+/**
+ * Sudoku Visual Renderer
+ * Zeichnet das harmonische, nahtlose Sudoku-Gitter (4×4, 9×9, 16×16 Hexadezimal)
+ * mit durchgehenden Block-Rändern, Notizen-Gittern, Keypad und Lösungsaufdeckung.
+ */
+
+
+
+
+
+class SudokuRenderer {
+    static getSymbolSvg(val, extraClass = '', size = 9) {
+        if (val > 0) {
+            const char = size === 16 ? ['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'][val - 1] : val;
+            return `<span class="sudoku-digit-badge ${extraClass}">${char}</span>`;
+        }
+        return '';
+    }
+
+    static countRemaining(engine, val) {
+        let placed = 0;
+        for (let r = 0; r < engine.size; r++) {
+            for (let c = 0; c < engine.size; c++) {
+                if (engine.grid[r][c] === val) placed++;
+            }
+        }
+        return Math.max(0, engine.size - placed);
+    }
+
+    static renderBoard(container, engine, state, onCellInteraction) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        const size = engine.size;
+        // Nahtloses einheitliches Gitter (Zero-Gap CSS Grid)
+        const gridEl = document.createElement('div');
+        gridEl.className = `sudoku-grid size-${size}`;
+        gridEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+        gridEl.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+        gridEl.style.setProperty('--grid-size', size);
+        gridEl.style.setProperty('--box-w', engine.boxW);
+        gridEl.style.setProperty('--box-h', engine.boxH);
+
+        const validation = state.autoCheck ? engine.validateRules() : { conflictCells: new Set() };
+        const solution = state.solutionRevealed ? engine.getSolution() : null;
+
+        const selCell = state.selectedCell;
+        const selVal = (selCell && engine.grid[selCell.r]) ? engine.grid[selCell.r][selCell.c] : SUDOKU_EMPTY;
+        const peers = selCell ? engine.getPeers(selCell.r, selCell.c) : new Set();
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                const cellEl = document.createElement('div');
+                cellEl.className = 'sudoku-cell';
+                cellEl.dataset.r = r;
+                cellEl.dataset.c = c;
+
+                const val = engine.grid[r][c];
+                const isLocked = engine.locked[r][c];
+                const isConflict = !state.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
+                const isSelected = !state.solutionRevealed && selCell && selCell.r === r && selCell.c === c;
+                const isHintShimmer = !state.solutionRevealed && state.hintPlacedCell && state.hintPlacedCell.r === r && state.hintPlacedCell.c === c;
+                const isPeer = !state.solutionRevealed && peers.has(`${r},${c}`);
+                const isSameValue = !state.solutionRevealed && selVal > 0 && val === selVal;
+
+                // Durchgehende, nahtlose Block-Ränder
+                if ((c + 1) % engine.boxW === 0 && c < size - 1) cellEl.classList.add('box-edge-right');
+                if ((r + 1) % engine.boxH === 0 && r < size - 1) cellEl.classList.add('box-edge-bottom');
+
+                if (isLocked) cellEl.classList.add('locked');
+                if (isConflict) cellEl.classList.add('conflict');
+                if (isSelected) cellEl.classList.add('selected');
+                if (isPeer && !isSelected) cellEl.classList.add('peer-highlight');
+                if (isSameValue && !isSelected) cellEl.classList.add('same-value-highlight');
+                if (isHintShimmer) cellEl.classList.add('hint-shimmer');
+
+                const displayChar = engine.formatValue(val);
+
+                if (state.solutionRevealed && solution) {
+                    const solVal = solution[r][c];
+                    const solChar = engine.formatValue(solVal);
+
+                    if (val === SUDOKU_EMPTY) {
+                        cellEl.classList.add('cell-revealed-solution');
+                        const ghost = document.createElement('span');
+                        ghost.className = 'revealed-ghost ghost-digit';
+                        ghost.textContent = solChar;
+                        cellEl.appendChild(ghost);
+                    } else if (val === solVal) {
+                        cellEl.classList.add('val-digit', 'cell-revealed-correct');
+                        const digitSpan = document.createElement('span');
+                        digitSpan.className = 'icon-digit';
+                        digitSpan.textContent = displayChar;
+                        cellEl.appendChild(digitSpan);
+                    } else {
+                        cellEl.classList.add('val-digit', 'cell-revealed-error');
+                        const crossSpan = document.createElement('span');
+                        crossSpan.className = 'wrong-marker-cross';
+                        crossSpan.textContent = '✕';
+                        cellEl.appendChild(crossSpan);
+
+                        const digitSpan = document.createElement('span');
+                        digitSpan.className = 'icon-digit';
+                        digitSpan.textContent = displayChar;
+                        cellEl.appendChild(digitSpan);
+
+                        const subDiv = document.createElement('div');
+                        subDiv.className = 'revealed-correct-sub';
+                        const badge = document.createElement('span');
+                        badge.className = 'mini-badge badge-digit';
+                        badge.textContent = solChar;
+                        subDiv.appendChild(badge);
+                        cellEl.appendChild(subDiv);
+                    }
+                } else if (val > 0) {
+                    cellEl.classList.add('val-digit');
+                    const digitSpan = document.createElement('span');
+                    digitSpan.className = 'icon-digit';
+                    digitSpan.textContent = displayChar;
+                    cellEl.appendChild(digitSpan);
+                } else {
+                    // Tutorial Target
+                    let tutStep = null;
+                    if (state.currentMode === 'tutorial') {
+                        tutStep = SUDOKU_TUTORIAL_STEPS[state.tutorialStepIndex];
+                    } else if (state.currentMode === 'tutorial_pro' || state.currentMode === 'tutorial_advanced') {
+                        tutStep = SUDOKU_TUTORIAL_ADVANCED_STEPS[state.tutorialStepIndex];
+                    }
+
+                    const targetCellInfo = (tutStep && tutStep.targetCells) ? tutStep.targetCells.find(t => t.r === r && t.c === c) : null;
+                    if (targetCellInfo) {
+                        cellEl.classList.add('tutorial-target');
+                        const ghostEl = document.createElement('span');
+                        ghostEl.className = 'target-ghost ghost-digit';
+                        ghostEl.textContent = engine.formatValue(targetCellInfo.val);
+                        cellEl.appendChild(ghostEl);
+                    } else {
+                        // Notizen
+                        const notes = engine.notes[r][c];
+                        if (notes && notes.size > 0) {
+                            const noteGrid = document.createElement('div');
+                            noteGrid.className = `sudoku-note-grid grid-${engine.maxValue}`;
+                            for (let n = 1; n <= engine.maxValue; n++) {
+                                const nSpan = document.createElement('span');
+                                nSpan.className = 'note-digit';
+                                nSpan.textContent = notes.has(n) ? engine.formatValue(n) : '';
+                                noteGrid.appendChild(nSpan);
+                            }
+                            cellEl.appendChild(noteGrid);
+                        }
+                    }
+                }
+
+                if (typeof onCellInteraction === 'function') {
+                    onCellInteraction(cellEl, r, c);
+                }
+
+                gridEl.appendChild(cellEl);
+            }
+        }
+
+        container.appendChild(gridEl);
+    }
+
+    static renderKeypad(container, engine, state, onKeyInput) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        const is16 = engine.size === 16;
+        container.className = `game-keypad sudoku-keypad keypad-${engine.maxValue} ${is16 ? 'keypad-hex-layout' : ''}`;
+
+        if (is16) {
+            // 16x16: 2 Zeilen für optimale Smartphone-Bedienung
+            const row1 = document.createElement('div');
+            row1.className = 'keypad-hex-row';
+            const row2 = document.createElement('div');
+            row2.className = 'keypad-hex-row';
+
+            for (let v = 1; v <= 16; v++) {
+                const btn = document.createElement('button');
+                btn.className = 'keypad-btn sudoku-key';
+                btn.dataset.val = v;
+
+                const remaining = SudokuRenderer.countRemaining(engine, v);
+                if (remaining === 0) btn.classList.add('completed-digit');
+
+                const char = engine.formatValue(v);
+                
+                const dSpan = document.createElement('span');
+                dSpan.className = 'key-digit';
+                dSpan.textContent = char;
+                btn.appendChild(dSpan);
+
+                const rSpan = document.createElement('span');
+                rSpan.className = 'key-remaining';
+                rSpan.textContent = remaining;
+                btn.appendChild(rSpan);
+
+                btn.addEventListener('click', () => onKeyInput && onKeyInput(v));
+
+                if (v <= 8) {
+                    row1.appendChild(btn);
+                } else {
+                    row2.appendChild(btn);
+                }
+            }
+
+            // Löschen Button in Zeile 2
+            const btnClear = document.createElement('button');
+            btnClear.className = 'keypad-btn sudoku-key key-clear';
+            btnClear.id = 'keypadClear';
+            btnClear.setAttribute('aria-label', 'Löschen');
+            const clearSpan = document.createElement('span');
+            clearSpan.className = 'key-digit';
+            clearSpan.textContent = '✕';
+            btnClear.appendChild(clearSpan);
+            btnClear.addEventListener('click', () => onKeyInput && onKeyInput(SUDOKU_EMPTY));
+            row2.appendChild(btnClear);
+
+            container.appendChild(row1);
+            container.appendChild(row2);
+        } else {
+            // 4x4 / 9x9: 1 Zeile
+            for (let v = 1; v <= engine.maxValue; v++) {
+                const btn = document.createElement('button');
+                btn.className = 'keypad-btn sudoku-key';
+                btn.dataset.val = v;
+
+                const remaining = SudokuRenderer.countRemaining(engine, v);
+                if (remaining === 0) btn.classList.add('completed-digit');
+
+                const char = engine.formatValue(v);
+
+                const dSpan = document.createElement('span');
+                dSpan.className = 'key-digit';
+                dSpan.textContent = char;
+                btn.appendChild(dSpan);
+
+                const rSpan = document.createElement('span');
+                rSpan.className = 'key-remaining';
+                rSpan.textContent = remaining;
+                btn.appendChild(rSpan);
+
+                btn.addEventListener('click', () => onKeyInput && onKeyInput(v));
+                container.appendChild(btn);
+            }
+
+            // Löschen-Button
+            const btnClear = document.createElement('button');
+            btnClear.className = 'keypad-btn sudoku-key key-clear';
+            btnClear.id = 'keypadClear';
+            btnClear.setAttribute('aria-label', 'Löschen');
+            const clearSpan = document.createElement('span');
+            clearSpan.className = 'key-digit';
+            clearSpan.textContent = '✕';
+            btnClear.appendChild(clearSpan);
+            btnClear.addEventListener('click', () => onKeyInput && onKeyInput(SUDOKU_EMPTY));
+            container.appendChild(btnClear);
+        }
+    }
+
+    static getRulesHtml(lang = 'de') {
+        if (lang === 'en') {
+            return `
+                <div class="rules-container">
+                    <div class="rule-box">
+                        <div class="rule-badge">1</div>
+                        <div class="rule-content">
+                            <strong>Rows</strong>
+                            <p>Every row must contain all symbols (1–4, 1–9, or 0–F in 16×16 Hex) without duplicates.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">2</div>
+                        <div class="rule-content">
+                            <strong>Columns</strong>
+                            <p>Every column must contain all symbols without duplicates.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">3</div>
+                        <div class="rule-content">
+                            <strong>Blocks (Sub-Grids)</strong>
+                            <p>Every block (2×2 in 4×4, 3×3 in 9×9, 4×4 in 16×16) must contain each symbol exactly once.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">4</div>
+                        <div class="rule-content">
+                            <strong>Pure Deduction</strong>
+                            <p>Every puzzle has exactly one unique solution. No guessing required!</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="rules-container">
+                <div class="rule-box">
+                    <div class="rule-badge">1</div>
+                    <div class="rule-content">
+                        <strong>Zeilen</strong>
+                        <p>Jede waagerechte Zeile muss alle Werte (1–4 bei 4×4, 1–9 bei 9×9, 0–F bei 16×16 Hex) ohne Wiederholungen enthalten.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">2</div>
+                    <div class="rule-content">
+                        <strong>Spalten</strong>
+                        <p>Jede senkrechte Spalte muss alle Werte ohne Wiederholungen enthalten.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">3</div>
+                    <div class="rule-content">
+                        <strong>Blöcke (Boxen)</strong>
+                        <p>Jeder fett umrandete Block (2×2 bei 4×4, 3×3 bei 9×9, 4×4 bei 16×16) muss jeden Wert exakt einmal enthalten.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">4</div>
+                    <div class="rule-content">
+                        <strong>Reine Logik & Eindeutigkeit</strong>
+                        <p>Jedes Rätsel besitzt eine eindeutige Lösung und ist ohne Raten rein durch logische Deduktion lösbar.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// === Source: js\puzzles\sudoku\data\i18n.js ===
+/**
+ * Sudoku-spezifische Übersetzungen (DE & EN)
+ */
+
+const SUDOKU_I18N = {
+    de: {
+        sudoku_title: "Sudoku",
+        sudoku_desc: "Klassisches Zahlenrätsel (4×4, 6×6, 9×9)",
+        sudoku_btn_clear: "Löschen",
+        sudoku_rules_title: "Sudoku Regeln",
+        sudoku_chapter_1: "Einsteiger",
+        sudoku_chapter_2: "Fortgeschritten",
+        sudoku_chapter_3: "Klassisch",
+        sudoku_chapter_4: "Meister",
+        sudoku_tut_basics: "Grundlagen",
+        sudoku_tut_advanced: "Fortgeschritten"
+    },
+    en: {
+        sudoku_title: "Sudoku",
+        sudoku_desc: "Classic number puzzle (4×4, 6×6, 9×9)",
+        sudoku_btn_clear: "Clear",
+        sudoku_rules_title: "Sudoku Rules",
+        sudoku_chapter_1: "Beginner",
+        sudoku_chapter_2: "Advanced",
+        sudoku_chapter_3: "Classic",
+        sudoku_chapter_4: "Master",
+        sudoku_tut_basics: "Basics",
+        sudoku_tut_advanced: "Advanced"
+    }
+};
+
+// === Source: js\puzzles\sudoku\data\levels.js ===
+/**
+ * Sudoku Level & Tagesrätsel-Generierung
+ * 120 prozedural generierte Kampagnen-Level in 4 Kapiteln (4×4, 9×9, 16×16 Hexadezimal)
+ * und synchrones Tagesrätsel (Werktags 9×9, Wochenende 16×16 Hexadezimal).
+ */
+
+
+
+function getSudokuCampaignLevel(levelIndex) {
+    // 120 Level in 4 Kapiteln:
+    // Kapitel 1 (0–29): Einsteiger 4×4 (Level 1–15: Easy, Level 16–25: Medium, Level 26–30: Hard)
+    // Kapitel 2 (30–59): Klassisch Leicht 9×9 (Level 31–60: Easy)
+    // Kapitel 3 (60–89): Klassisch Anspruchsvoll 9×9 (Level 61–75: Medium, Level 76–90: Hard)
+    // Kapitel 4 (90–119): Meister & Hexadezimal (Level 91–105: 9×9 Meister, Level 106–120: 16×16 Hexadezimal)
+
+    let size, difficulty;
+    if (levelIndex < 15) {
+        size = 4;
+        difficulty = 'easy';
+    } else if (levelIndex < 25) {
+        size = 4;
+        difficulty = 'medium';
+    } else if (levelIndex < 30) {
+        size = 4;
+        difficulty = 'hard';
+    } else if (levelIndex < 60) {
+        size = 9;
+        difficulty = 'easy';
+    } else if (levelIndex < 75) {
+        size = 9;
+        difficulty = 'medium';
+    } else if (levelIndex < 105) {
+        size = 9;
+        difficulty = 'hard';
+    } else {
+        // Level 106–120: 16×16 Hexadezimal Meister
+        size = 16;
+        difficulty = levelIndex < 112 ? 'easy' : (levelIndex < 117 ? 'medium' : 'hard');
+    }
+
+    const seed = 9000 + (levelIndex + 1) * 137;
+    const generated = SudokuGenerator.generatePuzzle({ size, difficulty, seed });
+
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1} (${size === 16 ? '16×16 Hex' : `${size}×${size}`})`,
+        ...generated
+    };
+}
+
+/**
+ * Erzeugt das synchrone Sudoku-Tagesrätsel basierend auf dem Datum
+ */
+function getSudokuDailyPuzzle(dateStr) {
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10) + 777;
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+    
+    // Werktags 9x9, Wochenende 16x16 Hexadezimal Meister
+    const size = isWeekend ? 16 : 9;
+    const difficulty = isWeekend ? 'medium' : 'hard';
+
+    const generated = SudokuGenerator.generatePuzzle({ size, difficulty, seed });
+    return {
+        id: `daily_sudoku_${dateStr}`,
+        date: dateStr,
+        name: `Sudoku Tagesrätsel (${size === 16 ? '16×16 Hex' : '9×9'}, ${dateStr})`,
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\sudoku\data\tutorial.js ===
+/**
+ * Sudoku Grundlagen-Tutorial (10 Lektionen)
+ * Führt schrittweise in Zeilen, Spalten, Blöcke, Notizen und 9×9 Klassik ein.
+ */
+
+const SUDOKU_TUTORIAL_STEPS = [
+    {
+        id: 1,
+        title: "1. Das Sudoku-Gitter",
+        subtitle: "Zeilen & Zahlen",
+        size: 4,
+        initialGrid: [
+            [1, 2, 3, 0],
+            [3, 4, 1, 2],
+            [2, 1, 4, 3],
+            [4, 3, 2, 1]
+        ],
+        targetCells: [{ r: 0, c: 3, val: 4 }],
+        description: "In jeder Zeile muss jede Zahl von 1 bis 4 genau einmal vorkommen. In der ersten Zeile fehlen noch: **4**.\n\nTippe auf das markierte Feld und wähle die **4**.",
+        explanation: "Sehr gut! Jede Zeile darf keine doppelten Zahlen enthalten."
+    },
+    {
+        id: 2,
+        title: "2. Spalten-Regel",
+        subtitle: "Senkrechte Vollständigkeit",
+        size: 4,
+        initialGrid: [
+            [1, 2, 3, 4],
+            [3, 0, 1, 2],
+            [2, 1, 4, 3],
+            [4, 3, 2, 1]
+        ],
+        targetCells: [{ r: 1, c: 1, val: 4 }],
+        description: "Auch in jeder **Spalte** darf jede Ziffer nur einmal stehen. In Spalte 2 fehlt noch die **4**.",
+        explanation: "Klasse! Zeilen und Spalten folgen demselben Ausschlussprinzip."
+    },
+    {
+        id: 3,
+        title: "3. 2×2 Block-Regel",
+        subtitle: "Räumliche Einheiten",
+        size: 4,
+        initialGrid: [
+            [1, 2, 3, 4],
+            [3, 4, 1, 2],
+            [2, 1, 4, 0],
+            [4, 3, 2, 1]
+        ],
+        targetCells: [{ r: 2, c: 3, val: 3 }],
+        description: "Jeder fett umrandete **2×2-Block** enthält ebenfalls alle Zahlen von 1 bis 4 genau einmal. Im unteren rechten Block fehlt noch die **3**.",
+        explanation: "Perfekt! Die 3 Hauptregeln sind: Zeile, Spalte und Block."
+    },
+    {
+        id: 4,
+        title: "4. Naked Single (Eindeutiger Rest)",
+        subtitle: "Kombiniertes Ausschließen",
+        size: 4,
+        initialGrid: [
+            [1, 2, 3, 4],
+            [0, 4, 1, 2],
+            [2, 0, 4, 3],
+            [4, 3, 2, 1]
+        ],
+        targetCells: [
+            { r: 1, c: 0, val: 3 },
+            { r: 2, c: 1, val: 1 }
+        ],
+        description: "Prüfe für jedes leere Feld die Peers (Zeile, Spalte und Block). Es bleibt jeweils nur eine einzige gültige Zahl übrig.",
+        explanation: "Ausgezeichnet! Wenn nur noch eine Zahl erlaubt ist, spricht man vom 'Naked Single'."
+    },
+    {
+        id: 5,
+        title: "5. Hidden Single in Zeile",
+        subtitle: "Wo kann die Zahl hin?",
+        size: 4,
+        initialGrid: [
+            [0, 0, 1, 2],
+            [1, 2, 3, 4],
+            [2, 1, 4, 3],
+            [4, 3, 2, 1]
+        ],
+        targetCells: [
+            { r: 0, c: 0, val: 3 },
+            { r: 0, c: 1, val: 4 }
+        ],
+        description: "In Zeile 1 fehlen 3 und 4. Da in Spalte 1 bereits eine 4 steht, kann die 4 nur in Feld (1,2) platziert werden.",
+        explanation: "Genau! Manchmal schaut man nicht darauf, was in eine Zelle passt, sondern wo eine Zahl zwingend hin muss ('Hidden Single')."
+    },
+    {
+        id: 6,
+        title: "6. Das klassische 9×9 Gitter",
+        subtitle: "Zahlen 1 bis 9 & 3×3 Blöcke",
+        size: 9,
+        initialGrid: [
+            [5, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 5, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [9, 6, 1, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 6, 3, 5],
+            [3, 4, 5, 2, 8, 6, 1, 7, 0]
+        ],
+        targetCells: [{ r: 8, c: 8, val: 9 }],
+        description: "Im klassischen 9×9 Sudoku nutzt man die Ziffern 1 bis 9 und 3×3-Blöcke. Setze die letzte fehlende Ziffer in der letzten Zeile: die **9**.",
+        explanation: "Hervorragend! Das klassische 9×9 Sudoku funktioniert nach genau denselben Prinzipien."
+    },
+    {
+        id: 7,
+        title: "7. Hidden Single im 3×3 Block",
+        subtitle: "Kreuzweises Scannen",
+        size: 9,
+        initialGrid: [
+            [5, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 5, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [9, 6, 1, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 6, 3, 5],
+            [3, 4, 5, 2, 8, 6, 1, 0, 9]
+        ],
+        targetCells: [{ r: 8, c: 7, val: 7 }],
+        description: "Finde die verbleibende Position für die **7** im unteren rechten Block.",
+        explanation: "Perfekt! Cross-Hatching ermöglicht schnelles Finden von Hidden Singles."
+    },
+    {
+        id: 8,
+        title: "8. Notizen-System (Kandidaten)",
+        subtitle: "Möglichkeiten festhalten",
+        size: 4,
+        initialGrid: [
+            [1, 2, 3, 4],
+            [3, 4, 1, 2],
+            [2, 1, 0, 0],
+            [4, 3, 2, 1]
+        ],
+        targetCells: [
+            { r: 2, c: 2, val: 4 },
+            { r: 2, c: 3, val: 3 }
+        ],
+        description: "Nutze den Notizen-Modus (Stift-Symbol), um mögliche Zahlen einzutragen und schrittweise zu eliminieren.",
+        explanation: "Klasse! Notizen sind das wichtigste Werkzeug für anspruchsvolle Sudokus."
+    },
+    {
+        id: 9,
+        title: "9. Peer-Ausschluss im 9×9",
+        subtitle: "Zeile, Spalte & Block gleichzeitig",
+        size: 9,
+        initialGrid: [
+            [5, 3, 0, 0, 7, 0, 0, 0, 0],
+            [6, 0, 0, 1, 9, 5, 0, 0, 0],
+            [0, 9, 8, 0, 0, 0, 0, 6, 0],
+            [8, 0, 0, 0, 6, 0, 0, 0, 3],
+            [4, 0, 0, 8, 0, 3, 0, 0, 1],
+            [7, 0, 0, 0, 2, 0, 0, 0, 6],
+            [0, 6, 0, 0, 0, 0, 2, 8, 0],
+            [0, 0, 0, 4, 1, 9, 0, 0, 5],
+            [0, 0, 0, 0, 8, 0, 0, 7, 9]
+        ],
+        targetCells: [{ r: 0, c: 2, val: 4 }],
+        description: "Betrachte Feld (1,3): In Zeile 1 stehen 5, 3, 7. In Spalte 3 stehen 8. Im Block stehen 5, 3, 6, 9, 8. Setze die logisch zwingende Ziffer.",
+        explanation: "Stark gelöst!"
+    },
+    {
+        id: 10,
+        title: "10. Erstes komplettes 4×4 Rätsel",
+        subtitle: "Alles zusammen anwenden",
+        size: 4,
+        initialGrid: [
+            [0, 2, 0, 4],
+            [3, 0, 1, 0],
+            [0, 1, 0, 3],
+            [4, 0, 2, 0]
+        ],
+        description: "Löse dieses 4×4 Rätsel vollständig mit allen erlernten Regeln.",
+        explanation: "Fantastisch! Du hast die Sudoku-Grundlagen meisterhaft abgeschlossen!"
+    }
+];
+
+// === Source: js\puzzles\sudoku\data\tutorial_advanced.js ===
+/**
+ * Sudoku Fortgeschrittenen-Tutorial (8 Lektionen)
+ * Didaktische Einführung in 9×9 Meistertechniken & 16×16 Hexadezimal-Sudokus.
+ */
+
+const SUDOKU_TUTORIAL_ADVANCED_STEPS = [
+    {
+        id: 1,
+        title: "1. Naked Pair (Offenes Paar)",
+        subtitle: "Zwei Felder, dieselben zwei Zahlen",
+        size: 9,
+        initialGrid: [
+            [5, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 5, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [9, 6, 1, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 6, 3, 5],
+            [0, 4, 5, 2, 8, 6, 1, 7, 0]
+        ],
+        targetCells: [
+            { r: 8, c: 0, val: 3 },
+            { r: 8, c: 8, val: 9 }
+        ],
+        description: "Wenn zwei Felder in einer Zeile oder einem Block nur dieselben zwei Kandidaten haben, müssen diese dort stehen. Setze die fehlenden Zahlen in der letzten Zeile.",
+        explanation: "Sehr gut! Das Naked Pair ist eine der wichtigsten fortgeschrittenen Techniken."
+    },
+    {
+        id: 2,
+        title: "2. Hidden Pair (Verstecktes Paar)",
+        subtitle: "Zwei Zahlen an nur zwei Stellen",
+        size: 9,
+        initialGrid: [
+            [5, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 5, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [9, 6, 1, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 0, 3, 0],
+            [3, 4, 5, 2, 8, 6, 1, 7, 9]
+        ],
+        targetCells: [
+            { r: 7, c: 6, val: 6 },
+            { r: 7, c: 8, val: 5 }
+        ],
+        description: "Wenn zwei Ziffern in einer Zeile nur noch auf zwei Feldern platziert werden können, müssen sie dorthin.",
+        explanation: "Ausgezeichnet verstanden!"
+    },
+    {
+        id: 3,
+        title: "3. Pointing Pair (Block → Zeile)",
+        subtitle: "Gefangene Kandidaten",
+        size: 9,
+        initialGrid: [
+            [5, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 5, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [9, 6, 1, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 6, 3, 5],
+            [3, 0, 5, 2, 8, 6, 1, 7, 9]
+        ],
+        targetCells: [{ r: 8, c: 1, val: 4 }],
+        description: "Liegen alle Kandidaten einer Zahl innerhalb eines Blocks auf derselben Zeile, darf diese Zahl nirgendwo sonst auf dieser Zeile außerhalb des Blocks vorkommen.",
+        explanation: "Perfekt! Das nennt man 'Pointing Pair'."
+    },
+    {
+        id: 4,
+        title: "4. Box-Line Reduction (Linie → Block)",
+        subtitle: "Umgekehrte Block-Ausrichtung",
+        size: 9,
+        initialGrid: [
+            [5, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 0, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [9, 6, 1, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 6, 3, 5],
+            [3, 4, 5, 2, 8, 6, 1, 7, 9]
+        ],
+        targetCells: [{ r: 4, c: 4, val: 5 }],
+        description: "Wenn in einer Zeile eine Zahl nur innerhalb eines bestimmten Blocks vorkommen kann, kann sie nirgendwo sonst in diesem Block stehen.",
+        explanation: "Klasse logische Kombination!"
+    },
+    {
+        id: 5,
+        title: "5. Naked Triple (Offenes Dreierpack)",
+        subtitle: "3 Felder, 3 Zahlen",
+        size: 9,
+        initialGrid: [
+            [5, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 5, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [0, 0, 0, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 6, 3, 5],
+            [3, 4, 5, 2, 8, 6, 1, 7, 9]
+        ],
+        targetCells: [
+            { r: 6, c: 0, val: 9 },
+            { r: 6, c: 1, val: 6 },
+            { r: 6, c: 2, val: 1 }
+        ],
+        description: "Drei Felder teilen sich eine Teilmenge aus 3 Ziffern. Löse die drei Felder im linken unteren Block.",
+        explanation: "Hervorragend erkannt!"
+    },
+    {
+        id: 6,
+        title: "6. Das X-Wing Prinzip",
+        subtitle: "Rechteck-Formationen in 2 Zeilen/Spalten",
+        size: 9,
+        initialGrid: [
+            [0, 3, 4, 6, 7, 8, 9, 1, 2],
+            [6, 7, 2, 1, 9, 5, 3, 4, 8],
+            [1, 9, 8, 3, 4, 2, 5, 6, 7],
+            [8, 5, 9, 7, 6, 1, 4, 2, 3],
+            [4, 2, 6, 8, 5, 3, 7, 9, 1],
+            [7, 1, 3, 9, 2, 4, 8, 5, 6],
+            [9, 6, 1, 5, 3, 7, 2, 8, 4],
+            [2, 8, 7, 4, 1, 9, 6, 3, 5],
+            [3, 4, 5, 2, 8, 6, 1, 7, 9]
+        ],
+        targetCells: [{ r: 0, c: 0, val: 5 }],
+        description: "Wenn eine Ziffer in genau zwei Zeilen an denselben beiden Spaltenpositionen auftritt, bildet sie ein Rechteck ('X-Wing'). Setze die fehlende Ziffer in der linken oberen Ecke.",
+        explanation: "Das X-Wing-Muster ist eines der elegantesten Sudoku-Gesetze!"
+    },
+    {
+        id: 7,
+        title: "7. Vollständiges 9×9 Meisterstück",
+        subtitle: "Klassische Deduktion",
+        size: 9,
+        initialGrid: [
+            [5, 3, 0, 0, 7, 0, 0, 0, 0],
+            [6, 0, 0, 1, 9, 5, 0, 0, 0],
+            [0, 9, 8, 0, 0, 0, 0, 6, 0],
+            [8, 0, 0, 0, 6, 0, 0, 0, 3],
+            [4, 0, 0, 8, 0, 3, 0, 0, 1],
+            [7, 0, 0, 0, 2, 0, 0, 0, 6],
+            [0, 6, 0, 0, 0, 0, 2, 8, 0],
+            [0, 0, 0, 4, 1, 9, 0, 0, 5],
+            [0, 0, 0, 0, 8, 0, 0, 7, 9]
+        ],
+        description: "Löse dieses klassische 9×9 Sudoku vollständig mit logischer Deduktion und Notizen.",
+        explanation: "Super! Du hast das 9×9 Sudoku meisterhaft gelöst!"
+    },
+    {
+        id: 8,
+        title: "8. 16×16 Hexadezimal-Sudoku",
+        subtitle: "Werte 0 bis F & 4×4 Blöcke",
+        size: 16,
+        initialGrid: [
+            [1,  2,  3,  4,   5,  6,  7,  8,   9, 10, 11, 12,  13, 14, 15,  0],
+            [5,  6,  7,  8,   9, 10, 11, 12,  13, 14, 15, 16,   1,  2,  3,  4],
+            [9, 10, 11, 12,  13, 14, 15, 16,   1,  2,  3,  4,   5,  6,  7,  8],
+            [13, 14, 15, 16,  1,  2,  3,  4,   5,  6,  7,  8,   9, 10, 11, 12],
+
+            [2,  3,  4,  1,   6,  7,  8,  5,  10, 11, 12,  9,  14, 15, 16, 13],
+            [6,  7,  8,  5,  10, 11, 12,  9,  14, 15, 16, 13,   2,  3,  4,  1],
+            [10, 11, 12,  9,  14, 15, 16, 13,   2,  3,  4,  1,   6,  7,  8,  5],
+            [14, 15, 16, 13,   2,  3,  4,  1,   6,  7,  8,  5,  10, 11, 12,  9],
+
+            [3,  4,  1,  2,   7,  8,  5,  6,  11, 12,  9, 10,  15, 16, 13, 14],
+            [7,  8,  5,  6,  11, 12,  9, 10,  15, 16, 13, 14,   3,  4,  1,  2],
+            [11, 12,  9, 10,  15, 16, 13, 14,   3,  4,  1,  2,   7,  8,  5,  6],
+            [15, 16, 13, 14,   3,  4,  1,  2,   7,  8,  5,  6,  11, 12,  9, 10],
+
+            [4,  1,  2,  3,   8,  5,  6,  7,  12,  9, 10, 11,  16, 13, 14, 15],
+            [8,  5,  6,  7,  12,  9, 10, 11,  16, 13, 14, 15,   4,  1,  2,  3],
+            [12,  9, 10, 11,  16, 13, 14, 15,   4,  1,  2,  3,   8,  5,  6,  7],
+            [16, 13, 14, 15,   4,  1,  2,  3,   8,  5,  6,  7,  12,  9, 10, 11]
+        ],
+        targetCells: [{ r: 0, c: 15, val: 16 }],
+        description: "Im gigantischen 16×16 Hexadezimal-Sudoku nutzt man die Werte **0 bis F** in 4×4-Blöcken. Setze den fehlenden Hex-Wert **F** (16. Wert) in Zeile 1!",
+        explanation: "Hut ab! Du beherrschst nun alle Sudoku-Größen bis zum 16×16 Hexadezimal-Meister!"
+    }
+];
+
+// === Source: js\puzzles\sudoku\index.js ===
+/**
+ * Sudoku Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für Sudoku (4×4, 9×9, 16×16 Hexadezimal).
+ */
+
+
+
+
+
+
+
+
+
+
+const SudokuPlugin = {
+    id: 'sudoku',
+    name: 'Sudoku',
+    icon: '🔢',
+    description: 'Zahlen- & Hex-Logik mit Zeilen, Spalten & Blöcken',
+    badge: 'Neu',
+    cssPath: './css/puzzles/sudoku.css',
+
+    getSizes: () => [
+        { id: 4, label: '4 × 4 (Mini)', gridSize: 4 },
+        { id: 9, label: '9 × 9 (Klassisch)', gridSize: 9 },
+        { id: 16, label: '16 × 16 (Hexadezimal)', gridSize: 16 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+
+    getInputConfig: () => ({
+        type: 'keypad',
+        allowKeypad: true,
+        keys: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, SUDOKU_EMPTY]
+    }),
+
+    createEngine: (size = 9) => new SudokuEngine(size),
+    generatePuzzle: (opts) => SudokuGenerator.generatePuzzle(opts),
+    solvePuzzle: (engine, max = 1) => SudokuSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => SudokuRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => SudokuRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass, size) => SudokuRenderer.getSymbolSvg(val, extraClass, size),
+
+    getHint: (engine, options) => SudokuSolver.findLogicalHint(engine, options),
+    getRules: (lang) => SudokuRenderer.getRulesHtml(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 120,
+        chapters: [
+            { id: 0, name: 'Einsteiger', levelRange: [0, 29], desc: '4×4 Mini Grundlagen' },
+            { id: 1, name: 'Klassisch Leicht', levelRange: [30, 59], desc: '9×9 Einstieg & Entspannung' },
+            { id: 2, name: 'Klassisch Meister', levelRange: [60, 89], desc: '9×9 Fortgeschrittene Deduktion' },
+            { id: 3, name: 'Hexadezimal', levelRange: [90, 119], desc: '9×9 Meister & 16×16 Hex-Giganten' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getSudokuCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getSudokuDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: SUDOKU_TUTORIAL_STEPS, badge: '10 Lektionen' },
+            { id: 'advanced', name: 'Fortgeschritten', steps: SUDOKU_TUTORIAL_ADVANCED_STEPS, badge: '8 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => SUDOKU_I18N[lang] || {}
+};
+
+// === Source: js\puzzles\tango\engine.js ===
 /**
  * Tango Game Engine
  * Repräsentiert das Spielfeld, Zellwerte, Kantenbedingungen und Validierungsregeln.
@@ -545,12 +3462,13 @@ class TangoEngine {
     }
 }
 
-// === Source: js\core\solver.js ===
+// === Source: js\puzzles\tango\solver.js ===
 /**
  * Tango Solver & Hint Engine
  * Findet logische Züge mit verständlichen deutschen Erklärungen
  * und validiert die Eindeutigkeit von Rätseln via Backtracking.
  */
+
 
 
 class TangoSolver {
@@ -1354,11 +4272,13 @@ class TangoSolver {
     }
 }
 
-// === Source: js\core\generator.js ===
+// === Source: js\puzzles\tango\generator.js ===
 /**
  * Tango Puzzle Generator
  * Erzeugt prozedural eindeutig lösbare Tango-Rätsel verschiedener Größen und Schwierigkeitsgrade.
  */
+
+
 
 
 class TangoGenerator {
@@ -1548,397 +4468,365 @@ class TangoGenerator {
     }
 }
 
-// === Source: js\data\i18n.js ===
+// === Source: js\puzzles\tango\renderer.js ===
 /**
- * Tango Internationalisierung (i18n)
- * Vollständige deutsche Übersetzung und Sprachdefinitionen
+ * Tango Visual Renderer
+ * Zeichnet das Gitter, Kantenbedingungen, Sonnen-, Mond- und Geistersymbole.
  */
 
-const translations = {
-    de: {
-        app_title: "Tango Logikrätsel",
-        subtitle: "Minimalistisches Binärrätsel mit Sonne & Mond",
-        
-        // Navigation & Modi
-        nav_campaign: "Kampagne",
-        nav_daily: "Tagesrätsel",
-        nav_free: "Freies Spiel",
-        nav_tutorial: "Grundlagen",
-        nav_tutorial_pro: "Mathematik",
-        nav_tutorial_patterns: "Muster",
-        nav_stats: "Statistiken",
-        nav_settings: "Einstellungen",
-        
-        // Schwierigkeitsgrade
-        diff_beginner: "Anfänger (4×4)",
-        diff_easy: "Einfach (6×6)",
-        diff_medium: "Mittel (6×6)",
-        diff_hard: "Schwer (8×8)",
-        diff_expert: "Experte (10×10)",
 
-        // Spielaktionen
-        btn_undo: "Rückgängig",
-        btn_redo: "Wiederholen",
-        btn_hint: "Hinweis",
-        btn_restart: "Neustart",
-        btn_notes: "Notizen",
-        btn_check: "Prüfen",
-        btn_next_level: "Nächstes Level",
-        btn_back_menu: "Hauptmenü",
-        btn_play_again: "Nochmal spielen",
-        btn_continue: "Weiter",
-        btn_start: "Starten",
 
-        // Status & Timer
-        status_time: "Zeit",
-        status_moves: "Züge",
-        status_hints_used: "Hinweise",
-        status_level: "Level",
-        status_daily_date: "Tagesrätsel vom",
-        status_streak: "Serie",
-        status_completed: "Gelöst!",
 
-        // Hinweise & Feedback
-        hint_title: "Logischer Hinweis",
-        hint_error_title: "Fehler gefunden",
-        hint_button_apply: "Zug ausführen",
-        hint_button_fix: "Feld korrigieren",
-        hint_limit_reached: "Maximale Anzahl an Hinweisen für dieses Level erreicht (3/3).",
-        reveal_confirm_title: "Lösung aufdecken?",
-        reveal_confirm_desc: "Du hast alle 3 Hinweise verbraucht. Möchtest du das Rätsel aufgeben und die vollständige Lösung aufdecken?\n\n⚠️ Das nächste Level wird dabei nicht freigeschaltet und in der Statistik wird eine Niederlage vermerkt.",
-        btn_reveal_solution: "Lösung aufdecken",
-        reveal_defeat_title: "Rätsel aufgegeben",
-        reveal_defeat_msg: "Die Lösung wurde hinterlegt und Fehler wurden rot markiert. Das nächste Level bleibt gesperrt und in deiner Statistik wurde eine Niederlage verbucht.",
-        reveal_banner_hint: "Lösung wird angezeigt. Tippe auf Weiter zum Fortfahren.",
-        btn_retry_level: "Level wiederholen",
-        error_title: "Regelverstoß",
-        victory_title: "Glückwunsch!",
-        victory_msg: "Du hast dieses Rätsel erfolgreich und fehlerfrei gelöst!",
-        victory_time_msg: "Benötigte Zeit:",
-        victory_perfect: "Perfekt gelöst ohne Hinweise!",
 
-        // Regeln (Kurzform)
-        rules_header: "Spielregeln & Abhängigkeiten",
-        rule_1_title: "1. Keine 3er-Reihen",
-        rule_1_desc: "Höchstens zwei gleiche Symbole (☀️☀️ oder 🌙🌙) dürfen waagerecht oder senkrecht aufeinanderfolgen.",
-        rule_2_title: "2. Gleiche Anzahl",
-        rule_2_desc: "Jede Zeile und Spalte enthält exakt gleich viele Sonnen wie Monde.",
-        rule_3_title: "3. Gleichheitszeichen =",
-        rule_3_desc: "Verbundene Nachbarfelder müssen dasselbe Symbol besitzen (beide ☀️ oder beide 🌙).",
-        rule_4_title: "4. Gegenteilszeichen ×",
-        rule_4_desc: "Verbundene Nachbarfelder müssen unterschiedliche Symbole besitzen (eine ☀️, ein 🌙).",
-        rule_5_title: "5. Eindeutigkeit",
-        rule_5_desc: "Keine zwei Zeilen und keine zwei Spalten dürfen vollständig identisch sein.",
 
-        // Einstellungen
-        settings_title: "Einstellungen",
-        setting_theme: "Farbdesign",
-        setting_theme_dark: "Modern Dark",
-        setting_theme_amoled: "AMOLED Schwarz",
-        setting_theme_light: "Hell / Clean",
-        setting_theme_wood: "Warmes Holz",
-        setting_theme_cyberpunk: "Cyberpunk Neon",
-        setting_sound: "Soundeffekte",
-        setting_vibration: "Haptisches Feedback (Vibration)",
-        setting_vibration_strength: "Vibrationsstärke",
-        setting_vib_ultra: "Ultra kräftig (Maximal)",
-        setting_vib_strong: "Kräftig (Empfohlen)",
-        setting_vib_medium: "Standard",
-        setting_vib_soft: "Sanft",
-        setting_auto_check: "Fehler sofort hervorheben",
-        setting_input_mode: "Eingabemodus",
-        setting_input_cycle: "Direkt (1× ☀️ / 2× & Halten 🌙 / 3× Löschen)",
-        setting_input_keypad: "Ziffern- / Symbolleiste unten",
-        setting_language: "Sprache",
-        setting_reset_data: "Fortschritt zurücksetzen",
-        setting_reset_confirm: "Möchtest du deinen Spielfortschritt wirklich zurücksetzen?",
-        stats_reset_confirm: "Möchtest du deine Spielstatistik wirklich zurücksetzen?",
-
-        // Statistiken
-        stats_title: "Deine Statistiken",
-        stats_total_played: "Gespielte Rätsel",
-        stats_total_won: "Gelöste Rätsel",
-        stats_total_lost: "Niederlagen / Aufgegeben",
-        stats_win_rate: "Erfolgsquote",
-        stats_best_time: "Bestzeit",
-        stats_avg_time: "Durchschnittszeit",
-        stats_current_streak: "Aktuelle Tages-Serie",
-        stats_max_streak: "Längste Tages-Serie",
-        stats_best_times_title: "⚡ Bestzeiten",
-        stats_best_time_4: "Bestzeit 4×4",
-        stats_best_time_6: "Bestzeit 6×6",
-        stats_best_time_8: "Bestzeit 8×8",
-        stats_best_time_10: "Bestzeit 10×10",
-        stats_no_data: "Noch keine Spieldaten vorhanden.",
-
-        // PWA Install Prompt
-        pwa_install_title: "App installieren",
-        pwa_install_desc: "Installiere Tango auf deinem Smartphone, um komplett offline und werbefrei zu spielen.",
-        pwa_install_btn: "Jetzt installieren",
-        pwa_dismiss: "Später",
-
-        // Synchronisation & QR-Code
-        nav_sync: "🔄 Spielstand übertragen & QR-Code",
-        sync_title: "Spielstand synchronisieren",
-        sync_tab_export: "📱 QR-Code / Senden",
-        sync_tab_import: "📥 Empfangen / Laden",
-        sync_export_desc: "Scanne diesen QR-Code mit einem anderen Gerät oder kopiere den Sync-Code, um deinen gesamten Fortschritt verlustfrei zu übertragen.",
-        sync_import_desc: "Füge den Sync-Code oder den Inhalt einer Backup-Datei ein. Dein Fortschritt wird intelligent und verlustfrei mit bestehenden Daten zusammengeführt.",
-        sync_btn_copy: "📋 Kopieren",
-        sync_btn_copied: "✅ Kopiert!",
-        sync_btn_download: "💾 Backup-Datei (.tango) speichern",
-        sync_btn_paste: "📋 Aus Zwischenablage",
-        sync_btn_merge: "🔄 Spielstand zusammenführen",
-        sync_file_load: "📁 Datei laden",
-        sync_success_title: "Erfolgreich synchronisiert!",
-        sync_no_new_data: "Dein Spielstand ist bereits auf dem neuesten Stand.",
-
-        // Tägliche Erinnerung & Benachrichtigungen
-        setting_daily_reminder: "System-Benachrichtigung",
-        setting_reminder_time: "Erinnerungszeit",
-        setting_test_notif: "🔔 Test",
-        reminder_banner_title: "Tagesrätsel wartet!",
-        reminder_banner_desc: "Löse dein heutiges Rätsel für deine Serie.",
-        reminder_btn_play: "Spielen",
-        reminder_badge_new: "Neu",
-        notif_title: "Tango Tagesrätsel",
-        notif_body: "Dein heutiges Tagesrätsel wartet auf dich! ☀️🌙",
-        notif_test_sent: "Systembenachrichtigung gesendet!",
-        notif_permission_denied: "Benachrichtigungen sind im Browser blockiert. Bitte erlaube sie in den Berechtigungen.",
-        daily_replay_title: "Tagesrätsel bereits gelöst",
-        daily_replay_confirm: "Du hast das heutige Tagesrätsel bereits erfolgreich gelöst. Möchtest du es noch einmal zur Übung spielen?",
-        daily_btn_replay: "Erneut spielen",
-
-        // Menü Hub Tabs
-        menu_tab_play: "Spielen",
-        menu_tab_rules: "Regeln",
-        menu_tab_stats: "Statistik",
-        menu_tab_settings: "Optionen",
-        stats_reset_btn: "Statistik zurücksetzen",
-        confirm_title: "Sicherheitsabfrage",
-        btn_cancel: "Abbrechen",
-        btn_save: "Speichern",
-        btn_confirm_reset: "Zurücksetzen",
-        campaign_desc: "120 handgefertigte Logikrätsel",
-        chapter_1: "Teil 1",
-        chapter_2: "Teil 2",
-        chapter_3: "Teil 3",
-        chapter_4: "Teil 4",
-        daily_desc: "Jeden Tag eine neue Herausforderung",
-        free_desc: "4×4 bis 10×10, beliebige Stufe",
-        free_size: "Gittergröße",
-        free_diff: "Schwierigkeitsgrad",
-        free_size_4: "4 × 4 (Schnell)",
-        free_size_6: "6 × 6 (Klassisch)",
-        free_size_8: "8 × 8 (Groß)",
-        free_size_10: "10 × 10 (Gigant)",
-        free_diff_easy: "Einfach",
-        free_diff_medium: "Mittel",
-        free_diff_hard: "Schwer"
-    },
-    en: {
-        app_title: "Tango Logic Puzzle",
-        subtitle: "Minimalist binary puzzle with Sun & Moon",
-        nav_campaign: "Campaign",
-        nav_daily: "Daily Puzzle",
-        nav_free: "Free Play",
-        nav_tutorial: "Basics",
-        nav_tutorial_pro: "Mathematics",
-        nav_tutorial_patterns: "Patterns",
-        nav_stats: "Statistics",
-        nav_settings: "Settings",
-        diff_beginner: "Beginner (4×4)",
-        diff_easy: "Easy (6×6)",
-        diff_medium: "Medium (6×6)",
-        diff_hard: "Hard (8×8)",
-        diff_expert: "Expert (10×10)",
-        btn_undo: "Undo",
-        btn_redo: "Redo",
-        btn_hint: "Hint",
-        btn_restart: "Restart",
-        btn_notes: "Notes",
-        btn_check: "Check",
-        btn_next_level: "Next Level",
-        btn_back_menu: "Main Menu",
-        btn_play_again: "Play Again",
-        btn_continue: "Continue",
-        btn_start: "Start",
-        status_time: "Time",
-        status_moves: "Moves",
-        status_hints_used: "Hints",
-        status_level: "Level",
-        status_daily_date: "Daily Puzzle for",
-        status_streak: "Streak",
-        status_completed: "Solved!",
-        hint_title: "Logical Hint",
-        hint_error_title: "Mistake Found",
-        hint_button_apply: "Apply Move",
-        hint_button_fix: "Fix Cell",
-        hint_limit_reached: "Maximum number of hints reached (3/3).",
-        reveal_confirm_title: "Reveal Solution?",
-        reveal_confirm_desc: "You have used all 3 hints. Do you want to surrender this puzzle and reveal the complete solution?\n\n⚠️ The next level will not be unlocked and a defeat will be recorded in your statistics.",
-        btn_reveal_solution: "Reveal Solution",
-        reveal_defeat_title: "Puzzle Surrendered",
-        reveal_defeat_msg: "The solution has been revealed and mistakes highlighted in red. The next level remains locked and a defeat has been recorded in your statistics.",
-        reveal_banner_hint: "Solution displayed. Tap Continue to proceed.",
-        btn_retry_level: "Retry Level",
-        error_title: "Rule Violation",
-        victory_title: "Congratulations!",
-        victory_msg: "You solved this puzzle perfectly!",
-        victory_time_msg: "Time taken:",
-        victory_perfect: "Solved without hints!",
-        rules_header: "Game Rules & Dependencies",
-        rule_1_title: "1. No 3 in a Row",
-        rule_1_desc: "No more than two identical symbols (☀️☀️ or 🌙🌙) may appear consecutively in any row or column.",
-        rule_2_title: "2. Equal Balance",
-        rule_2_desc: "Each row and column must contain an equal number of suns and moons.",
-        rule_3_title: "3. Equal Sign =",
-        rule_3_desc: "Connected cells must have the exact same symbol (both ☀️ or both 🌙).",
-        rule_4_title: "4. Opposite Sign ×",
-        rule_4_desc: "Connected cells must have opposite symbols (one ☀️, one 🌙).",
-        rule_5_title: "5. Uniqueness",
-        rule_5_desc: "No two rows or columns can be completely identical.",
-        settings_title: "Settings",
-        setting_theme: "Theme",
-        setting_theme_dark: "Modern Dark",
-        setting_theme_amoled: "AMOLED Black",
-        setting_theme_light: "Clean Light",
-        setting_theme_wood: "Warm Wood",
-        setting_theme_cyberpunk: "Cyberpunk Neon",
-        setting_sound: "Sound Effects",
-        setting_vibration: "Haptic Feedback",
-        setting_vibration_strength: "Vibration Intensity",
-        setting_vib_ultra: "Ultra Strong (Max)",
-        setting_vib_strong: "Strong (Recommended)",
-        setting_vib_medium: "Standard",
-        setting_vib_soft: "Soft",
-        setting_auto_check: "Highlight Mistakes Immediately",
-        setting_input_mode: "Input Mode",
-        setting_input_cycle: "Cycle Tap (Sun → Moon → Empty)",
-        setting_input_keypad: "Bottom Selector Bar",
-        setting_language: "Language",
-        setting_reset_data: "Reset Progress",
-        setting_reset_confirm: "Are you sure you want to reset all your campaign and streak progress?",
-        stats_reset_confirm: "Are you sure you want to reset all your statistics?",
-        stats_title: "Your Statistics",
-        stats_total_played: "Puzzles Played",
-        stats_total_won: "Puzzles Solved",
-        stats_total_lost: "Puzzles Lost / Surrendered",
-        stats_win_rate: "Win Rate",
-        stats_best_time: "Best Time",
-        stats_avg_time: "Average Time",
-        stats_current_streak: "Current Daily Streak",
-        stats_max_streak: "Max Daily Streak",
-        stats_best_times_title: "⚡ Best Times",
-        stats_best_time_4: "Best Time 4×4",
-        stats_best_time_6: "Best Time 6×6",
-        stats_best_time_8: "Best Time 8×8",
-        stats_best_time_10: "Best Time 10×10",
-        stats_no_data: "No game data recorded yet.",
-        pwa_install_title: "Install App",
-        pwa_install_desc: "Install Tango on your home screen for instant offline play.",
-        pwa_install_btn: "Install Now",
-        pwa_dismiss: "Later",
-
-        // Sync & QR Code
-        nav_sync: "🔄 Transfer & Sync Saves",
-        sync_title: "Sync Game Save States",
-        sync_tab_export: "📱 QR Code / Export",
-        sync_tab_import: "📥 Receive / Import",
-        sync_export_desc: "Scan this QR code with another device or copy the sync code to transfer your full progress losslessly.",
-        sync_import_desc: "Paste the sync code or load a backup file. Your progress will be merged losslessly with existing local progress.",
-        sync_btn_copy: "📋 Copy Code",
-        sync_btn_copied: "✅ Copied!",
-        sync_btn_download: "💾 Download Backup (.tango)",
-        sync_btn_paste: "📋 Paste from Clipboard",
-        sync_btn_merge: "🔄 Merge & Update Saves",
-        sync_file_load: "📁 Load File",
-        sync_success_title: "Successfully Synced!",
-        sync_no_new_data: "Your save state is already fully up to date.",
-
-        // Daily Reminder & Notifications
-        setting_daily_reminder: "System Notification",
-        setting_reminder_time: "Reminder Time",
-        setting_test_notif: "🔔 Test",
-        reminder_banner_title: "Daily Puzzle Ready!",
-        reminder_banner_desc: "Solve today's puzzle to keep your streak.",
-        reminder_btn_play: "Play",
-        reminder_badge_new: "New",
-        notif_title: "Tango Daily Puzzle",
-        notif_body: "Today's daily puzzle is ready for you! ☀️🌙",
-        notif_test_sent: "System notification sent!",
-        notif_permission_denied: "Notifications blocked by browser. Please enable permissions.",
-        daily_replay_title: "Daily Puzzle Already Solved",
-        daily_replay_confirm: "You have already solved today's daily puzzle. Would you like to play it again for practice?",
-        daily_btn_replay: "Play Again",
-
-        // Menu Hub Tabs
-        menu_tab_play: "Play",
-        menu_tab_rules: "Rules",
-        menu_tab_stats: "Stats",
-        menu_tab_settings: "Options",
-        stats_reset_btn: "Reset Statistics",
-        confirm_title: "Confirmation",
-        btn_cancel: "Cancel",
-        btn_save: "Save",
-        btn_confirm_reset: "Reset",
-        campaign_desc: "120 handcrafted logic puzzles",
-        chapter_1: "Part 1",
-        chapter_2: "Part 2",
-        chapter_3: "Part 3",
-        chapter_4: "Part 4",
-        daily_desc: "A fresh challenge every single day",
-        free_desc: "4×4 to 10×10, custom difficulty",
-        free_size: "Grid Size",
-        free_diff: "Difficulty",
-        free_size_4: "4 × 4 (Fast)",
-        free_size_6: "6 × 6 (Classic)",
-        free_size_8: "8 × 8 (Large)",
-        free_size_10: "10 × 10 (Giant)",
-        free_diff_easy: "Easy",
-        free_diff_medium: "Medium",
-        free_diff_hard: "Hard"
-    }
-};
-
-let currentLang = 'de';
-
-function getLang() {
-    return currentLang;
+function getSunSvg(extraClass = '') {
+    return `<svg class="tango-symbol tango-sun ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2" fill="currentColor"/><g stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="1.6" x2="12" y2="3.8"/><line x1="12" y1="20.2" x2="12" y2="22.4"/><line x1="1.6" y1="12" x2="3.8" y2="12"/><line x1="20.2" y1="12" x2="22.4" y2="12"/><line x1="4.6" y1="4.6" x2="6.2" y2="6.2"/><line x1="17.8" y1="17.8" x2="19.4" y2="19.4"/><line x1="4.6" y1="19.4" x2="6.2" y2="17.8"/><line x1="17.8" y1="6.2" x2="19.4" y2="4.6"/></g></svg>`;
 }
 
-function setLang(lang) {
-    if (translations[lang]) {
-        currentLang = lang;
-        try {
-            localStorage.setItem('tango_lang', lang);
-        } catch (e) {
-            console.warn('localStorage nicht verfügbar:', e);
+function getMoonSvg(extraClass = '') {
+    return `<svg class="tango-symbol tango-moon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 12.5A9.5 9.5 0 1 1 11.5 2.5a7.5 7.5 0 0 0 10 10z" fill="currentColor"/></svg>`;
+}
+
+class TangoRenderer {
+    static getSymbolSvg(val, extraClass = '') {
+        if (val === SUN) return getSunSvg(extraClass);
+        if (val === MOON) return getMoonSvg(extraClass);
+        return '';
+    }
+
+    static renderBoard(container, engine, state, onCellInteraction) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+        const size = engine.size;
+
+        const gridEl = document.createElement('div');
+        gridEl.className = `tango-grid size-${size}`;
+        gridEl.style.setProperty('--grid-size', size);
+
+        const validation = state.autoCheck ? engine.validateRules() : { conflictCells: new Set() };
+        const solution = state.solutionRevealed ? engine.getSolution() : null;
+
+        for (let r = 0; r < size; r++) {
+            const rowEl = document.createElement('div');
+            rowEl.className = 'grid-row';
+
+            for (let c = 0; c < size; c++) {
+                const cellEl = document.createElement('div');
+                cellEl.className = 'grid-cell tango-cell';
+                cellEl.dataset.r = r;
+                cellEl.dataset.c = c;
+
+                const val = engine.grid[r][c];
+                const isLocked = engine.locked[r][c];
+                const isConflict = !state.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
+                const isSelected = !state.solutionRevealed && state.selectedCell && state.selectedCell.r === r && state.selectedCell.c === c;
+                const isHintShimmer = !state.solutionRevealed && state.hintPlacedCell && state.hintPlacedCell.r === r && state.hintPlacedCell.c === c;
+
+                if (isLocked) cellEl.classList.add('locked');
+                if (isConflict) cellEl.classList.add('conflict');
+                if (isSelected) cellEl.classList.add('selected');
+                if (isHintShimmer) cellEl.classList.add('hint-shimmer');
+
+                if (state.solutionRevealed && solution) {
+                    const solVal = solution[r][c];
+                    if (val === EMPTY) {
+                        cellEl.classList.add('cell-revealed-solution');
+                        cellEl.innerHTML = `<span class="revealed-ghost ${solVal === SUN ? 'ghost-sun' : 'ghost-moon'}">${solVal === SUN ? getSunSvg('tango-sun') : getMoonSvg('tango-moon')}</span>`;
+                    } else if (val === solVal) {
+                        cellEl.classList.add(val === SUN ? 'val-sun' : 'val-moon', 'cell-revealed-correct');
+                        cellEl.innerHTML = `<span class="${val === SUN ? 'icon-sun' : 'icon-moon'}">${val === SUN ? getSunSvg('cell-sun') : getMoonSvg('cell-moon')}</span>`;
+                    } else {
+                        cellEl.classList.add(val === SUN ? 'val-sun' : 'val-moon', 'cell-revealed-error');
+                        const wrongIcon = val === SUN ? getSunSvg('cell-sun') : getMoonSvg('cell-moon');
+                        const correctIcon = solVal === SUN ? getSunSvg('mini-icon') : getMoonSvg('mini-icon');
+                        cellEl.innerHTML = `
+                            <span class="wrong-marker-cross">✕</span>
+                            <span class="${val === SUN ? 'icon-sun' : 'icon-moon'}">${wrongIcon}</span>
+                            <div class="revealed-correct-sub">
+                                <span class="mini-badge ${solVal === SUN ? 'badge-sun' : 'badge-moon'}">${correctIcon}</span>
+                            </div>
+                        `;
+                    }
+                } else if (val === SUN) {
+                    cellEl.classList.add('val-sun');
+                    cellEl.innerHTML = `<span class="icon-sun">${getSunSvg('cell-sun')}</span>`;
+                } else if (val === MOON) {
+                    cellEl.classList.add('val-moon');
+                    cellEl.innerHTML = `<span class="icon-moon">${getMoonSvg('cell-moon')}</span>`;
+                } else {
+                    // Marker für Tutorial-Zielzellen
+                    let tutStep = null;
+                    if (state.currentMode === 'tutorial') {
+                        tutStep = TUTORIAL_STEPS[state.tutorialStepIndex];
+                    } else if (state.currentMode === 'tutorial_pro') {
+                        tutStep = TUTORIAL_PRO_STEPS[state.tutorialStepIndex];
+                    } else if (state.currentMode === 'tutorial_patterns') {
+                        tutStep = TUTORIAL_PATTERNS_STEPS[state.tutorialStepIndex];
+                    }
+
+                    const targetCellInfo = (tutStep && tutStep.targetCells) ? tutStep.targetCells.find(t => t.r === r && t.c === c) : null;
+                    if (targetCellInfo) {
+                        cellEl.classList.add('tutorial-target');
+                        const ghostEl = document.createElement('span');
+                        ghostEl.className = `target-ghost ${targetCellInfo.val === SUN ? 'ghost-sun' : 'ghost-moon'}`;
+                        ghostEl.innerHTML = targetCellInfo.val === SUN ? getSunSvg('ghost-icon') : getMoonSvg('ghost-icon');
+                        cellEl.appendChild(ghostEl);
+                    } else {
+                        // Notizen
+                        const notes = engine.notes[r][c];
+                        if (notes && notes.size > 0) {
+                            const noteEl = document.createElement('div');
+                            noteEl.className = 'cell-notes';
+                            if (notes.has(SUN)) noteEl.innerHTML += `<span class="mini-sun">${getSunSvg('mini-icon')}</span>`;
+                            if (notes.has(MOON)) noteEl.innerHTML += `<span class="mini-moon">${getMoonSvg('mini-icon')}</span>`;
+                            cellEl.appendChild(noteEl);
+                        }
+                    }
+                }
+
+                // Event Listener für Zelle
+                if (typeof onCellInteraction === 'function') {
+                    onCellInteraction(cellEl, r, c);
+                }
+
+                // Horizontale Kante rechts neben der Zelle
+                if (c < size - 1) {
+                    const hEdge = engine.hEdges[r][c];
+                    if (hEdge !== EDGE_NONE) {
+                        const edgeEl = document.createElement('div');
+                        edgeEl.className = `edge-marker edge-h ${hEdge === EDGE_EQUAL ? 'edge-equal' : 'edge-opposite'}`;
+                        edgeEl.textContent = hEdge === EDGE_EQUAL ? '=' : '×';
+                        cellEl.appendChild(edgeEl);
+                    }
+                }
+
+                // Vertikale Kante unterhalb der Zelle
+                if (r < size - 1) {
+                    const vEdge = engine.vEdges[r][c];
+                    if (vEdge !== EDGE_NONE) {
+                        const edgeEl = document.createElement('div');
+                        edgeEl.className = `edge-marker edge-v ${vEdge === EDGE_EQUAL ? 'edge-equal' : 'edge-opposite'}`;
+                        edgeEl.textContent = vEdge === EDGE_EQUAL ? '=' : '×';
+                        cellEl.appendChild(edgeEl);
+                    }
+                }
+
+                rowEl.appendChild(cellEl);
+            }
+            gridEl.appendChild(rowEl);
         }
+
+        container.appendChild(gridEl);
+    }
+
+    static renderKeypad(container, engine, state, onKeyInput) {
+        if (!container) return;
+        container.innerHTML = '';
+
+        const keypad = document.createElement('div');
+        keypad.className = 'game-keypad tango-keypad';
+        keypad.id = 'gameKeypad';
+
+        const btnSun = document.createElement('button');
+        btnSun.className = 'keypad-btn';
+        btnSun.id = 'keypadSun';
+        btnSun.setAttribute('aria-label', 'Sonne');
+        btnSun.innerHTML = getSunSvg('tango-sun');
+        btnSun.addEventListener('click', () => onKeyInput && onKeyInput(SUN));
+
+        const btnMoon = document.createElement('button');
+        btnMoon.className = 'keypad-btn';
+        btnMoon.id = 'keypadMoon';
+        btnMoon.setAttribute('aria-label', 'Mond');
+        btnMoon.innerHTML = getMoonSvg('tango-moon');
+        btnMoon.addEventListener('click', () => onKeyInput && onKeyInput(MOON));
+
+        const btnClear = document.createElement('button');
+        btnClear.className = 'keypad-btn';
+        btnClear.id = 'keypadClear';
+        btnClear.setAttribute('aria-label', 'Löschen');
+        btnClear.textContent = '✕';
+        btnClear.addEventListener('click', () => onKeyInput && onKeyInput(EMPTY));
+
+        keypad.appendChild(btnSun);
+        keypad.appendChild(btnMoon);
+        keypad.appendChild(btnClear);
+
+        container.appendChild(keypad);
+    }
+
+    static getRulesHtml(lang = 'de') {
+        if (lang === 'en') {
+            return `
+                <div class="rules-container">
+                    <div class="rule-box">
+                        <div class="rule-badge">1</div>
+                        <div class="rule-content">
+                            <strong>Equal count per row & column</strong>
+                            <p>Each row and column must contain the exact same number of suns ☀️ and moons 🌙 (e.g. 3☀️ & 3🌙 in 6×6).</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">2</div>
+                        <div class="rule-content">
+                            <strong>Max 2 consecutive identical symbols</strong>
+                            <p>Never place 3 matching symbols in a row or column (no ☀️☀️☀️ or 🌙🌙🌙).</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">3</div>
+                        <div class="rule-content">
+                            <strong>Equal Sign =</strong>
+                            <p>Connected adjacent cells must have the same symbol (both ☀️ or both 🌙).</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">4</div>
+                        <div class="rule-content">
+                            <strong>Opposite Sign ×</strong>
+                            <p>Connected adjacent cells must have opposite symbols (one ☀️, one 🌙).</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">5</div>
+                        <div class="rule-content">
+                            <strong>Uniqueness</strong>
+                            <p>No two rows and no two columns can be completely identical.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="rules-container">
+                <div class="rule-box">
+                    <div class="rule-badge">1</div>
+                    <div class="rule-content">
+                        <strong>Gleiche Anzahl pro Zeile & Spalte</strong>
+                        <p>Jede Zeile und Spalte muss exakt gleich viele Sonnen ☀️ wie Monde 🌙 enthalten (z. B. 3☀️ & 3🌙 bei 6×6).</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">2</div>
+                    <div class="rule-content">
+                        <strong>Maximal 2 gleiche Symbole nebeneinander</strong>
+                        <p>Niemals dürfen 3 gleiche Symbole horizontal oder vertikal aufeinanderfolgen (kein ☀️☀️☀️ oder 🌙🌙🌙).</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">3</div>
+                    <div class="rule-content">
+                        <strong>Gleichheitszeichen =</strong>
+                        <p>Verbundene Nachbarfelder müssen dasselbe Symbol besitzen (beide ☀️ oder beide 🌙).</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">4</div>
+                    <div class="rule-content">
+                        <strong>Gegenteilszeichen ×</strong>
+                        <p>Verbundene Nachbarfelder müssen unterschiedliche Symbole besitzen (eine ☀️, ein 🌙).</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">5</div>
+                    <div class="rule-content">
+                        <strong>Eindeutigkeit</strong>
+                        <p>Keine zwei Zeilen und keine zwei Spalten dürfen vollständig identisch sein.</p>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 }
 
-function t(key) {
-    const dict = translations[currentLang] || translations.de;
-    return dict[key] || key;
-}
+// === Source: js\puzzles\tango\data\levels.js ===
+/**
+ * Tango Level & Tagesrätsel-Generierung
+ */
 
-// Lade gespeicherte Sprache
-try {
-    const savedLang = localStorage.getItem('tango_lang');
-    if (savedLang && translations[savedLang]) {
-        currentLang = savedLang;
+
+
+
+function getTangoCampaignLevel(levelIndex) {
+    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (120 Level in 4 Kapiteln)
+    let size, difficulty;
+    if (levelIndex < 10) {
+        // Kapitel 1: Level 1–10 (4×4 Einfach)
+        size = 4;
+        difficulty = 'easy';
+    } else if (levelIndex < 20) {
+        // Kapitel 1: Level 11–20 (6×6 Einfach)
+        size = 6;
+        difficulty = 'easy';
+    } else if (levelIndex < 30) {
+        // Kapitel 1: Level 21–30 (6×6 Mittel)
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 45) {
+        // Kapitel 2: Level 31–45 (6×6 Mittel)
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 60) {
+        // Kapitel 2: Level 46–60 (6×6 Schwer)
+        size = 6;
+        difficulty = 'hard';
+    } else if (levelIndex < 75) {
+        // Kapitel 3: Level 61–75 (8×8 Mittel)
+        size = 8;
+        difficulty = 'medium';
+    } else if (levelIndex < 90) {
+        // Kapitel 3: Level 76–90 (8×8 Schwer)
+        size = 8;
+        difficulty = 'hard';
+    } else if (levelIndex < 105) {
+        // Kapitel 4: Level 91–105 (8×8 Meister)
+        size = 8;
+        difficulty = 'hard';
+    } else {
+        // Kapitel 4: Level 106–120 (10×10 Meister)
+        size = 10;
+        difficulty = 'hard';
     }
-} catch (e) {
-    console.warn('localStorage konnte nicht gelesen werden:', e);
+
+    // Deterministischer Seed pro Level
+    const seed = 5000 + (levelIndex + 1) * 113;
+    const generated = TangoGenerator.generatePuzzle({ size, difficulty, seed });
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1}`,
+        ...generated
+    };
 }
 
+/**
+ * Erzeugt das synchrone Tagesrätsel basierend auf dem Datum (JJJJ-MM-TT)
+ */
+function getTangoDailyPuzzle(dateStr) {
+    // Wandle Datum in Integer-Seed um (z.B. "2026-08-21" -> 20260821)
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10);
+    // Wähle Größe je nach Wochentag (Wochenende = 8x8, Werktags = 6x6)
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+    const size = isWeekend ? 8 : 6;
+    const difficulty = isWeekend ? 'hard' : 'medium';
 
-// === Source: js\data\tutorial.js ===
+    const generated = TangoGenerator.generatePuzzle({ size, difficulty, seed });
+    return {
+        id: `daily_${dateStr}`,
+        date: dateStr,
+        name: `Tagesrätsel (${dateStr})`,
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\tango\data\tutorial.js ===
 /**
  * Tango Interaktives Tutorial
  * 6 aufeinander aufbauende Lektionen mit detaillierter deutscher Erklärung
  */
+
 
 
 const TUTORIAL_STEPS = [
@@ -2100,253 +4988,14 @@ const TUTORIAL_STEPS = [
     }
 ];
 
-// === Source: js\data\tutorial_pro.js ===
-/**
- * Tango Tutorial Pro - Mathematische & Logische Profi-Techniken
- * Erklärt fortgeschrittene Lösungsstrategien mit mathematischen Beweisen und interaktiven Übungen.
- */
-
-
-const TUTORIAL_PRO_STEPS = [
-    {
-        id: 1,
-        title: "Pro 1: Das Sandwich-Prinzip (Parität)",
-        subtitle: "Mathematische Dreier-Sperre in Lücken",
-        mathPrinciple: "Ausschluss durch Dreier-Verbot: Niemals 3 gleiche Symbole in Reihe",
-        description: `**Das Prinzip**:\nWenn zwei identische Symbole ein leeres Feld umschließen (\`☀️ _ ☀️\` oder \`🌙 _ 🌙\`), MUSS dazwischen das gegenteilige Symbol stehen.\n\n**Mathematischer Beweis**:\nWürde man in die Lücke dasselbe Symbol setzen, entstünde eine Kette aus drei gleichen Symbolen (\`☀️☀️☀️\`). Da die maximale Kettenlänge laut Tango-Regeln maximal 2 beträgt, existiert nur genau eine Belegung für die Lücke.\n\n*Übung: Vervollständige die Sandwich-Lücken in Zeile 1 und Spalte 4!*`,
-        size: 4,
-        initialGrid: [
-            [SUN, EMPTY, SUN, MOON],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, MOON],
-            [EMPTY, EMPTY, EMPTY, SUN]
-        ],
-        hEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        vEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        targetCells: [{r: 0, c: 1, val: MOON}, {r: 1, c: 3, val: SUN}],
-        explanation: "Mathematisch korrekt! Das Sandwich-Prinzip sichert die Belegung ohne Raten."
-    },
-    {
-        id: 2,
-        title: "Pro 2: Die Kanten-Kaskade (Kopplungs-Logik)",
-        subtitle: "Vorzeichen-Vererbung über Gleichheitsketten",
-        mathPrinciple: "Kanten-Kopplung: [=] nach Symbol A erzwingt Gegenteil",
-        description: `**Das Prinzip**:\nZwei durch ein Gleichheitszeichen verbundene Felder (\`[=]\`) bilden ein gekoppeltes Paar mit identischem Wert. Steht direkt davor ein bekanntes Symbol (z. B. eine Sonne ☀️), MÜSSEN beide verbundenen Felder das Gegenteil (🌙 🌙) annehmen.\n\n**Mathematischer Beweis**:\nWürden beide Felder denselben Wert wie das Nachbarfeld annehmen, entstünde eine unzulässige 3er-Reihe (☀️ ☀️ ☀️). Folglich müssen beide Felder zwingend das entgegengesetzte Symbol tragen.\n\n*Übung: Nutze das Gleichheitszeichen [=] in Zeile 1, um die beiden leeren Felder rechts von der Sonne auszufüllen!*`,
-        size: 4,
-        initialGrid: [
-            [SUN, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY]
-        ],
-        hEdges: [
-            [EDGE_NONE, EDGE_EQUAL, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        vEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        targetCells: [{r: 0, c: 1, val: MOON}, {r: 0, c: 2, val: MOON}],
-        explanation: "Perfekt bewiesen! Die Kanten-Kaskade hebelt zwei leere Felder gleichzeitig aus."
-    },
-    {
-        id: 3,
-        title: "Pro 3: Taubenschlag-Prinzip (Zeilen-Balance)",
-        subtitle: "Abzählende Zeilen- und Spaltenvollständigkeit",
-        mathPrinciple: "Zeilen-Balance: Summe Sonnen = N/2 ⟹ Rest = Monde",
-        description: `**Das Prinzip**:\nIn jedem Gitter enthält jede Zeile und Spalte exakt gleich viele Sonnen wie Monde (z. B. je 2 bei 4×4, je 3 bei 6×6). Sobald alle Sonnen einer Reihe platziert sind, MÜSSEN alle restlichen leeren Felder Monde sein.\n\n**Mathematischer Beweis**:\nIst das Kontingent an Sonnen für eine Zeile vollständig erschöpft, verbleiben 0 freie Kapazitäten für weitere Sonnen. Nach dem Abzähl- und Balance-Prinzip müssen alle verbleibenden leeren Felder mit Monden aufgefüllt werden.\n\n*Übung: Fülle die verbleibenden Felder in Zeile 1 und Spalte 1 auf!*`,
-        size: 4,
-        initialGrid: [
-            [SUN, SUN, EMPTY, EMPTY],
-            [SUN, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY]
-        ],
-        hEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        vEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        targetCells: [{r: 0, c: 2, val: MOON}, {r: 0, c: 3, val: MOON}, {r: 2, c: 0, val: MOON}, {r: 3, c: 0, val: MOON}],
-        explanation: "Exzellent! Das Taubenschlag-Prinzip liefert die verbleibenden Felder sofort."
-    },
-    {
-        id: 4,
-        title: "Pro 4: Indirekte Gegenteils-Kopplung (× Inversion)",
-        subtitle: "Vorzeichenumkehr über Gegenteilskanten",
-        mathPrinciple: "Inversions-Logik: [×] schaltet Symbol um (☀️ ↔ 🌙)",
-        description: `**Das Prinzip**:\nEin Gegenteilszeichen (\`[×]\`) schaltet den logischen Zustand direkt um: Ist eine Seite bekannt, ist die andere Seite zwingend das Gegenteil.\n\n**Mathematischer Beweis**:\nIn einem binären System mit nur zwei Symbolen (☀️ und 🌙) erzwingt die Kante [×] stets unterschiedliche Werte. Ist ein Nachbar eine Sonne ☀️, folgt unausweichlich, dass der verbundene Partner ein Mond 🌙 sein muss.\n\n*Übung: Löse die Gegenteilskanten [×] in Zeile 1 und Spalte 2 auf!*`,
-        size: 4,
-        initialGrid: [
-            [SUN, EMPTY, EMPTY, EMPTY],
-            [EMPTY, MOON, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY]
-        ],
-        hEdges: [
-            [EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        vEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        targetCells: [
-            { r: 0, c: 1, val: MOON },
-            { r: 2, c: 1, val: SUN }
-        ],
-        explanation: "Klasse! Inversion über Gegenteilskanten ist die schnellste Umkehr-Logik."
-    },
-    {
-        id: 5,
-        title: "Pro 5: Ausschluss identischer Zeilen",
-        subtitle: "Verhinderung von Zeilen-Duplikaten",
-        mathPrinciple: "Eindeutigkeit: Keine zwei Zeilen dürfen identisch sein",
-        description: `**Das Prinzip**:\nKeine zwei Zeilen dürfen vollständig identisch belegt sein. Wenn eine Belegung eine identische Zeile erzeugen würde, MUSS die alternative Belegung gewählt werden.\n\n**Mathematischer Beweis**:\nZeile 1 ist \`☀️ 🌙 ☀️ 🌙\`. Zeile 2 beginnt mit \`☀️ 🌙 _ _\`. Die Belegung \`☀️ 🌙\` für die Lücken würde Zeile 2 identisch zu Zeile 1 machen (Zeile 1 = Zeile 2). Daher MUSS nach der Eindeutigkeits-Regel die Belegung \`🌙 ☀️\` gewählt werden.\n\n*Übung: Vervollständige Zeile 2 so, dass sie NICHT identisch zu Zeile 1 wird!*`,
-        size: 4,
-        initialGrid: [
-            [SUN, MOON, SUN, MOON],
-            [SUN, MOON, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY]
-        ],
-        hEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        vEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        targetCells: [
-            { r: 1, c: 2, val: MOON },
-            { r: 1, c: 3, val: SUN }
-        ],
-        explanation: "Brillant! Der Ausschluss identischer Zeilen löst knifflige Endspiele ohne Raten."
-    },
-    {
-        id: 6,
-        title: "Pro 6: Das Rand-Doppel-Prinzip",
-        subtitle: "Doppelseitige Klammerung von Pärchen",
-        mathPrinciple: "Rand-Einschluss: Pärchen [☀️☀️] wird von [🌙] eingeklammert",
-        description: `**Das Prinzip**:\nWenn zwei gleiche Symbole nebeneinander stehen (\`_ ☀️ ☀️ _\`), MÜSSEN BEIDE Außenfelder das Gegenteil sein (\`🌙 ☀️ ☀️ 🌙\`).\n\n**Mathematischer Beweis**:\nWürde eines der Außenfelder auch eine Sonne \`☀️\` sein, entstünde sofort die verbotene 3er-Kette \`☀️ ☀️ ☀️\`. Folglich müssen BEIDE Außenpositionen zwingend Monde \`🌙\` sein.\n\n*Übung: Klammere das Sonnen-Paar in Zeile 1 mit Monden ein!*`,
-        size: 4,
-        initialGrid: [
-            [EMPTY, SUN, SUN, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY]
-        ],
-        hEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        vEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        targetCells: [
-            { r: 0, c: 0, val: MOON },
-            { r: 0, c: 3, val: MOON }
-        ],
-        explanation: "Perfekt! Zwei gleiche Symbole schließen stets beide Außenfelder mit dem Gegenteil ein."
-    },
-    {
-        id: 7,
-        title: "Pro 7: Das Paritäts-Trippel (2-aus-3 Logik)",
-        subtitle: "Gegenteils-Kanten als Zähleinheit",
-        mathPrinciple: "Parität: [×] bindet 1☀️ + 1🌙 ⟹ 4. Feld ist bestimmt",
-        description: `**Das Prinzip**:\nZwei durch \`[×]\` verbundene Felder enthalten garantiert genau 1 Sonne und 1 Mond. Steht vor dem Paar eine Sonne \`☀️\`, ist für die Zeile bereits die 2. Sonne vergeben — das 4. Feld MUSS ein Mond \`🌙\` sein!\n\n**Mathematischer Beweis**:\nDie \`[×]\`-Kante bindet exakt 1 Sonne + 1 Mond. Da Position 1 bereits eine \`☀️\` ist, enthält die 3er-Gruppe (Pos 1–3) zusammen bereits 2 Sonnen (das Maximum bei 4×4). Daher kann das 4. Feld an Position 4 keine Sonne mehr sein und MUSS ein Mond \`🌙\` werden.\n\n*Übung: Bestimme das 4. Feld in Zeile 1 durch die 2-aus-3 Logik!*`,
-        size: 4,
-        initialGrid: [
-            [SUN, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY]
-        ],
-        hEdges: [
-            [EDGE_NONE, EDGE_OPPOSITE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        vEdges: [
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        targetCells: [
-            { r: 0, c: 3, val: MOON }
-        ],
-        explanation: "Genial! Die 2-aus-3 Logik lässt dich das 4. Feld bestimmen, ohne das Paar selbst zu lösen."
-    },
-    {
-        id: 8,
-        title: "Pro 8: Die 2×2 Quadrat-Kanten-Schleife",
-        subtitle: "Kanten-Algebra in Blöcken",
-        mathPrinciple: "Eck-Kopplung: Zwei [×] an einer Zelle erzwingen Gleichheit",
-        description: `**Das Prinzip**:\nWenn eine Zelle (z. B. oben links) mit zwei Nachbarn über \`[×]\` verbunden ist, müssen beide Nachbarn untereinander exakt GLEICH sein.\n\n**Mathematischer Beweis**:\nBeide Nachbarfelder sind das Gegenteil derselben Ausgangszelle. Da es nur 2 Symbole gibt, haben beide Nachbarn denselben Wert. Ist die Eckzelle eine \`☀️\`, MÜSSEN beide Nachbarfelder Monde \`🌙\` sein!\n\n*Übung: Löse die beiden Nachbarfelder in Zeile 1 und Spalte 1 auf!*`,
-        size: 4,
-        initialGrid: [
-            [SUN, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY],
-            [EMPTY, EMPTY, EMPTY, EMPTY]
-        ],
-        hEdges: [
-            [EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        vEdges: [
-            [EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
-            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
-        ],
-        targetCells: [
-            { r: 0, c: 1, val: MOON },
-            { r: 1, c: 0, val: MOON }
-        ],
-        explanation: "Meisterklasse! Kanten-Algebra in 2x2 Blöcken durchschaut komplexe Abhängigkeiten blitzschnell."
-    }
-];
-
-// === Source: js\data\tutorial_patterns.js ===
+// === Source: js\puzzles\tango\data\tutorial_patterns.js ===
 /**
  * Tango Tutorial Regelmäßigkeiten & Meister-Muster
  * Tiefgehende Lektionen zu feldgrößenspezifischen Gesetzen,
  * 1-5-Regel, Doppel-Inversion, Lookahead-Sperre, 2D-Interferenz,
  * Domino-Zerlegungen, Paar-Budgets und Unizitäts-Axiomen.
  */
+
 
 
 const TUTORIAL_PATTERNS_STEPS = [
@@ -2842,531 +5491,468 @@ const TUTORIAL_PATTERNS_STEPS = [
     }
 ];
 
-// === Source: js\data\levels.js ===
+// === Source: js\puzzles\tango\data\tutorial_pro.js ===
 /**
- * Tango Level & Tagesrätsel-Generierung
+ * Tango Tutorial Pro - Mathematische & Logische Profi-Techniken
+ * Erklärt fortgeschrittene Lösungsstrategien mit mathematischen Beweisen und interaktiven Übungen.
  */
 
 
-function getCampaignLevel(levelIndex) {
-    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (120 Level in 4 Kapiteln)
-    let size, difficulty;
-    if (levelIndex < 10) {
-        // Kapitel 1: Level 1–10 (4×4 Einfach)
-        size = 4;
-        difficulty = 'easy';
-    } else if (levelIndex < 20) {
-        // Kapitel 1: Level 11–20 (6×6 Einfach)
-        size = 6;
-        difficulty = 'easy';
-    } else if (levelIndex < 30) {
-        // Kapitel 1: Level 21–30 (6×6 Mittel)
-        size = 6;
-        difficulty = 'medium';
-    } else if (levelIndex < 45) {
-        // Kapitel 2: Level 31–45 (6×6 Mittel)
-        size = 6;
-        difficulty = 'medium';
-    } else if (levelIndex < 60) {
-        // Kapitel 2: Level 46–60 (6×6 Schwer)
-        size = 6;
-        difficulty = 'hard';
-    } else if (levelIndex < 75) {
-        // Kapitel 3: Level 61–75 (8×8 Mittel)
-        size = 8;
-        difficulty = 'medium';
-    } else if (levelIndex < 90) {
-        // Kapitel 3: Level 76–90 (8×8 Schwer)
-        size = 8;
-        difficulty = 'hard';
-    } else if (levelIndex < 105) {
-        // Kapitel 4: Level 91–105 (8×8 Meister)
-        size = 8;
-        difficulty = 'hard';
-    } else {
-        // Kapitel 4: Level 106–120 (10×10 Meister)
-        size = 10;
-        difficulty = 'hard';
+
+const TUTORIAL_PRO_STEPS = [
+    {
+        id: 1,
+        title: "Pro 1: Das Sandwich-Prinzip (Parität)",
+        subtitle: "Mathematische Dreier-Sperre in Lücken",
+        mathPrinciple: "Ausschluss durch Dreier-Verbot: Niemals 3 gleiche Symbole in Reihe",
+        description: `**Das Prinzip**:\nWenn zwei identische Symbole ein leeres Feld umschließen (\`☀️ _ ☀️\` oder \`🌙 _ 🌙\`), MUSS dazwischen das gegenteilige Symbol stehen.\n\n**Mathematischer Beweis**:\nWürde man in die Lücke dasselbe Symbol setzen, entstünde eine Kette aus drei gleichen Symbolen (\`☀️☀️☀️\`). Da die maximale Kettenlänge laut Tango-Regeln maximal 2 beträgt, existiert nur genau eine Belegung für die Lücke.\n\n*Übung: Vervollständige die Sandwich-Lücken in Zeile 1 und Spalte 4!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, EMPTY, SUN, MOON],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, MOON],
+            [EMPTY, EMPTY, EMPTY, SUN]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [{r: 0, c: 1, val: MOON}, {r: 1, c: 3, val: SUN}],
+        explanation: "Mathematisch korrekt! Das Sandwich-Prinzip sichert die Belegung ohne Raten."
+    },
+    {
+        id: 2,
+        title: "Pro 2: Die Kanten-Kaskade (Kopplungs-Logik)",
+        subtitle: "Vorzeichen-Vererbung über Gleichheitsketten",
+        mathPrinciple: "Kanten-Kopplung: [=] nach Symbol A erzwingt Gegenteil",
+        description: `**Das Prinzip**:\nZwei durch ein Gleichheitszeichen verbundene Felder (\`[=]\`) bilden ein gekoppeltes Paar mit identischem Wert. Steht direkt davor ein bekanntes Symbol (z. B. eine Sonne ☀️), MÜSSEN beide verbundenen Felder das Gegenteil (🌙 🌙) annehmen.\n\n**Mathematischer Beweis**:\nWürden beide Felder denselben Wert wie das Nachbarfeld annehmen, entstünde eine unzulässige 3er-Reihe (☀️ ☀️ ☀️). Folglich müssen beide Felder zwingend das entgegengesetzte Symbol tragen.\n\n*Übung: Nutze das Gleichheitszeichen [=] in Zeile 1, um die beiden leeren Felder rechts von der Sonne auszufüllen!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_EQUAL, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [{r: 0, c: 1, val: MOON}, {r: 0, c: 2, val: MOON}],
+        explanation: "Perfekt bewiesen! Die Kanten-Kaskade hebelt zwei leere Felder gleichzeitig aus."
+    },
+    {
+        id: 3,
+        title: "Pro 3: Taubenschlag-Prinzip (Zeilen-Balance)",
+        subtitle: "Abzählende Zeilen- und Spaltenvollständigkeit",
+        mathPrinciple: "Zeilen-Balance: Summe Sonnen = N/2 ⟹ Rest = Monde",
+        description: `**Das Prinzip**:\nIn jedem Gitter enthält jede Zeile und Spalte exakt gleich viele Sonnen wie Monde (z. B. je 2 bei 4×4, je 3 bei 6×6). Sobald alle Sonnen einer Reihe platziert sind, MÜSSEN alle restlichen leeren Felder Monde sein.\n\n**Mathematischer Beweis**:\nIst das Kontingent an Sonnen für eine Zeile vollständig erschöpft, verbleiben 0 freie Kapazitäten für weitere Sonnen. Nach dem Abzähl- und Balance-Prinzip müssen alle verbleibenden leeren Felder mit Monden aufgefüllt werden.\n\n*Übung: Fülle die verbleibenden Felder in Zeile 1 und Spalte 1 auf!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, SUN, EMPTY, EMPTY],
+            [SUN, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [{r: 0, c: 2, val: MOON}, {r: 0, c: 3, val: MOON}, {r: 2, c: 0, val: MOON}, {r: 3, c: 0, val: MOON}],
+        explanation: "Exzellent! Das Taubenschlag-Prinzip liefert die verbleibenden Felder sofort."
+    },
+    {
+        id: 4,
+        title: "Pro 4: Indirekte Gegenteils-Kopplung (× Inversion)",
+        subtitle: "Vorzeichenumkehr über Gegenteilskanten",
+        mathPrinciple: "Inversions-Logik: [×] schaltet Symbol um (☀️ ↔ 🌙)",
+        description: `**Das Prinzip**:\nEin Gegenteilszeichen (\`[×]\`) schaltet den logischen Zustand direkt um: Ist eine Seite bekannt, ist die andere Seite zwingend das Gegenteil.\n\n**Mathematischer Beweis**:\nIn einem binären System mit nur zwei Symbolen (☀️ und 🌙) erzwingt die Kante [×] stets unterschiedliche Werte. Ist ein Nachbar eine Sonne ☀️, folgt unausweichlich, dass der verbundene Partner ein Mond 🌙 sein muss.\n\n*Übung: Löse die Gegenteilskanten [×] in Zeile 1 und Spalte 2 auf!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, EMPTY, EMPTY, EMPTY],
+            [EMPTY, MOON, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 1, val: MOON },
+            { r: 2, c: 1, val: SUN }
+        ],
+        explanation: "Klasse! Inversion über Gegenteilskanten ist die schnellste Umkehr-Logik."
+    },
+    {
+        id: 5,
+        title: "Pro 5: Ausschluss identischer Zeilen",
+        subtitle: "Verhinderung von Zeilen-Duplikaten",
+        mathPrinciple: "Eindeutigkeit: Keine zwei Zeilen dürfen identisch sein",
+        description: `**Das Prinzip**:\nKeine zwei Zeilen dürfen vollständig identisch belegt sein. Wenn eine Belegung eine identische Zeile erzeugen würde, MUSS die alternative Belegung gewählt werden.\n\n**Mathematischer Beweis**:\nZeile 1 ist \`☀️ 🌙 ☀️ 🌙\`. Zeile 2 beginnt mit \`☀️ 🌙 _ _\`. Die Belegung \`☀️ 🌙\` für die Lücken würde Zeile 2 identisch zu Zeile 1 machen (Zeile 1 = Zeile 2). Daher MUSS nach der Eindeutigkeits-Regel die Belegung \`🌙 ☀️\` gewählt werden.\n\n*Übung: Vervollständige Zeile 2 so, dass sie NICHT identisch zu Zeile 1 wird!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, MOON, SUN, MOON],
+            [SUN, MOON, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 1, c: 2, val: MOON },
+            { r: 1, c: 3, val: SUN }
+        ],
+        explanation: "Brillant! Der Ausschluss identischer Zeilen löst knifflige Endspiele ohne Raten."
+    },
+    {
+        id: 6,
+        title: "Pro 6: Das Rand-Doppel-Prinzip",
+        subtitle: "Doppelseitige Klammerung von Pärchen",
+        mathPrinciple: "Rand-Einschluss: Pärchen [☀️☀️] wird von [🌙] eingeklammert",
+        description: `**Das Prinzip**:\nWenn zwei gleiche Symbole nebeneinander stehen (\`_ ☀️ ☀️ _\`), MÜSSEN BEIDE Außenfelder das Gegenteil sein (\`🌙 ☀️ ☀️ 🌙\`).\n\n**Mathematischer Beweis**:\nWürde eines der Außenfelder auch eine Sonne \`☀️\` sein, entstünde sofort die verbotene 3er-Kette \`☀️ ☀️ ☀️\`. Folglich müssen BEIDE Außenpositionen zwingend Monde \`🌙\` sein.\n\n*Übung: Klammere das Sonnen-Paar in Zeile 1 mit Monden ein!*`,
+        size: 4,
+        initialGrid: [
+            [EMPTY, SUN, SUN, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 0, val: MOON },
+            { r: 0, c: 3, val: MOON }
+        ],
+        explanation: "Perfekt! Zwei gleiche Symbole schließen stets beide Außenfelder mit dem Gegenteil ein."
+    },
+    {
+        id: 7,
+        title: "Pro 7: Das Paritäts-Trippel (2-aus-3 Logik)",
+        subtitle: "Gegenteils-Kanten als Zähleinheit",
+        mathPrinciple: "Parität: [×] bindet 1☀️ + 1🌙 ⟹ 4. Feld ist bestimmt",
+        description: `**Das Prinzip**:\nZwei durch \`[×]\` verbundene Felder enthalten garantiert genau 1 Sonne und 1 Mond. Steht vor dem Paar eine Sonne \`☀️\`, ist für die Zeile bereits die 2. Sonne vergeben — das 4. Feld MUSS ein Mond \`🌙\` sein!\n\n**Mathematischer Beweis**:\nDie \`[×]\`-Kante bindet exakt 1 Sonne + 1 Mond. Da Position 1 bereits eine \`☀️\` ist, enthält die 3er-Gruppe (Pos 1–3) zusammen bereits 2 Sonnen (das Maximum bei 4×4). Daher kann das 4. Feld an Position 4 keine Sonne mehr sein und MUSS ein Mond \`🌙\` werden.\n\n*Übung: Bestimme das 4. Feld in Zeile 1 durch die 2-aus-3 Logik!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_NONE, EDGE_OPPOSITE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 3, val: MOON }
+        ],
+        explanation: "Genial! Die 2-aus-3 Logik lässt dich das 4. Feld bestimmen, ohne das Paar selbst zu lösen."
+    },
+    {
+        id: 8,
+        title: "Pro 8: Die 2×2 Quadrat-Kanten-Schleife",
+        subtitle: "Kanten-Algebra in Blöcken",
+        mathPrinciple: "Eck-Kopplung: Zwei [×] an einer Zelle erzwingen Gleichheit",
+        description: `**Das Prinzip**:\nWenn eine Zelle (z. B. oben links) mit zwei Nachbarn über \`[×]\` verbunden ist, müssen beide Nachbarn untereinander exakt GLEICH sein.\n\n**Mathematischer Beweis**:\nBeide Nachbarfelder sind das Gegenteil derselben Ausgangszelle. Da es nur 2 Symbole gibt, haben beide Nachbarn denselben Wert. Ist die Eckzelle eine \`☀️\`, MÜSSEN beide Nachbarfelder Monde \`🌙\` sein!\n\n*Übung: Löse die beiden Nachbarfelder in Zeile 1 und Spalte 1 auf!*`,
+        size: 4,
+        initialGrid: [
+            [SUN, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY],
+            [EMPTY, EMPTY, EMPTY, EMPTY]
+        ],
+        hEdges: [
+            [EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        vEdges: [
+            [EDGE_OPPOSITE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE],
+            [EDGE_NONE, EDGE_NONE, EDGE_NONE, EDGE_NONE]
+        ],
+        targetCells: [
+            { r: 0, c: 1, val: MOON },
+            { r: 1, c: 0, val: MOON }
+        ],
+        explanation: "Meisterklasse! Kanten-Algebra in 2x2 Blöcken durchschaut komplexe Abhängigkeiten blitzschnell."
     }
+];
 
-    // Deterministischer Seed pro Level
-    const seed = 5000 + (levelIndex + 1) * 113;
-    const generated = TangoGenerator.generatePuzzle({ size, difficulty, seed });
-    return {
-        id: levelIndex + 1,
-        tier: difficulty,
-        name: `Level ${levelIndex + 1}`,
-        ...generated
-    };
-}
-
+// === Source: js\puzzles\tango\index.js ===
 /**
- * Erzeugt das synchrone Tagesrätsel basierend auf dem Datum (JJJJ-MM-TT)
- */
-function getDailyPuzzle(dateStr) {
-    // Wandle Datum in Integer-Seed um (z.B. "2026-08-21" -> 20260821)
-    const seed = parseInt(dateStr.replace(/-/g, ''), 10);
-    // Wähle Größe je nach Wochentag (Wochenende = 8x8, Werktags = 6x6)
-    const date = new Date(dateStr);
-    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
-    const size = isWeekend ? 8 : 6;
-    const difficulty = isWeekend ? 'hard' : 'medium';
-
-    const generated = TangoGenerator.generatePuzzle({ size, difficulty, seed });
-    return {
-        id: `daily_${dateStr}`,
-        date: dateStr,
-        name: `Tagesrätsel (${dateStr})`,
-        ...generated
-    };
-}
-
-// === Source: js\ui\audio.js ===
-/**
- * Tango Web Audio Synthesizer
- * Erzeugt hochwertige, latenzfreie Soundeffekte ohne externe MP3/WAV-Dateien.
+ * Tango Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für Tango (Takuzu / Binairo).
  */
 
-class AudioManager {
+
+
+
+
+
+
+
+
+
+const TangoPlugin = {
+    id: 'tango',
+    name: 'Tango',
+    icon: '☀️🌙',
+    description: 'Binärrätsel mit Sonne & Mond',
+    badge: 'Klassiker',
+    cssPath: './css/puzzles/tango.css',
+
+    getSizes: () => [
+        { id: 4, label: '4 × 4 (Mini)', gridSize: 4 },
+        { id: 6, label: '6 × 6 (Standard)', gridSize: 6 },
+        { id: 8, label: '8 × 8 (Groß)', gridSize: 8 },
+        { id: 10, label: '10 × 10 (Meister)', gridSize: 10 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [SUN, MOON],
+
+    getInputConfig: () => ({
+        type: 'cycle',
+        allowKeypad: true,
+        keys: [SUN, MOON, EMPTY]
+    }),
+
+    createEngine: (size = 6) => new TangoEngine(size),
+    generatePuzzle: (opts) => TangoGenerator.generatePuzzle(opts),
+    solvePuzzle: (engine, max = 1) => TangoSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => TangoRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => TangoRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass) => TangoRenderer.getSymbolSvg(val, extraClass),
+
+    getHint: (engine, options) => TangoSolver.findLogicalHint(engine, options),
+    getRules: (lang) => TangoRenderer.getRulesHtml(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 120,
+        chapters: [
+            { id: 0, name: 'Kapitel 1', levelRange: [0, 29], desc: '4×4 & 6×6 Grundlagen' },
+            { id: 1, name: 'Kapitel 2', levelRange: [30, 59], desc: '6×6 Fortgeschritten' },
+            { id: 2, name: 'Kapitel 3', levelRange: [60, 89], desc: '8×8 Herausforderung' },
+            { id: 3, name: 'Kapitel 4', levelRange: [90, 119], desc: '8×8 & 10×10 Meister' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getTangoCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getTangoDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: TUTORIAL_STEPS, badge: '6 Lektionen' },
+            { id: 'math', name: 'Mathematik', steps: TUTORIAL_PRO_STEPS, badge: '8 Lektionen' },
+            { id: 'patterns', name: 'Muster', steps: TUTORIAL_PATTERNS_STEPS, badge: '14 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => ({})
+};
+
+// === Source: js\shell\puzzle-registry.js ===
+
+
+class PuzzleRegistry {
     constructor() {
-        this.ctx = null;
-        this.enabled = true;
-        this.vibrationEnabled = true;
-        this.vibrationStrength = 'medium'; // Standardmäßig auf Standard gesetzt
+        this._plugins = new Map();
+        this._activeId = null;
+        this._loadedCss = new Set();
+    }
 
-        // Lade Einstellungen
-        try {
-            const savedSound = localStorage.getItem('tango_sound');
-            if (savedSound !== null) this.enabled = savedSound === 'true';
-
-            const savedVib = localStorage.getItem('tango_vibration');
-            if (savedVib !== null) this.vibrationEnabled = savedVib === 'true';
-
-            const savedVibStr = localStorage.getItem('tango_vibration_strength');
-            if (savedVibStr !== null) this.vibrationStrength = savedVibStr;
-        } catch (e) {
-            console.warn('localStorage in audio.js nicht zugreifbar:', e);
+    /**
+     * Registriert ein Puzzle-Plugin nach Validierung
+     */
+    register(plugin) {
+        if (!plugin || !plugin.id) {
+            throw new Error('Ungültiges Puzzle-Plugin: id fehlt');
         }
-    }
-
-    init() {
-        if (!this.ctx) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) {
-                this.ctx = new AudioCtx();
-            }
-        }
-        if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume();
-        }
-    }
-
-    setSound(enabled) {
-        this.enabled = enabled;
-        try {
-            localStorage.setItem('tango_sound', enabled);
-        } catch (e) {}
-    }
-
-    setVibration(enabled) {
-        this.vibrationEnabled = enabled;
-        try {
-            localStorage.setItem('tango_vibration', enabled);
-        } catch (e) {}
-    }
-
-    setVibrationStrength(strength) {
-        this.vibrationStrength = strength;
-        try {
-            localStorage.setItem('tango_vibration_strength', strength);
-        } catch (e) {}
-        this.vibrate(40);
-    }
-
-    getVibrationMultiplier() {
-        switch (this.vibrationStrength) {
-            case 'ultra': return 2.2;
-            case 'strong': return 1.5;
-            case 'soft': return 0.5;
-            case 'medium':
-            default: return 1.0;
-        }
-    }
-
-    vibrate(pattern = 70) {
-        if (this.vibrationEnabled && 'vibrate' in navigator) {
-            try {
-                const mult = this.getVibrationMultiplier();
-                let scaledPattern;
-                if (typeof pattern === 'number') {
-                    scaledPattern = Math.max(30, Math.round(pattern * mult));
-                } else if (Array.isArray(pattern)) {
-                    scaledPattern = pattern.map((val, idx) => {
-                        return (idx % 2 === 0) ? Math.max(30, Math.round(val * mult)) : val;
-                    });
-                } else {
-                    scaledPattern = pattern;
-                }
-                navigator.vibrate(scaledPattern);
-            } catch (e) {
-                // Ignore if not permitted
-            }
-        }
-    }
-
-    playSun() {
-        if (!this.enabled) return;
-        this.init();
-        if (!this.ctx) return;
-
-        const now = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(520, now);
-        osc.frequency.exponentialRampToValueAtTime(780, now + 0.08);
-
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(now);
-        osc.stop(now + 0.12);
-        this.vibrate(70);
-    }
-
-    playMoon() {
-        if (!this.enabled) return;
-        this.init();
-        if (!this.ctx) return;
-
-        const now = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(320, now);
-        osc.frequency.exponentialRampToValueAtTime(240, now + 0.1);
-
-        gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(now);
-        osc.stop(now + 0.15);
-        this.vibrate(95);
-    }
-
-    playClear() {
-        if (!this.enabled) return;
-        this.init();
-        if (!this.ctx) return;
-
-        const now = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(200, now);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(now);
-        osc.stop(now + 0.05);
-        this.vibrate(50);
-    }
-
-    playHint() {
-        if (!this.enabled) return;
-        this.init();
-        if (!this.ctx) return;
-
-        const now = this.ctx.currentTime;
-        const notes = [587.33, 880, 1174.66]; // D5, A5, D6
-        notes.forEach((freq, idx) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, now + idx * 0.06);
-
-            gain.gain.setValueAtTime(0.18, now + idx * 0.06);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.25);
-
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-
-            osc.start(now + idx * 0.06);
-            osc.stop(now + idx * 0.06 + 0.25);
-        });
-        this.vibrate([70, 50, 90]);
-    }
-
-    playError() {
-        if (!this.enabled) return;
-        this.init();
-        if (!this.ctx) return;
-
-        const now = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(140, now);
-        osc.frequency.setValueAtTime(110, now + 0.08);
-
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(now);
-        osc.stop(now + 0.2);
-        this.vibrate([100, 50, 100, 50, 100]);
-    }
-
-    playVictory() {
-        if (!this.enabled) return;
-        this.init();
-        if (!this.ctx) return;
-
-        const now = this.ctx.currentTime;
-        // Siegesfanfare: C4, E4, G4, C5 mit kurzem Sustain
-        const chords = [
-            { freq: 261.63, time: 0.0, dur: 0.15 },
-            { freq: 329.63, time: 0.12, dur: 0.15 },
-            { freq: 392.00, time: 0.24, dur: 0.18 },
-            { freq: 523.25, time: 0.40, dur: 0.60 }
-        ];
-
-        chords.forEach(c => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(c.freq, now + c.time);
-
-            gain.gain.setValueAtTime(0.25, now + c.time);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + c.time + c.dur);
-
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-
-            osc.start(now + c.time);
-            osc.stop(now + c.time + c.dur);
-        });
-
-        this.vibrate([80, 50, 90, 50, 120, 60, 200]);
-    }
-}
-
-const audio = new AudioManager();
-
-// === Source: js\ui\animations.js ===
-/**
- * Tango Visual FX & Animations
- * Konfetti-Partikel und Siegesanimationen auf einem HTML5-Canvas
- */
-
-class AnimationManager {
-    constructor() {
-        this.canvas = null;
-        this.ctx = null;
-        this.particles = [];
-        this.animId = null;
-    }
-
-    init(canvas) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
-    }
-
-    resize() {
-        if (!this.canvas) return;
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-    }
-
-    launchConfetti() {
-        if (!this.canvas || !this.ctx) return;
-        this.resize();
-        this.particles = [];
-
-        const colors = ['#f59e0b', '#3b82f6', '#10b981', '#ec4899', '#8b5cf6', '#ef4444', '#ffd700'];
-        const count = 120;
-
-        for (let i = 0; i < count; i++) {
-            this.particles.push({
-                x: this.canvas.width * 0.5 + (Math.random() - 0.5) * 50,
-                y: this.canvas.height * 0.4 + (Math.random() - 0.5) * 50,
-                vx: (Math.random() - 0.5) * 16,
-                vy: (Math.random() - 0.9) * 18 - 4,
-                size: Math.random() * 8 + 4,
-                color: colors[Math.floor(Math.random() * colors.length)],
-                rotation: Math.random() * 360,
-                rotSpeed: (Math.random() - 0.5) * 10,
-                gravity: 0.35,
-                opacity: 1,
-                shape: Math.random() > 0.4 ? 'rect' : 'circle'
+        this._plugins.set(plugin.id, plugin);
+        if (typeof plugin.getI18nStrings === 'function') {
+            registerTranslations(plugin.id, {
+                de: plugin.getI18nStrings('de'),
+                en: plugin.getI18nStrings('en')
             });
         }
-
-        if (this.animId) cancelAnimationFrame(this.animId);
-        this.render();
     }
 
-    render() {
-        if (!this.ctx) return;
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    /**
+     * Gibt alle registrierten Plugins zurück
+     */
+    getAll() {
+        return Array.from(this._plugins.values());
+    }
 
-        let activeParticles = 0;
-        for (const p of this.particles) {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vy += p.gravity;
-            p.vx *= 0.98;
-            p.rotation += p.rotSpeed;
-            p.opacity -= 0.008;
+    /**
+     * Holt ein Plugin anhand der ID
+     */
+    get(id) {
+        return this._plugins.get(id) || null;
+    }
 
-            if (p.opacity > 0 && p.y < this.canvas.height + 50) {
-                activeParticles++;
-                this.ctx.save();
-                this.ctx.globalAlpha = Math.max(0, p.opacity);
-                this.ctx.translate(p.x, p.y);
-                this.ctx.rotate((p.rotation * Math.PI) / 180);
-                this.ctx.fillStyle = p.color;
+    /**
+     * Aktiviert ein Plugin und lädt bei Bedarf dessen CSS
+     */
+    activate(id) {
+        const plugin = this._plugins.get(id);
+        if (!plugin) {
+            console.warn(`Plugin "${id}" nicht gefunden, falle auf "tango" zurück.`);
+            return this.activate('tango');
+        }
 
-                if (p.shape === 'circle') {
-                    this.ctx.beginPath();
-                    this.ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
-                    this.ctx.fill();
-                } else {
-                    this.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
-                }
+        this._activeId = id;
 
-                this.ctx.restore();
+        // CSS Stylesheet dynamisch prüfen/einbinden falls vorhanden
+        if (plugin.cssPath && !this._loadedCss.has(plugin.cssPath) && typeof document !== 'undefined') {
+            const existingLink = document.querySelector(`link[data-puzzle-id="${id}"]`);
+            if (!existingLink) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = plugin.cssPath;
+                link.dataset.puzzleId = id;
+                document.head.appendChild(link);
             }
+            this._loadedCss.add(plugin.cssPath);
         }
 
-        if (activeParticles > 0) {
-            this.animId = requestAnimationFrame(() => this.render());
-        } else {
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        return plugin;
+    }
+
+    /**
+     * Gibt das aktuell aktive Plugin zurück
+     */
+    getActive() {
+        if (!this._activeId) {
+            this._activeId = 'tango';
         }
+        return this._plugins.get(this._activeId) || this.getAll()[0];
+    }
+
+    /**
+     * Ermittelt deterministisch das Tages-Puzzle für ein gegebenes Datum
+     */
+    getRandomForDaily(dateStr) {
+        const all = this.getAll();
+        if (all.length === 0) return null;
+        const seed = parseInt(dateStr.replace(/-/g, ''), 10);
+        const index = seed % all.length;
+        return all[index];
     }
 }
 
-const animations = new AnimationManager();
+const puzzleRegistry = new PuzzleRegistry();
 
-// === Source: js\ui\app.js ===
+// === Source: js\shell\app-shell.js ===
 /**
- * Tango Main UI Controller
- * Verbindet Spiellogik, Rendering, Touch-Interaktion, Audio und Lokalisierung.
+ * Cortex App-Shell & Unified Game Controller
+ * Verwaltet Puzzle-Plugins, Menü-Hub, Spielmodi, Timer, Audio,
+ * Statistiken, Themes, Notizen und Modals.
  */
 
 
-function getSunSvg(extraClass = '') {
-    return `<svg class="tango-symbol tango-sun ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.2" fill="currentColor"/><g stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="1.6" x2="12" y2="3.8"/><line x1="12" y1="20.2" x2="12" y2="22.4"/><line x1="1.6" y1="12" x2="3.8" y2="12"/><line x1="20.2" y1="12" x2="22.4" y2="12"/><line x1="4.6" y1="4.6" x2="6.2" y2="6.2"/><line x1="17.8" y1="17.8" x2="19.4" y2="19.4"/><line x1="4.6" y1="19.4" x2="6.2" y2="17.8"/><line x1="17.8" y1="6.2" x2="19.4" y2="4.6"/></g></svg>`;
-}
 
-function getMoonSvg(extraClass = '') {
-    return `<svg class="tango-symbol tango-moon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 12.5A9.5 9.5 0 1 1 11.5 2.5a7.5 7.5 0 0 0 10 10z" fill="currentColor"/></svg>`;
-}
 
-function formatTime(seconds) {
-    if (typeof seconds !== 'number' || seconds === null || isNaN(seconds) || seconds < 0) {
-        return '-';
-    }
-    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const secs = (seconds % 60).toString().padStart(2, '0');
-    return `${mins}:${secs}`;
-}
 
-function calculateStreaks(history = [], todayStr = null) {
-    if (!Array.isArray(history) || history.length === 0) {
-        return { currentStreak: 0, maxStreak: 0 };
-    }
 
-    const validDates = history.filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d));
-    if (validDates.length === 0) {
-        return { currentStreak: 0, maxStreak: 0 };
-    }
 
-    const parseToUtcDays = (dateStr) => {
-        const [y, m, d] = dateStr.split('-').map(Number);
-        return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
-    };
 
-    const uniqueDays = Array.from(new Set(validDates.map(parseToUtcDays))).sort((a, b) => a - b);
-    if (uniqueDays.length === 0) {
-        return { currentStreak: 0, maxStreak: 0 };
-    }
 
-    let maxStreak = 0;
-    let currentRun = 0;
-    let prevDay = null;
 
-    for (const day of uniqueDays) {
-        if (prevDay !== null && day === prevDay + 1) {
-            currentRun++;
-        } else {
-            currentRun = 1;
-        }
-        if (currentRun > maxStreak) {
-            maxStreak = currentRun;
-        }
-        prevDay = day;
-    }
 
-    const now = new Date();
-    const todayFormatted = todayStr || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const todayDay = parseToUtcDays(todayFormatted);
 
-    const daySet = new Set(uniqueDays);
-    let currentStreak = 0;
 
-    if (daySet.has(todayDay)) {
-        let check = todayDay;
-        while (daySet.has(check)) {
-            currentStreak++;
-            check--;
-        }
-    } else if (daySet.has(todayDay - 1)) {
-        let check = todayDay - 1;
-        while (daySet.has(check)) {
-            currentStreak++;
-            check--;
-        }
-    } else {
-        currentStreak = 0;
-    }
 
-    return { currentStreak, maxStreak };
-}
 
-class TangoApp {
+
+class CortexApp {
     constructor() {
-        this.engine = new TangoEngine(6);
-        this.currentMode = 'campaign'; // 'campaign' | 'daily' | 'free' | 'tutorial'
+        // Storage Migration
+        StorageManager.checkAndMigrate();
+
+        // Plugins registrieren
+        puzzleRegistry.register(TangoPlugin);
+        puzzleRegistry.register(SudokuPlugin);
+
+        // Aktives Plugin laden
+        const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
+        this.activePlugin = puzzleRegistry.activate(savedPluginId);
+        this.engine = this.activePlugin.createEngine();
+
+        this.currentMode = 'campaign'; // 'campaign' | 'daily' | 'free' | 'tutorial' | 'tutorial_pro' | 'tutorial_patterns' | 'tutorial_advanced'
         this.campaignLevelIndex = 0;
         this.selectedCampaignChapter = 0;
+        this.tutorialSectionId = 'basics';
         this.tutorialStepIndex = 0;
         this.selectedCell = null;
         this.isNoteMode = false;
-        
+
         // Timer & Statistiken
-        this.timerInterval = null;
+        this.timer = new GameTimer((seconds, formatted) => {
+            const el = document.getElementById('gameTimer');
+            if (el) el.textContent = formatted;
+            this.secondsElapsed = seconds;
+        });
         this.secondsElapsed = 0;
         this.movesCount = 0;
         this.hintsUsed = 0;
@@ -3377,20 +5963,25 @@ class TangoApp {
         this.ignoreClickUntil = 0;
 
         // Einstellungen
-        this.autoCheck = true;
-        this.inputMode = 'cycle'; // 'cycle' | 'keypad'
-        this.currentTheme = 'dark';
-        this.reminderEnabled = false;
-        this.reminderTime = '09:00';
+        this.autoCheck = StorageManager.getItem(StorageKeys.AUTO_CHECK, 'true') === 'true';
+        this.inputMode = StorageManager.getItem(StorageKeys.INPUT_MODE, 'cycle');
+        this.currentTheme = ThemeManager.getCurrentTheme();
+        this.reminderEnabled = StorageManager.getItem(StorageKeys.REMINDER_ENABLED, 'false') === 'true';
+        this.reminderTime = StorageManager.getItem(StorageKeys.REMINDER_TIME, '09:00');
         this.reminderDismissed = false;
-        this.freePlaySize = 6;
+
+        // Freies Spiel Voreinstellungen
+        this.freePlaySize = (this.activePlugin && this.activePlugin.id === 'sudoku') ? 9 : 6;
         this.freePlayDiff = 'medium';
+
+        // Statistik Tab Filter ('all' | 'tango' | 'sudoku')
+        this.activeStatsTab = 'all';
 
         this.init();
     }
 
     init() {
-        // Globaler Fehler-Handler
+        // Globaler Error Handler
         window.addEventListener('error', (e) => {
             const container = document.getElementById('debugErrorBanner');
             const msgEl = document.getElementById('debugErrorText');
@@ -3408,63 +5999,137 @@ class TangoApp {
             }
         });
 
-        this.loadSettings();
-        this.applyTheme(this.currentTheme);
-        animations.init(document.getElementById('confettiCanvas'));
+        ThemeManager.applyTheme(this.currentTheme);
+        const canvas = document.getElementById('confettiCanvas');
+        if (canvas) animations.init(canvas);
+
         this.bindEvents();
         this.updateI18n();
         this.checkDailyReminder();
         this.checkDailySystemNotification();
         this.notifCheckInterval = setInterval(() => this.checkDailySystemNotification(), 30000);
 
-        // Starte mit der Kampagne oder dem Tutorial falls neu
-        const completedLevels = this.getCompletedLevels();
-        if (completedLevels.length === 0) {
-            this.startTutorial(0);
-        } else {
-            this.startCampaignLevel(completedLevels.length);
-        }
+        // Starte Spielstand im Hintergrund vorbereitet
+        const completed = this.getCompletedLevels();
+        this.prepareCampaignLevel(completed.length < 120 ? completed.length : 0);
+
+        // Beim Start sofort die "Alle Rätsel" Übersicht als Startseite öffnen
+        this.openPuzzleSelectModal();
+        this.timer.stop();
+        this.isGameActive = false;
     }
 
-    loadSettings() {
-        try {
-            const savedTheme = localStorage.getItem('tango_theme');
-            if (savedTheme) this.currentTheme = savedTheme;
+    getState() {
+        return {
+            currentMode: this.currentMode,
+            campaignLevelIndex: this.campaignLevelIndex,
+            tutorialStepIndex: this.tutorialStepIndex,
+            selectedCell: this.selectedCell,
+            hintPlacedCell: this.hintPlacedCell,
+            isNoteMode: this.isNoteMode,
+            autoCheck: this.autoCheck,
+            solutionRevealed: this.solutionRevealed,
+            inputMode: this.inputMode
+        };
+    }
 
-            const savedSound = localStorage.getItem('tango_sound');
-            if (savedSound !== null) audio.enabled = savedSound === 'true';
+    switchPlugin(pluginId) {
+        if (!puzzleRegistry.get(pluginId)) return;
+        this.activePlugin = puzzleRegistry.activate(pluginId);
+        StorageManager.setItem(StorageKeys.ACTIVE_PUZZLE, pluginId);
 
-            const savedVib = localStorage.getItem('tango_vibration');
-            if (savedVib !== null) audio.vibrationEnabled = savedVib === 'true';
-
-            const savedVibStrength = localStorage.getItem('tango_vibration_strength');
-            if (savedVibStrength) audio.vibrationStrength = savedVibStrength;
-
-            const savedAutoCheck = localStorage.getItem('tango_auto_check');
-            if (savedAutoCheck !== null) this.autoCheck = savedAutoCheck === 'true';
-
-            const savedInput = localStorage.getItem('tango_input_mode');
-            if (savedInput) this.inputMode = savedInput;
-
-            const savedRem = localStorage.getItem('tango_reminder_enabled');
-            if (savedRem !== null) this.reminderEnabled = savedRem === 'true';
-
-            const savedRemTime = localStorage.getItem('tango_reminder_time');
-            if (savedRemTime && /^([01]\d|2[0-3]):[0-5]\d$/.test(savedRemTime)) {
-                this.reminderTime = savedRemTime;
+        // Freies Spiel Default-Größen anpassen
+        const sizes = this.activePlugin.getSizes();
+        if (sizes && sizes.length > 0) {
+            if (pluginId === 'sudoku') {
+                this.freePlaySize = 9;
+            } else if (pluginId === 'tango') {
+                this.freePlaySize = 6;
+            } else {
+                this.freePlaySize = sizes[0].id;
             }
-        } catch (e) {
-            console.warn('localStorage konnte nicht gelesen werden:', e);
+        }
+
+        // Header & Menü aktualisieren
+        this.updateHeader();
+        this.updateMenuPlayTab();
+        this.updateRulesContent();
+        this.updateFreePlayLabels();
+
+        // Bereite Kampagnen-Level des gewählten Puzzles im Hintergrund vor
+        const completed = this.getCompletedLevels();
+        this.prepareCampaignLevel(completed.length < 120 ? completed.length : 0);
+    }
+
+    restoreSelectedPlugin() {
+        const savedId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE) || 'tango';
+        if (this.activePlugin.id !== savedId && puzzleRegistry.get(savedId)) {
+            this.activePlugin = puzzleRegistry.activate(savedId);
+            this.updateHeader();
+            this.updateMenuPlayTab();
+            this.updateRulesContent();
+            this.updateFreePlayLabels();
         }
     }
 
-    applyTheme(theme) {
-        document.body.className = `theme-${theme}`;
-        this.currentTheme = theme;
-        try {
-            localStorage.setItem('tango_theme', theme);
-        } catch (e) {}
-        this.updateMenuSettings();
+    updateHeader() {
+        const appTitleEl = document.querySelector('.menu-hub-title-box .modal-title');
+        if (appTitleEl) appTitleEl.textContent = `Cortex – ${this.activePlugin.name}`;
+
+        const iconEl = document.getElementById('activePuzzleIcon');
+        const nameEl = document.getElementById('activePuzzleName');
+        if (iconEl) iconEl.textContent = this.activePlugin.icon;
+        if (nameEl) nameEl.textContent = this.activePlugin.name;
+    }
+
+    openPuzzleSelectModal() {
+        this.restoreSelectedPlugin();
+        this.renderPuzzleSelectGrid();
+        this.toggleModal('puzzleSelectModal', true);
+    }
+
+    renderPuzzleSelectGrid() {
+        const grid = document.getElementById('puzzleSelectionGrid');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        const all = puzzleRegistry.getAll();
+        for (const p of all) {
+            const card = document.createElement('div');
+            card.className = `puzzle-select-card ${p.id === this.activePlugin.id ? 'active' : ''}`;
+            card.innerHTML = `
+                <span class="puzzle-icon">${p.icon}</span>
+                <span class="puzzle-name">${p.name}</span>
+                <span class="puzzle-desc">${p.description}</span>
+                ${p.badge ? `<span class="puzzle-badge">${p.badge}</span>` : ''}
+            `;
+            card.addEventListener('click', () => {
+                audio.vibrate(25);
+                audio.playClear();
+                this.toggleModal('puzzleSelectModal', false);
+                this.switchPlugin(p.id);
+                this.openMenuTab('play');
+            });
+            grid.appendChild(card);
+        }
+
+        // Vorschau auf kommende Puzzles
+        const upcoming = [
+            { name: 'Queens', icon: '👑', desc: 'Farbzonen & Königinnen' },
+            { name: 'Futoshiki', icon: '📐', desc: 'Ungleichungs-Gitter' },
+            { name: 'KenKen', icon: '➕', desc: 'Rechen-Kästchen' }
+        ];
+        for (const u of upcoming) {
+            const card = document.createElement('div');
+            card.className = 'puzzle-select-card coming-soon';
+            card.innerHTML = `
+                <span class="puzzle-icon">${u.icon}</span>
+                <span class="puzzle-name">${u.name}</span>
+                <span class="puzzle-desc">${u.desc}</span>
+                <span class="puzzle-badge" style="background:rgba(255,255,255,0.1); border-color:var(--border-color); color:var(--text-secondary);">Demnächst</span>
+            `;
+            grid.appendChild(card);
+        }
     }
 
     updateI18n() {
@@ -3472,14 +6137,88 @@ class TangoApp {
             const key = el.getAttribute('data-i18n');
             el.textContent = t(key);
         });
+        this.updateHeader();
         this.updateMenuSettings();
         this.updateFreePlayLabels();
+        this.updateRulesContent();
+        this.updateMenuPlayTab();
+    }
+
+    updateRulesContent() {
+        const rulesSec = document.getElementById('menuSecRules');
+        if (!rulesSec) return;
+        const html = this.activePlugin.getRules(getLang());
+        rulesSec.innerHTML = `<h3 style="margin-bottom:12px; font-size:1.1rem; color:var(--accent-sun);">${this.activePlugin.name} ${t('menu_tab_rules')}</h3>` + html;
+    }
+
+    updateMenuPlayTab() {
+        this.updateHeader();
+        
+        // Aktive Karte im Menü hervorheben
+        const cardTango = document.getElementById('btnSelectTango');
+        const cardSudoku = document.getElementById('btnSelectSudoku');
+        if (cardTango) cardTango.classList.toggle('active', this.activePlugin.id === 'tango');
+        if (cardSudoku) cardSudoku.classList.toggle('active', this.activePlugin.id === 'sudoku');
+
+        const tutTutPro = document.getElementById('navTutorialPro');
+        const tutPatterns = document.getElementById('navTutorialPatterns');
+
+        // Für Sudoku nur 2 Tutorials (Grundlagen & Fortgeschritten)
+        if (this.activePlugin.id === 'sudoku') {
+            if (tutTutPro) {
+                tutTutPro.style.display = 'flex';
+                const textEl = tutTutPro.querySelector('.tut-btn-text');
+                if (textEl) {
+                    textEl.textContent = t('sudoku_tut_advanced') || 'Fortgeschritten';
+                    textEl.setAttribute('data-i18n', 'sudoku_tut_advanced');
+                }
+            }
+            if (tutPatterns) {
+                tutPatterns.style.display = 'none';
+            }
+        } else {
+            if (tutTutPro) {
+                tutTutPro.style.display = 'flex';
+                const textEl = tutTutPro.querySelector('.tut-btn-text');
+                if (textEl) {
+                    textEl.textContent = t('nav_tutorial_pro');
+                    textEl.setAttribute('data-i18n', 'nav_tutorial_pro');
+                }
+            }
+            if (tutPatterns) {
+                tutPatterns.style.display = 'flex';
+                const textEl = tutPatterns.querySelector('.tut-btn-text');
+                if (textEl) {
+                    textEl.textContent = t('nav_tutorial_patterns');
+                    textEl.setAttribute('data-i18n', 'nav_tutorial_patterns');
+                }
+            }
+        }
     }
 
     bindEvents() {
         // Navigation / Menüs
-        document.getElementById('btnMenu').addEventListener('click', () => this.openMenuTab('play'));
-        document.getElementById('btnCloseMenu').addEventListener('click', () => this.toggleModal('menuModal', false));
+        document.getElementById('btnMenu')?.addEventListener('click', () => this.openMenuTab('play'));
+        document.getElementById('btnCloseMenu')?.addEventListener('click', () => this.toggleModal('menuModal', false));
+        document.getElementById('btnCloseHint')?.addEventListener('click', () => this.toggleModal('hintModal', false));
+        document.getElementById('btnCloseRules')?.addEventListener('click', () => this.toggleModal('rulesModal', false));
+
+        // Zurück zu "Alle Rätsel" Button
+        document.getElementById('btnBackToAllPuzzles')?.addEventListener('click', () => {
+            audio.vibrate(25);
+            audio.playClear();
+            this.toggleModal('menuModal', false);
+            this.openPuzzleSelectModal();
+        });
+
+        // Puzzle Switcher Modal
+        document.getElementById('btnOpenPuzzleSelect')?.addEventListener('click', () => {
+            this.openPuzzleSelectModal();
+        });
+        document.getElementById('btnClosePuzzleSelect')?.addEventListener('click', () => {
+            this.toggleModal('puzzleSelectModal', false);
+            this.openMenuTab('play');
+        });
 
         // Menü-Hub Tabs
         document.getElementById('tabMenuPlay')?.addEventListener('click', () => this.switchMenuTab('play'));
@@ -3487,67 +6226,79 @@ class TangoApp {
         document.getElementById('tabMenuStats')?.addEventListener('click', () => this.switchMenuTab('stats'));
         document.getElementById('tabMenuSettings')?.addEventListener('click', () => this.switchMenuTab('settings'));
 
-        document.getElementById('btnSettings')?.addEventListener('click', () => this.openMenuTab('settings'));
-        document.getElementById('btnCloseSettings')?.addEventListener('click', () => this.toggleModal('settingsModal', false));
-        document.getElementById('btnStats')?.addEventListener('click', () => this.openMenuTab('stats'));
-        document.getElementById('btnCloseStats')?.addEventListener('click', () => this.toggleModal('statsModal', false));
-        document.getElementById('btnRules')?.addEventListener('click', () => this.openMenuTab('rules'));
-        document.getElementById('btnCloseRules')?.addEventListener('click', () => this.toggleModal('rulesModal', false));
+        // Stats Sub-Tabs
+        document.querySelectorAll('.stats-filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.stats-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.activeStatsTab = btn.dataset.statsTab || 'all';
+                this.updateMenuStats();
+            });
+        });
 
         // Spielmodi-Auswahl im Menü
         document.getElementById('navTutorial')?.addEventListener('click', () => {
             this.toggleModal('menuModal', false);
+            this.restoreSelectedPlugin();
             this.startTutorial(0);
         });
         document.getElementById('navTutorialPro')?.addEventListener('click', () => {
             this.toggleModal('menuModal', false);
+            this.restoreSelectedPlugin();
             this.startTutorialPro(0);
         });
         document.getElementById('navTutorialPatterns')?.addEventListener('click', () => {
             this.toggleModal('menuModal', false);
+            this.restoreSelectedPlugin();
             this.startTutorialPatterns(0);
         });
-        document.getElementById('navCampaign').addEventListener('click', () => {
+        document.getElementById('navCampaign')?.addEventListener('click', () => {
             this.toggleModal('menuModal', false);
+            this.restoreSelectedPlugin();
             this.openLevelSelectModal();
         });
-        document.getElementById('navDaily').addEventListener('click', () => {
+        document.getElementById('navDaily')?.addEventListener('click', () => {
             this.requestStartDailyPuzzle();
         });
-        document.getElementById('navFree').addEventListener('click', () => {
+        document.getElementById('navFree')?.addEventListener('click', () => {
             this.toggleModal('menuModal', false);
+            this.restoreSelectedPlugin();
             this.openFreePlayModal();
         });
 
         // Spiel-Aktionen
-        document.getElementById('btnUndo').addEventListener('click', () => this.handleUndo());
-        document.getElementById('btnRedo').addEventListener('click', () => this.handleRedo());
-        document.getElementById('btnHint').addEventListener('click', () => this.handleHint());
-        document.getElementById('btnRestart').addEventListener('click', () => this.restartCurrentPuzzle());
-        document.getElementById('btnNotes').addEventListener('click', () => this.toggleNoteMode());
+        document.getElementById('btnUndo')?.addEventListener('click', () => this.handleUndo());
+        document.getElementById('btnRedo')?.addEventListener('click', () => this.handleRedo());
+        document.getElementById('btnHint')?.addEventListener('click', () => this.handleHint());
+        document.getElementById('btnRestart')?.addEventListener('click', () => this.restartCurrentPuzzle());
+        document.getElementById('btnNotes')?.addEventListener('click', () => this.toggleNoteMode());
 
-        // Keypad-Eingaben
-        document.getElementById('keypadSun')?.addEventListener('click', () => this.applyKeypadInput(SUN));
-        document.getElementById('keypadMoon')?.addEventListener('click', () => this.applyKeypadInput(MOON));
-        document.getElementById('keypadClear')?.addEventListener('click', () => this.applyKeypadInput(EMPTY));
-
-        // Dialog-Aktionen
-        document.getElementById('btnVictoryNext').addEventListener('click', () => {
+        // Dialog-Aktionen (Victory / Next)
+        document.getElementById('btnVictoryNext')?.addEventListener('click', () => {
             this.toggleModal('victoryModal', false);
+            const tutSteps = this.activePlugin.getTutorialSteps();
+
             if (this.currentMode === 'tutorial') {
-                if (this.tutorialStepIndex + 1 < TUTORIAL_STEPS.length) {
+                const basicsSteps = tutSteps.sections.find(s => s.id === 'basics')?.steps || [];
+                if (this.tutorialStepIndex + 1 < basicsSteps.length) {
                     this.startTutorial(this.tutorialStepIndex + 1);
-                } else {
+                } else if (tutSteps.sections.length > 1) {
                     this.startTutorialPro(0);
-                }
-            } else if (this.currentMode === 'tutorial_pro') {
-                if (this.tutorialStepIndex + 1 < TUTORIAL_PRO_STEPS.length) {
-                    this.startTutorialPro(this.tutorialStepIndex + 1);
                 } else {
+                    this.startCampaignLevel(0);
+                }
+            } else if (this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_advanced') {
+                const secondSec = tutSteps.sections[1]?.steps || [];
+                if (this.tutorialStepIndex + 1 < secondSec.length) {
+                    this.startTutorialPro(this.tutorialStepIndex + 1);
+                } else if (tutSteps.sections.length > 2) {
                     this.startTutorialPatterns(0);
+                } else {
+                    this.startCampaignLevel(0);
                 }
             } else if (this.currentMode === 'tutorial_patterns') {
-                if (this.tutorialStepIndex + 1 < TUTORIAL_PATTERNS_STEPS.length) {
+                const thirdSec = tutSteps.sections[2]?.steps || [];
+                if (this.tutorialStepIndex + 1 < thirdSec.length) {
                     this.startTutorialPatterns(this.tutorialStepIndex + 1);
                 } else {
                     this.startCampaignLevel(0);
@@ -3556,13 +6307,18 @@ class TangoApp {
                 this.startCampaignLevel(this.campaignLevelIndex + 1);
             } else if (this.currentMode === 'free') {
                 this.openFreePlayModal();
+            } else if (this.currentMode === 'daily') {
+                this.restoreSelectedPlugin();
+                const completed = this.getCompletedLevels();
+                this.startCampaignLevel(completed.length < 120 ? completed.length : 0);
             } else {
+                this.restoreSelectedPlugin();
                 this.openMenuTab('play');
             }
         });
 
-        document.getElementById('btnHintApply').addEventListener('click', () => {
-            if (this.currentHint) {
+        document.getElementById('btnHintApply')?.addEventListener('click', () => {
+            if (this.currentHint && this.currentHint.value !== undefined) {
                 this.engine.setCellValue(this.currentHint.r, this.currentHint.c, this.currentHint.value);
                 this.hintPlacedCell = { r: this.currentHint.r, c: this.currentHint.c };
                 audio.playSun();
@@ -3571,7 +6327,8 @@ class TangoApp {
                 this.checkCompletion();
             }
         });
-        document.getElementById('btnCloseHint').addEventListener('click', () => this.toggleModal('hintModal', false));
+
+        document.getElementById('btnCloseHint')?.addEventListener('click', () => this.toggleModal('hintModal', false));
         document.getElementById('btnCloseLevelSelect')?.addEventListener('click', () => this.toggleModal('levelSelectModal', false));
 
         // Sicherheitsabfrage & Lösungsaufdeckung Listener
@@ -3609,17 +6366,11 @@ class TangoApp {
             });
         }
 
-        // Settings Trigger Buttons (Maßgeschneiderte In-Game Auswahldialoge)
+        // Settings Picker Buttons
         document.getElementById('btnThemePicker')?.addEventListener('click', () => {
             this.openCustomSelectModal({
                 title: t('setting_theme'),
-                options: [
-                    { value: 'dark', label: t('setting_theme_dark'), subtitle: 'Ausgewogen & modern' },
-                    { value: 'amoled', label: t('setting_theme_amoled'), subtitle: 'Tiefschwarz & stromsparend' },
-                    { value: 'light', label: t('setting_theme_light'), subtitle: 'Hell & minimalistisch' },
-                    { value: 'wood', label: t('setting_theme_wood'), subtitle: 'Natürliche Holztöne' },
-                    { value: 'cyberpunk', label: t('setting_theme_cyberpunk'), subtitle: 'Futuristisch & leuchtend' }
-                ],
+                options: THEMES.map(th => ({ value: th.id, label: t(th.labelKey), subtitle: th.subtitle })),
                 currentValue: this.currentTheme,
                 onSelect: (val) => this.applyTheme(val)
             });
@@ -3630,7 +6381,7 @@ class TangoApp {
                 title: t('setting_vibration_strength'),
                 options: [
                     { value: 'medium', label: t('setting_vib_medium'), subtitle: 'Standard-Haptik' },
-                    { value: 'strong', label: t('setting_vib_strong'), subtitle: 'Kräftiges Feedback (Empfohlen)' },
+                    { value: 'strong', label: t('setting_vib_strong'), subtitle: 'Kräftiges Feedback' },
                     { value: 'ultra', label: t('setting_vib_ultra'), subtitle: 'Maximaler Impuls' },
                     { value: 'soft', label: t('setting_vib_soft'), subtitle: 'Dezenter Klick' }
                 ],
@@ -3668,16 +6419,16 @@ class TangoApp {
             this.toggleModal('customSelectModal', false);
         });
 
-        // Freies Spiel Trigger Buttons
+        // Freies Spiel Picker Buttons
         document.getElementById('btnFreePlaySizePicker')?.addEventListener('click', () => {
+            const sizeOptions = this.activePlugin.getSizes().map(s => ({
+                value: s.id,
+                label: s.label,
+                subtitle: `${s.gridSize} × ${s.gridSize} Gitter`
+            }));
             this.openCustomSelectModal({
                 title: t('free_size'),
-                options: [
-                    { value: 4, label: t('free_size_4'), subtitle: '4 × 4 Gitter' },
-                    { value: 6, label: t('free_size_6'), subtitle: '6 × 6 Gitter' },
-                    { value: 8, label: t('free_size_8'), subtitle: '8 × 8 Gitter' },
-                    { value: 10, label: t('free_size_10'), subtitle: '10 × 10 Gitter' }
-                ],
+                options: sizeOptions,
                 currentValue: this.freePlaySize,
                 onSelect: (val) => {
                     this.freePlaySize = val;
@@ -3702,11 +6453,13 @@ class TangoApp {
             });
         });
 
+        // Toggles in Settings
         document.getElementById('settingSoundToggle')?.addEventListener('change', (e) => audio.setSound(e.target.checked));
         document.getElementById('settingVibrationToggle')?.addEventListener('change', (e) => audio.setVibration(e.target.checked));
         document.getElementById('settingAutoCheckToggle')?.addEventListener('change', (e) => {
             this.autoCheck = e.target.checked;
-            localStorage.setItem('tango_auto_check', this.autoCheck);
+            StorageManager.setItem(StorageKeys.AUTO_CHECK, this.autoCheck);
+            StorageManager.setItem('tango_auto_check', this.autoCheck);
             this.renderGrid();
         });
         document.getElementById('settingReminderToggle')?.addEventListener('change', (e) => {
@@ -3720,7 +6473,7 @@ class TangoApp {
             this.dismissReminderBanner();
         });
 
-        // Spielstand zurücksetzen (mit schicker In-Game Sicherheitsabfrage)
+        // Reset Buttons
         document.getElementById('btnResetProgress')?.addEventListener('click', async () => {
             const confirmed = await this.showConfirmDialog({
                 title: t('setting_reset_data'),
@@ -3730,13 +6483,7 @@ class TangoApp {
                 isDanger: true
             });
             if (confirmed) {
-                try {
-                    localStorage.removeItem('tango_campaign_completed');
-                    localStorage.removeItem('tango_campaign_stars');
-                    localStorage.removeItem('tango_daily_completed');
-                    localStorage.removeItem('tango_daily_streak');
-                    localStorage.removeItem('tango_daily_history');
-                } catch (e) {}
+                StorageManager.resetPuzzleData(this.activePlugin.id);
                 this.toggleModal('settingsModal', false);
                 this.toggleModal('menuModal', false);
                 audio.playClear();
@@ -3744,7 +6491,6 @@ class TangoApp {
             }
         });
 
-        // Statistik zurücksetzen (mit schicker In-Game Sicherheitsabfrage)
         const handleResetStats = async () => {
             const confirmed = await this.showConfirmDialog({
                 title: t('stats_reset_btn'),
@@ -3754,9 +6500,7 @@ class TangoApp {
                 isDanger: true
             });
             if (confirmed) {
-                try {
-                    localStorage.removeItem('tango_stats');
-                } catch (e) {}
+                StorageManager.resetAllStats();
                 this.updateMenuStats();
                 audio.playClear();
             }
@@ -3765,408 +6509,39 @@ class TangoApp {
         document.getElementById('btnResetStatsModal')?.addEventListener('click', handleResetStats);
     }
 
-    startTimer() {
-        this.stopTimer();
-        this.secondsElapsed = 0;
-        this.updateTimerDisplay();
-        this.timerInterval = setInterval(() => {
-            if (this.isGameActive) {
-                this.secondsElapsed++;
-                this.updateTimerDisplay();
-            }
-        }, 1000);
-    }
-
-    stopTimer() {
-        if (this.timerInterval) {
-            clearInterval(this.timerInterval);
-            this.timerInterval = null;
-        }
-    }
-
-    updateTimerDisplay() {
-        const mins = Math.floor(this.secondsElapsed / 60).toString().padStart(2, '0');
-        const secs = (this.secondsElapsed % 60).toString().padStart(2, '0');
-        const el = document.getElementById('gameTimer');
-        if (el) el.textContent = `${mins}:${secs}`;
-    }
-
-    startTutorial(stepIndex = 0) {
-        this.currentMode = 'tutorial';
-        this.tutorialStepIndex = stepIndex;
-        const step = TUTORIAL_STEPS[stepIndex];
-        
-        this.engine.loadPuzzle({
-            size: step.size,
-            initialGrid: step.initialGrid,
-            hEdges: step.hEdges,
-            vEdges: step.vEdges
-        });
-
-        this.selectedCell = null;
-        this.hintPlacedCell = null;
-        this.movesCount = 0;
-        this.hintsUsed = 0;
-        this.solutionRevealed = false;
-        this.hideSolutionBanner();
-        this.isGameActive = true;
-        this.startTimer();
-
-        // Tutorial-Header einblenden & nach oben scrollen
-        this.scrollToTop();
-        const tutHeader = document.getElementById('tutorialBanner');
-        if (tutHeader) {
-            tutHeader.scrollTop = 0;
-            tutHeader.style.display = 'block';
-            document.getElementById('tutTitle').textContent = step.title;
-            document.getElementById('tutSubtitle').textContent = step.subtitle;
-            const mathBadge = document.getElementById('tutMathPrinciple');
-            if (mathBadge) mathBadge.style.display = 'none';
-            document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        }
-        document.getElementById('levelTitle').textContent = `Grundlagen ${stepIndex + 1}/${TUTORIAL_STEPS.length}`;
-
-        this.renderGrid();
-        this.updateKeypadVisibility();
-    }
-
-    startTutorialPro(stepIndex = 0) {
-        this.currentMode = 'tutorial_pro';
-        this.tutorialStepIndex = stepIndex;
-        const step = TUTORIAL_PRO_STEPS[stepIndex];
-        
-        this.engine.loadPuzzle({
-            size: step.size,
-            initialGrid: step.initialGrid,
-            hEdges: step.hEdges,
-            vEdges: step.vEdges
-        });
-
-        this.selectedCell = null;
-        this.hintPlacedCell = null;
-        this.movesCount = 0;
-        this.hintsUsed = 0;
-        this.solutionRevealed = false;
-        this.hideSolutionBanner();
-        this.isGameActive = true;
-        this.startTimer();
-
-        this.scrollToTop();
-        const tutHeader = document.getElementById('tutorialBanner');
-        if (tutHeader) {
-            tutHeader.scrollTop = 0;
-            tutHeader.style.display = 'block';
-            document.getElementById('tutTitle').textContent = step.title;
-            document.getElementById('tutSubtitle').textContent = step.subtitle;
-            const mathBadge = document.getElementById('tutMathPrinciple');
-            if (mathBadge) {
-                mathBadge.style.display = 'block';
-                mathBadge.textContent = step.mathPrinciple;
-            }
-            document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        }
-        document.getElementById('levelTitle').textContent = `Mathematik ${stepIndex + 1}/${TUTORIAL_PRO_STEPS.length}`;
-
-        this.renderGrid();
-        this.updateKeypadVisibility();
-    }
-
-    startTutorialPatterns(stepIndex = 0) {
-        this.currentMode = 'tutorial_patterns';
-        this.tutorialStepIndex = stepIndex;
-        const step = TUTORIAL_PATTERNS_STEPS[stepIndex];
-        
-        this.engine.loadPuzzle({
-            size: step.size,
-            initialGrid: step.initialGrid,
-            hEdges: step.hEdges,
-            vEdges: step.vEdges
-        });
-
-        this.selectedCell = null;
-        this.hintPlacedCell = null;
-        this.movesCount = 0;
-        this.hintsUsed = 0;
-        this.solutionRevealed = false;
-        this.hideSolutionBanner();
-        this.isGameActive = true;
-        this.startTimer();
-
-        this.scrollToTop();
-        const tutHeader = document.getElementById('tutorialBanner');
-        if (tutHeader) {
-            tutHeader.scrollTop = 0;
-            tutHeader.style.display = 'block';
-            document.getElementById('tutTitle').textContent = step.title;
-            document.getElementById('tutSubtitle').textContent = step.subtitle;
-            const mathBadge = document.getElementById('tutMathPrinciple');
-            if (mathBadge) {
-                mathBadge.style.display = 'block';
-                mathBadge.textContent = step.mathPrinciple;
-            }
-            document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        }
-        document.getElementById('levelTitle').textContent = `Muster ${stepIndex + 1}/${TUTORIAL_PATTERNS_STEPS.length}`;
-
-        this.renderGrid();
-        this.updateKeypadVisibility();
-    }
-
-    startCampaignLevel(levelIndex) {
-        this.currentMode = 'campaign';
-        this.campaignLevelIndex = levelIndex;
-        const level = getCampaignLevel(levelIndex);
-
-        this.engine.loadPuzzle(level);
-        this.scrollToTop();
-        this.selectedCell = null;
-        this.hintPlacedCell = null;
-        this.movesCount = 0;
-        this.hintsUsed = 0;
-        this.solutionRevealed = false;
-        this.hideSolutionBanner();
-        this.isGameActive = true;
-        this.startTimer();
-
-        const tutHeader = document.getElementById('tutorialBanner');
-        if (tutHeader) tutHeader.style.display = 'none';
-
-        document.getElementById('levelTitle').textContent = `${t('status_level')} ${levelIndex + 1}`;
-        this.renderGrid();
-        this.updateKeypadVisibility();
-    }
-
-    isDailyPuzzleCompleted(dateStr = new Date().toISOString().slice(0, 10)) {
-        try {
-            const history = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
-            return Array.isArray(history) && history.includes(dateStr);
-        } catch (e) {
-            return false;
-        }
-    }
-
-    async requestStartDailyPuzzle() {
-        const today = new Date().toISOString().slice(0, 10);
-        if (this.isDailyPuzzleCompleted(today)) {
-            const confirmed = await this.showConfirmDialog({
-                title: t('daily_replay_title'),
-                message: t('daily_replay_confirm'),
-                confirmText: t('daily_btn_replay'),
-                cancelText: t('btn_cancel'),
-                isDanger: false
-            });
-            if (!confirmed) {
-                return;
-            }
-        }
-        this.toggleModal('menuModal', false);
-        this.startDailyPuzzle();
-    }
-
-    startDailyPuzzle() {
-        this.currentMode = 'daily';
-        const today = new Date().toISOString().slice(0, 10);
-        const puzzle = getDailyPuzzle(today);
-
-        this.engine.loadPuzzle(puzzle);
-        this.selectedCell = null;
-        this.hintPlacedCell = null;
-        this.movesCount = 0;
-        this.hintsUsed = 0;
-        this.solutionRevealed = false;
-        this.hideSolutionBanner();
-        this.isGameActive = true;
-        this.startTimer();
-
-        const tutHeader = document.getElementById('tutorialBanner');
-        if (tutHeader) tutHeader.style.display = 'none';
-
-        document.getElementById('levelTitle').textContent = `${t('nav_daily')} (${today})`;
-        this.renderGrid();
-        this.updateKeypadVisibility();
-    }
-
-    startFreePlay(size, difficulty) {
-        this.currentMode = 'free';
-        const generated = TangoGenerator.generatePuzzle({ size, difficulty });
-
-        this.engine.loadPuzzle(generated);
-        this.selectedCell = null;
-        this.hintPlacedCell = null;
-        this.movesCount = 0;
-        this.hintsUsed = 0;
-        this.solutionRevealed = false;
-        this.hideSolutionBanner();
-        this.isGameActive = true;
-        this.startTimer();
-
-        const tutHeader = document.getElementById('tutorialBanner');
-        if (tutHeader) tutHeader.style.display = 'none';
-
-        document.getElementById('levelTitle').textContent = `${t('nav_free')} ${size}×${size}`;
-        this.renderGrid();
-        this.updateKeypadVisibility();
-    }
-
-    restartCurrentPuzzle() {
-        this.engine.loadPuzzle({
-            size: this.engine.size,
-            initialGrid: this.engine.initialGrid,
-            hEdges: this.engine.hEdges,
-            vEdges: this.engine.vEdges,
-            solution: this.engine.solution
-        });
-        this.selectedCell = null;
-        this.hintPlacedCell = null;
-        this.movesCount = 0;
-        this.hintsUsed = 0;
-        this.solutionRevealed = false;
-        this.hideSolutionBanner();
-        this.isGameActive = true;
-        this.startTimer();
-        this.renderGrid();
-        audio.playClear();
-    }
-
-    toggleNoteMode() {
-        this.isNoteMode = !this.isNoteMode;
-        const btn = document.getElementById('btnNotes');
-        if (btn) btn.classList.toggle('active', this.isNoteMode);
-        audio.vibrate(30);
-    }
-
-    updateKeypadVisibility() {
-        const keypadEl = document.getElementById('gameKeypad');
-        if (keypadEl) {
-            keypadEl.style.display = (this.inputMode === 'keypad') ? 'flex' : 'none';
-        }
-    }
-
-    scrollToTop() {
-        const tutHeader = document.getElementById('tutorialBanner');
-        if (tutHeader) tutHeader.scrollTop = 0;
-        const appRoot = document.getElementById('appRoot');
-        if (appRoot) appRoot.scrollTop = 0;
-        window.scrollTo(0, 0);
+    applyTheme(theme) {
+        ThemeManager.applyTheme(theme);
+        this.currentTheme = theme;
+        this.updateMenuSettings();
     }
 
     renderGrid() {
         const container = document.getElementById('boardContainer');
         if (!container) return;
-
+        container.className = 'board-container';
+        container.removeAttribute('style');
         container.innerHTML = '';
-        const size = this.engine.size;
-        container.style.setProperty('--grid-size', size);
 
-        // Erstelle Gitter-Element
-        const gridEl = document.createElement('div');
-        gridEl.className = `tango-grid size-${size}`;
+        this.activePlugin.renderBoard(container, this.engine, this.getState(), (cellEl, r, c) => {
+            this.attachCellEvents(cellEl, r, c);
+        });
 
-        const validation = this.autoCheck ? this.engine.validateRules() : { conflictCells: new Set() };
-        const solution = this.solutionRevealed ? this.engine.getSolution() : null;
+        this.renderKeypad();
+    }
 
-        for (let r = 0; r < size; r++) {
-            const rowEl = document.createElement('div');
-            rowEl.className = 'grid-row';
+    renderKeypad() {
+        const keypadContainer = document.getElementById('gameKeypad');
+        if (!keypadContainer) return;
 
-            for (let c = 0; c < size; c++) {
-                const cellEl = document.createElement('div');
-                cellEl.className = 'grid-cell';
-                cellEl.dataset.r = r;
-                cellEl.dataset.c = c;
-
-                const val = this.engine.grid[r][c];
-                const isLocked = this.engine.locked[r][c];
-                const isConflict = !this.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
-                const isSelected = !this.solutionRevealed && this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
-                const isHintShimmer = !this.solutionRevealed && this.hintPlacedCell && this.hintPlacedCell.r === r && this.hintPlacedCell.c === c;
-
-                if (isLocked) cellEl.classList.add('locked');
-                if (isConflict) cellEl.classList.add('conflict');
-                if (isSelected) cellEl.classList.add('selected');
-                if (isHintShimmer) cellEl.classList.add('hint-shimmer');
-
-                if (this.solutionRevealed && solution) {
-                    const solVal = solution[r][c];
-                    if (val === EMPTY) {
-                        cellEl.classList.add('cell-revealed-solution');
-                        cellEl.innerHTML = `<span class="revealed-ghost ${solVal === SUN ? 'ghost-sun' : 'ghost-moon'}">${solVal === SUN ? getSunSvg('tango-sun') : getMoonSvg('tango-moon')}</span>`;
-                    } else if (val === solVal) {
-                        cellEl.classList.add(val === SUN ? 'val-sun' : 'val-moon', 'cell-revealed-correct');
-                        cellEl.innerHTML = `<span class="${val === SUN ? 'icon-sun' : 'icon-moon'}">${val === SUN ? getSunSvg('cell-sun') : getMoonSvg('cell-moon')}</span>`;
-                    } else {
-                        // Fehlerhafter Zug des Spielers (wird rot hervorgehoben mit Lösungssymbol)
-                        cellEl.classList.add(val === SUN ? 'val-sun' : 'val-moon', 'cell-revealed-error');
-                        const wrongIcon = val === SUN ? getSunSvg('cell-sun') : getMoonSvg('cell-moon');
-                        const correctIcon = solVal === SUN ? getSunSvg('mini-icon') : getMoonSvg('mini-icon');
-                        cellEl.innerHTML = `
-                            <span class="wrong-marker-cross">✕</span>
-                            <span class="${val === SUN ? 'icon-sun' : 'icon-moon'}">${wrongIcon}</span>
-                            <div class="revealed-correct-sub">
-                                <span class="mini-badge ${solVal === SUN ? 'badge-sun' : 'badge-moon'}">${correctIcon}</span>
-                            </div>
-                        `;
-                    }
-                } else if (val === SUN) {
-                    cellEl.classList.add('val-sun');
-                    cellEl.innerHTML = `<span class="icon-sun">${getSunSvg('cell-sun')}</span>`;
-                } else if (val === MOON) {
-                    cellEl.classList.add('val-moon');
-                    cellEl.innerHTML = `<span class="icon-moon">${getMoonSvg('cell-moon')}</span>`;
-                } else {
-                    // Marker für Tutorial-Zielzellen
-                    const tutStep = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS[this.tutorialStepIndex] : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS[this.tutorialStepIndex] : ((this.currentMode === 'tutorial_patterns') ? TUTORIAL_PATTERNS_STEPS[this.tutorialStepIndex] : null));
-                    const targetCellInfo = (tutStep && tutStep.targetCells) ? tutStep.targetCells.find(t => t.r === r && t.c === c) : null;
-                    if (targetCellInfo) {
-                        cellEl.classList.add('tutorial-target');
-                        const ghostEl = document.createElement('span');
-                        ghostEl.className = `target-ghost ${targetCellInfo.val === SUN ? 'ghost-sun' : 'ghost-moon'}`;
-                        ghostEl.innerHTML = targetCellInfo.val === SUN ? getSunSvg('ghost-icon') : getMoonSvg('ghost-icon');
-                        cellEl.appendChild(ghostEl);
-                    } else {
-                        // Zeige eventuelle Notizen
-                        const notes = this.engine.notes[r][c];
-                        if (notes && notes.size > 0) {
-                            const noteEl = document.createElement('div');
-                            noteEl.className = 'cell-notes';
-                            if (notes.has(SUN)) noteEl.innerHTML += `<span class="mini-sun">${getSunSvg('mini-icon')}</span>`;
-                            if (notes.has(MOON)) noteEl.innerHTML += `<span class="mini-moon">${getMoonSvg('mini-icon')}</span>`;
-                            cellEl.appendChild(noteEl);
-                        }
-                    }
-                }
-
-                // Event Listener für Zelle (Klick & Gedrückt halten)
-                this.attachCellEvents(cellEl, r, c);
-
-                // Horizontale Kante rechts neben der Zelle (falls vorhanden)
-                if (c < size - 1) {
-                    const hEdge = this.engine.hEdges[r][c];
-                    if (hEdge !== EDGE_NONE) {
-                        const edgeEl = document.createElement('div');
-                        edgeEl.className = `edge-marker edge-h ${hEdge === EDGE_EQUAL ? 'edge-equal' : 'edge-opposite'}`;
-                        edgeEl.textContent = hEdge === EDGE_EQUAL ? '=' : '×';
-                        cellEl.appendChild(edgeEl);
-                    }
-                }
-
-                // Vertikale Kante unterhalb der Zelle (falls vorhanden)
-                if (r < size - 1) {
-                    const vEdge = this.engine.vEdges[r][c];
-                    if (vEdge !== EDGE_NONE) {
-                        const edgeEl = document.createElement('div');
-                        edgeEl.className = `edge-marker edge-v ${vEdge === EDGE_EQUAL ? 'edge-equal' : 'edge-opposite'}`;
-                        edgeEl.textContent = vEdge === EDGE_EQUAL ? '=' : '×';
-                        cellEl.appendChild(edgeEl);
-                    }
-                }
-
-                rowEl.appendChild(cellEl);
-            }
-            gridEl.appendChild(rowEl);
+        const inputConfig = this.activePlugin.getInputConfig();
+        if (inputConfig.type === 'keypad' || this.inputMode === 'keypad') {
+            keypadContainer.style.display = 'flex';
+            this.activePlugin.renderKeypad(keypadContainer, this.engine, this.getState(), (val) => {
+                this.applyKeypadInput(val);
+            });
+        } else {
+            keypadContainer.style.display = 'none';
         }
-
-        container.appendChild(gridEl);
     }
 
     attachCellEvents(cellEl, r, c) {
@@ -4184,7 +6559,7 @@ class TangoApp {
             holdTimer = setTimeout(() => {
                 didLongPress = true;
                 this.handleCellLongPress(r, c);
-            }, 350); // 350ms für gedrückt halten = Mond
+            }, 350);
         };
 
         const cancelHold = () => {
@@ -4194,7 +6569,6 @@ class TangoApp {
             }
         };
 
-        // Pointer Events (Mobile & Desktop)
         cellEl.addEventListener('pointerdown', (e) => {
             startHold(e.clientX, e.clientY);
         });
@@ -4210,7 +6584,6 @@ class TangoApp {
         cellEl.addEventListener('pointercancel', () => cancelHold());
         cellEl.addEventListener('pointerleave', () => cancelHold());
 
-        // Normaler Klick / Tipp
         cellEl.addEventListener('click', (e) => {
             if (didLongPress) {
                 didLongPress = false;
@@ -4222,61 +6595,53 @@ class TangoApp {
         });
     }
 
-    /**
-     * Gedrückt halten = Direkt Mond (🌙) setzen
-     */
-    handleCellLongPress(r, c) {
-        if (!this.isGameActive || this.engine.locked[r][c]) return;
-
-        this.ignoreClickUntil = Date.now() + 500; // Block fake click after long press release
-        this.selectedCell = { r, c };
-        this.hintPlacedCell = null;
-
-        if (this.isNoteMode) {
-            this.engine.setCellValue(r, c, MOON, true);
-        } else {
-            this.engine.setCellValue(r, c, MOON);
-            this.movesCount++;
-            audio.playMoon();
-        }
-
-        this.renderGrid();
-        this.checkCompletion();
-    }
-
-    handleCellClick(r, c, e) {
-        if (Date.now() < this.ignoreClickUntil) {
-            if (e) {
-                e.preventDefault();
-                e.stopPropagation();
+    handleCellClick(r, c) {
+        if (!this.isGameActive || this.engine.locked[r][c]) {
+            if (this.engine.locked[r][c]) {
+                this.selectedCell = { r, c };
+                this.renderGrid();
             }
             return;
         }
 
-        if (this.solutionRevealed || !this.isGameActive || this.engine.locked[r][c]) return;
-
+        const isSameCell = this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
         this.selectedCell = { r, c };
+        this.hintPlacedCell = null;
 
-        if (this.inputMode === 'keypad') {
+        const inputConfig = this.activePlugin.getInputConfig();
+
+        if (inputConfig.type === 'keypad') {
+            // Wenn dieselbe Zelle nochmals angetippt wird: Wert direkt weiterschalten
+            if (isSameCell) {
+                if (this.isNoteMode) {
+                    audio.vibrate(20);
+                } else {
+                    const nextVal = this.engine.cycleCellValue(r, c);
+                    this.movesCount++;
+                    if (nextVal > 0) {
+                        audio.playDigit(nextVal);
+                    } else {
+                        audio.playClear();
+                    }
+                    this.renderGrid();
+                    this.checkCompletion();
+                    return;
+                }
+            }
             this.renderGrid();
+            audio.vibrate(20);
             return;
         }
 
-        this.hintPlacedCell = null;
-
-        // Bedienkonzept:
-        // 1x Tippen = ☀️ (Sonne)
-        // 2x Tippen = 🌙 (Mond)
-        // 3x Tippen = Löschen (Empty)
+        // Direktes Durchschalten (Cycle-Modus für Tango)
         if (this.isNoteMode) {
-            // Notiz-Zyklus: Leer -> ☀️ (Sonne) -> 🌙 (Mond) -> ☀️🌙 (Beide) -> Leer (Löschen)
             this.engine.cycleNoteValue(r, c);
-            audio.playClear();
+            audio.vibrate(25);
         } else {
             const nextVal = this.engine.cycleCellValue(r, c);
             this.movesCount++;
-            if (nextVal === SUN) audio.playSun();
-            else if (nextVal === MOON) audio.playMoon();
+            if (nextVal === 1) audio.playSun();
+            else if (nextVal === 2) audio.playMoon();
             else audio.playClear();
         }
 
@@ -4284,36 +6649,334 @@ class TangoApp {
         this.checkCompletion();
     }
 
-    applyKeypadInput(val) {
-        if (!this.selectedCell || !this.isGameActive) return;
-        const { r, c } = this.selectedCell;
-        if (this.engine.locked[r][c]) return;
+    handleCellLongPress(r, c) {
+        if (!this.isGameActive || this.engine.locked[r][c]) return;
 
+        this.ignoreClickUntil = Date.now() + 500;
+        this.selectedCell = { r, c };
         this.hintPlacedCell = null;
-        this.engine.setCellValue(r, c, val, this.isNoteMode);
-        this.movesCount++;
 
-        if (val === SUN) audio.playSun();
-        else if (val === MOON) audio.playMoon();
-        else audio.playClear();
+        if (this.activePlugin.id === 'tango') {
+            if (this.isNoteMode) {
+                this.engine.setCellValue(r, c, 2, true);
+            } else {
+                this.engine.setCellValue(r, c, 2);
+                this.movesCount++;
+                audio.playMoon();
+            }
+        }
 
         this.renderGrid();
         this.checkCompletion();
     }
 
+    applyKeypadInput(val) {
+        if (!this.isGameActive) return;
+
+        // Falls noch keine Zelle gewählt ist: wähle erste leere Zelle
+        if (!this.selectedCell) {
+            for (let r = 0; r < this.engine.size; r++) {
+                for (let c = 0; c < this.engine.size; c++) {
+                    if (!this.engine.locked[r][c] && this.engine.grid[r][c] === 0) {
+                        this.selectedCell = { r, c };
+                        break;
+                    }
+                }
+                if (this.selectedCell) break;
+            }
+        }
+        if (!this.selectedCell) return;
+
+        const { r, c } = this.selectedCell;
+        if (this.engine.locked[r][c]) return;
+
+        this.hintPlacedCell = null;
+
+        if (this.isNoteMode) {
+            this.engine.setCellValue(r, c, val, true);
+            audio.vibrate(25);
+        } else {
+            this.engine.setCellValue(r, c, val);
+            this.movesCount++;
+            if (val === 0) {
+                audio.playClear();
+            } else if (this.activePlugin.id === 'tango') {
+                if (val === 1) audio.playSun();
+                else if (val === 2) audio.playMoon();
+            } else {
+                audio.playDigit(val);
+            }
+        }
+
+        this.renderGrid();
+        this.checkCompletion();
+    }
+
+    prepareCampaignLevel(levelIndex) {
+        this.currentMode = 'campaign';
+        this.campaignLevelIndex = levelIndex;
+        const level = this.activePlugin.getCampaignLevel(levelIndex);
+
+        this.engine = this.activePlugin.createEngine(level.size);
+        this.engine.loadPuzzle(level);
+
+        this.scrollToTop();
+        this.selectedCell = null;
+        this.hintPlacedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = false;
+        this.timer.stop();
+
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) tutHeader.style.display = 'none';
+
+        const levelTitleEl = document.getElementById('levelTitle');
+        if (levelTitleEl) {
+            levelTitleEl.textContent = `${this.activePlugin.name} ${t('status_level')} ${levelIndex + 1}`;
+        }
+
+        this.renderGrid();
+    }
+
+    startCampaignLevel(levelIndex) {
+        this.prepareCampaignLevel(levelIndex);
+        this.isGameActive = true;
+        this.timer.start();
+    }
+
+    startTutorial(stepIndex = 0) {
+        this.currentMode = 'tutorial';
+        this.tutorialSectionId = 'basics';
+        this.tutorialStepIndex = stepIndex;
+
+        const tutData = this.activePlugin.getTutorialSteps();
+        const step = tutData.sections.find(s => s.id === 'basics')?.steps[stepIndex];
+        if (!step) {
+            this.startCampaignLevel(0);
+            return;
+        }
+
+        this.engine = this.activePlugin.createEngine(step.size);
+        this.engine.loadPuzzle(step);
+
+        this.selectedCell = null;
+        this.hintPlacedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = true;
+        this.timer.start();
+
+        this.scrollToTop();
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) {
+            tutHeader.scrollTop = 0;
+            tutHeader.style.display = 'block';
+            document.getElementById('tutTitle').textContent = step.title;
+            document.getElementById('tutSubtitle').textContent = step.subtitle;
+            const mathBadge = document.getElementById('tutMathPrinciple');
+            if (mathBadge) mathBadge.style.display = 'none';
+            document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+        document.getElementById('levelTitle').textContent = `${this.activePlugin.name} Grundlagen ${stepIndex + 1}`;
+
+        this.renderGrid();
+    }
+
+    startTutorialPro(stepIndex = 0) {
+        this.currentMode = 'tutorial_pro';
+        this.tutorialSectionId = 'math';
+        this.tutorialStepIndex = stepIndex;
+
+        const tutData = this.activePlugin.getTutorialSteps();
+        const sec = tutData.sections[1];
+        const step = sec?.steps[stepIndex];
+        if (!step) {
+            this.startCampaignLevel(0);
+            return;
+        }
+
+        this.engine = this.activePlugin.createEngine(step.size);
+        this.engine.loadPuzzle(step);
+
+        this.selectedCell = null;
+        this.hintPlacedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = true;
+        this.timer.start();
+
+        this.scrollToTop();
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) {
+            tutHeader.scrollTop = 0;
+            tutHeader.style.display = 'block';
+            document.getElementById('tutTitle').textContent = step.title;
+            document.getElementById('tutSubtitle').textContent = step.subtitle;
+            const mathBadge = document.getElementById('tutMathPrinciple');
+            if (mathBadge) {
+                mathBadge.style.display = step.mathPrinciple ? 'block' : 'none';
+                mathBadge.textContent = step.mathPrinciple || '';
+            }
+            document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+        document.getElementById('levelTitle').textContent = `${this.activePlugin.name} ${sec.name} ${stepIndex + 1}`;
+
+        this.renderGrid();
+    }
+
+    startTutorialPatterns(stepIndex = 0) {
+        this.currentMode = 'tutorial_patterns';
+        this.tutorialSectionId = 'patterns';
+        this.tutorialStepIndex = stepIndex;
+
+        const tutData = this.activePlugin.getTutorialSteps();
+        const sec = tutData.sections[2];
+        const step = sec?.steps[stepIndex];
+        if (!step) {
+            this.startCampaignLevel(0);
+            return;
+        }
+
+        this.engine = this.activePlugin.createEngine(step.size);
+        this.engine.loadPuzzle(step);
+
+        this.selectedCell = null;
+        this.hintPlacedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = true;
+        this.timer.start();
+
+        this.scrollToTop();
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) {
+            tutHeader.scrollTop = 0;
+            tutHeader.style.display = 'block';
+            document.getElementById('tutTitle').textContent = step.title;
+            document.getElementById('tutSubtitle').textContent = step.subtitle;
+            const mathBadge = document.getElementById('tutMathPrinciple');
+            if (mathBadge) {
+                mathBadge.style.display = step.mathPrinciple ? 'block' : 'none';
+                mathBadge.textContent = step.mathPrinciple || '';
+            }
+            document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+        document.getElementById('levelTitle').textContent = `${this.activePlugin.name} Muster ${stepIndex + 1}`;
+
+        this.renderGrid();
+    }
+
+    async requestStartDailyPuzzle() {
+        const today = new Date().toISOString().slice(0, 10);
+        if (this.isDailyPuzzleCompleted(today)) {
+            const confirmed = await this.showConfirmDialog({
+                title: t('daily_replay_title'),
+                message: t('daily_replay_confirm'),
+                confirmText: t('daily_btn_replay'),
+                cancelText: t('btn_cancel'),
+                isDanger: false
+            });
+            if (!confirmed) return;
+        }
+        this.toggleModal('menuModal', false);
+        this.startDailyPuzzle();
+    }
+
+    startDailyPuzzle() {
+        this.currentMode = 'daily';
+        const today = new Date().toISOString().slice(0, 10);
+
+        // Rotiere deterministisch zwischen allen registrierten Puzzles
+        const dailyPlugin = puzzleRegistry.getRandomForDaily(today);
+        if (dailyPlugin.id !== this.activePlugin.id) {
+            this.activePlugin = puzzleRegistry.activate(dailyPlugin.id);
+        }
+
+        const puzzle = this.activePlugin.getDailyConfig(today);
+        this.engine = this.activePlugin.createEngine(puzzle.size);
+        this.engine.loadPuzzle(puzzle);
+
+        this.selectedCell = null;
+        this.hintPlacedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = true;
+        this.timer.start();
+
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) tutHeader.style.display = 'none';
+
+        document.getElementById('levelTitle').textContent = `${t('nav_daily')}: ${this.activePlugin.name} (${today})`;
+        this.renderGrid();
+    }
+
+    startFreePlay(size, difficulty) {
+        this.currentMode = 'free';
+        const generated = this.activePlugin.generatePuzzle({ size, difficulty });
+
+        this.engine = this.activePlugin.createEngine(size);
+        this.engine.loadPuzzle(generated);
+
+        this.selectedCell = null;
+        this.hintPlacedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = true;
+        this.timer.start();
+
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) tutHeader.style.display = 'none';
+
+        document.getElementById('levelTitle').textContent = `${this.activePlugin.name} ${t('nav_free')} ${size}×${size}`;
+        this.renderGrid();
+    }
+
+    restartCurrentPuzzle() {
+        this.engine.loadPuzzle({
+            size: this.engine.size,
+            initialGrid: this.engine.initialGrid,
+            hEdges: this.engine.hEdges,
+            vEdges: this.engine.vEdges,
+            solution: this.engine.solution
+        });
+        this.selectedCell = null;
+        this.hintPlacedCell = null;
+        this.movesCount = 0;
+        this.hintsUsed = 0;
+        this.solutionRevealed = false;
+        this.hideSolutionBanner();
+        this.isGameActive = true;
+        this.timer.start();
+        this.renderGrid();
+        audio.playClear();
+    }
+
     handleUndo() {
-        const action = this.engine.undo();
-        if (action) {
-            this.hintPlacedCell = null;
+        if (!this.isGameActive) return;
+        const res = this.engine.undo();
+        if (res) {
             audio.playClear();
             this.renderGrid();
         }
     }
 
     handleRedo() {
-        const action = this.engine.redo();
-        if (action) {
-            this.hintPlacedCell = null;
+        if (!this.isGameActive) return;
+        const res = this.engine.redo();
+        if (res) {
             audio.playClear();
             this.renderGrid();
         }
@@ -4323,74 +6986,87 @@ class TangoApp {
         if (!this.isGameActive || this.solutionRevealed) return;
 
         const MAX_HINTS = 3;
-        const applyBtn = document.getElementById('btnHintApply');
-        const hintTitleEl = document.querySelector('#hintModal .modal-title');
-
         if (this.hintsUsed >= MAX_HINTS) {
-            // Öffne Sicherheitsabfrage zur Lösungsaufdeckung
             this.toggleModal('confirmRevealModal', true);
-            audio.playError();
             return;
         }
 
-        // 1. Priorität: Fehlerprüfung im bisherigen Lösungsweg
-        const mistake = this.engine.findMistakes();
-        if (mistake) {
-            this.currentHint = {
-                r: mistake.r,
-                c: mistake.c,
-                value: mistake.expectedVal,
-                highlightCells: mistake.highlightCells
+        const hint = this.activePlugin.getHint(this.engine, { focusCell: this.selectedCell });
+        if (!hint) {
+            alert(t('hint_none_found') || 'Kein eindeutiger logischer Schritt gefunden.');
+            return;
+        }
+
+        this.hintsUsed++;
+        this.currentHint = hint;
+        audio.playHint();
+
+        const titleEl = document.getElementById('hintModalTitle');
+        const descEl = document.getElementById('hintModalDesc');
+        const btnApply = document.getElementById('btnHintApply');
+
+        if (titleEl) titleEl.textContent = hint.strategy || t('hint_title');
+        if (descEl) descEl.textContent = hint.message || '';
+
+        if (btnApply) {
+            const hasMove = (hint.value !== undefined || hint.expectedVal !== undefined);
+            btnApply.style.display = hasMove ? 'block' : 'none';
+            btnApply.onclick = () => {
+                audio.vibrate(25);
+                this.toggleModal('hintModal', false);
+                if (hint.r !== undefined && hint.c !== undefined && hint.value !== undefined) {
+                    this.selectedCell = { r: hint.r, c: hint.c };
+                    this.hintPlacedCell = { r: hint.r, c: hint.c };
+                    this.engine.setCellValue(hint.r, hint.c, hint.value);
+                    this.movesCount++;
+                    if (this.activePlugin.id === 'tango') {
+                        if (hint.value === 1) audio.playSun();
+                        else if (hint.value === 2) audio.playMoon();
+                    } else {
+                        audio.playDigit(hint.value);
+                    }
+                    this.renderGrid();
+                    this.checkCompletion();
+                } else if (hint.type === 'rule_violation' || hint.type === 'solution_mismatch') {
+                    if (hint.r !== undefined && hint.c !== undefined) {
+                        this.selectedCell = { r: hint.r, c: hint.c };
+                        this.engine.setCellValue(hint.r, hint.c, hint.expectedVal || 0);
+                        audio.playClear();
+                        this.renderGrid();
+                        this.checkCompletion();
+                    }
+                }
             };
-            this.hintPlacedCell = { r: mistake.r, c: mistake.c };
-            this.hintsUsed++;
-            audio.playError();
-
-            if (applyBtn) {
-                applyBtn.style.display = 'inline-block';
-                applyBtn.textContent = t('hint_button_fix');
-            }
-            if (hintTitleEl) hintTitleEl.textContent = `${t('hint_error_title')} (${this.hintsUsed}/${MAX_HINTS})`;
-            document.getElementById('hintText').textContent = mistake.message;
-            this.toggleModal('hintModal', true);
-
-            this.renderGrid();
-            if (mistake.highlightCells) {
-                mistake.highlightCells.forEach(cell => {
-                    const el = document.querySelector(`.grid-cell[data-r="${cell.r}"][data-c="${cell.c}"]`);
-                    if (el) el.classList.add('hint-highlight', 'error-highlight');
-                });
-            }
-            return;
         }
 
-        // 2. Priorität: Regulärer logischer Tipp für den nächsten Zug (mit Fokus auf ausgewählte Zelle)
-        const hint = TangoSolver.findLogicalHint(this.engine, {
-            focusCell: this.selectedCell || null
-        });
-        if (hint) {
-            this.currentHint = hint;
-            this.hintPlacedCell = { r: hint.r, c: hint.c };
-            this.hintsUsed++;
-            audio.playHint();
+        this.toggleModal('hintModal', true);
+    }
 
-            if (applyBtn) {
-                applyBtn.style.display = 'inline-block';
-                applyBtn.textContent = t('hint_button_apply');
-            }
-            if (hintTitleEl) hintTitleEl.textContent = `${t('hint_title')} (${this.hintsUsed}/${MAX_HINTS})`;
-            document.getElementById('hintText').textContent = hint.message;
-            this.toggleModal('hintModal', true);
+    revealSolutionAndSurrender() {
+        this.toggleModal('confirmRevealModal', false);
+        this.solutionRevealed = true;
+        this.isGameActive = false;
+        this.timer.stop();
+        audio.playError();
 
-            // Markiere die betroffenen Zellen temporär
-            this.renderGrid();
-            if (hint.highlightCells) {
-                hint.highlightCells.forEach(cell => {
-                    const el = document.querySelector(`.grid-cell[data-r="${cell.r}"][data-c="${cell.c}"]`);
-                    if (el) el.classList.add('hint-highlight');
-                });
-            }
+        if (this.currentMode === 'campaign' || this.currentMode === 'free') {
+            StatsManager.recordGame(this.activePlugin.id, this.engine.size, this.secondsElapsed, false);
         }
+
+        this.renderGrid();
+        const banner = document.getElementById('solutionRevealedBanner');
+        if (banner) banner.style.display = 'flex';
+    }
+
+    openSolutionRevealedModal() {
+        this.hideSolutionBanner();
+        const formatted = formatTime(this.secondsElapsed);
+        const revealTimeEl = document.getElementById('revealTime');
+        const revealMovesEl = document.getElementById('revealMoves');
+        if (revealTimeEl) revealTimeEl.textContent = formatted;
+        if (revealMovesEl) revealMovesEl.textContent = this.movesCount;
+
+        this.toggleModal('solutionRevealedModal', true);
     }
 
     hideSolutionBanner() {
@@ -4398,57 +7074,32 @@ class TangoApp {
         if (banner) banner.style.display = 'none';
     }
 
-    revealSolutionAndSurrender() {
-        this.ignoreClickUntil = Date.now() + 600;
-        this.toggleModal('confirmRevealModal', false);
-        this.isGameActive = false;
-        this.solutionRevealed = true;
-        this.stopTimer();
-        audio.playClear();
+    checkCompletion() {
+        const tutSections = this.activePlugin.getTutorialSteps().sections;
+        let activeTutStep = null;
 
-        // Statistiken erfassen: Niederlage verbuchen (won = false)
-        if (this.currentMode === 'campaign' || this.currentMode === 'daily' || this.currentMode === 'free') {
-            this.recordGameStats(false);
+        if (this.currentMode === 'tutorial') {
+            activeTutStep = tutSections.find(s => s.id === 'basics')?.steps[this.tutorialStepIndex];
+        } else if (this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_advanced') {
+            activeTutStep = tutSections[1]?.steps[this.tutorialStepIndex];
+        } else if (this.currentMode === 'tutorial_patterns') {
+            activeTutStep = tutSections[2]?.steps[this.tutorialStepIndex];
         }
 
-        // Rendere das Spielfeld mit visualisierten Fehlern und hinterlegter Lösung
-        this.renderGrid();
-
-        // Zeige den Lösungs-Banner im Spielfeld an (Spieler kann die Lösung in Ruhe ansehen)
-        const banner = document.getElementById('solutionRevealedBanner');
-        if (banner) banner.style.display = 'flex';
-    }
-
-    openSolutionRevealedModal() {
-        this.hideSolutionBanner();
-
-        const mins = Math.floor(this.secondsElapsed / 60).toString().padStart(2, '0');
-        const secs = (this.secondsElapsed % 60).toString().padStart(2, '0');
-        const revealTimeEl = document.getElementById('revealTime');
-        const revealMovesEl = document.getElementById('revealMoves');
-        if (revealTimeEl) revealTimeEl.textContent = `${mins}:${secs}`;
-        if (revealMovesEl) revealMovesEl.textContent = this.movesCount;
-
-        this.toggleModal('solutionRevealedModal', true);
-    }
-
-    checkCompletion() {
-        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
-            const steps = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS : TUTORIAL_PATTERNS_STEPS);
-            const step = steps[this.tutorialStepIndex];
+        if (activeTutStep) {
             let stepSuccess = true;
-            if (step && step.targetCells) {
-                for (const target of step.targetCells) {
+            if (activeTutStep.targetCells) {
+                for (const target of activeTutStep.targetCells) {
                     if (this.engine.grid[target.r][target.c] !== target.val) {
                         stepSuccess = false;
                         break;
                     }
                 }
-            } else if (step && !step.targetCells) {
+            } else {
                 stepSuccess = this.engine.isCompleted();
             }
             if (stepSuccess) {
-                this.onLevelVictory(step.explanation || '');
+                this.onLevelVictory(activeTutStep.explanation || '');
             }
             return;
         }
@@ -4460,36 +7111,30 @@ class TangoApp {
 
     onLevelVictory(customExplanation = null) {
         this.isGameActive = false;
-        this.stopTimer();
+        this.timer.stop();
         audio.playVictory();
         animations.launchConfetti();
 
-        // Statistiken & Fortschritt speichern (Tutorials nicht in Statistik aufnehmen)
         if (this.currentMode === 'campaign') {
             this.saveCampaignProgress(this.campaignLevelIndex);
-            this.recordGameStats(true);
+            StatsManager.recordGame(this.activePlugin.id, this.engine.size, this.secondsElapsed, true);
         } else if (this.currentMode === 'daily') {
             this.saveDailyProgress();
-            this.recordGameStats(true);
+            StatsManager.recordGame(this.activePlugin.id, this.engine.size, this.secondsElapsed, true);
         } else if (this.currentMode === 'free') {
-            this.recordGameStats(true);
+            StatsManager.recordGame(this.activePlugin.id, this.engine.size, this.secondsElapsed, true);
         }
 
-        const mins = Math.floor(this.secondsElapsed / 60).toString().padStart(2, '0');
-        const secs = (this.secondsElapsed % 60).toString().padStart(2, '0');
-        document.getElementById('victoryTime').textContent = `${mins}:${secs}`;
-        document.getElementById('victoryMoves').textContent = this.movesCount;
+        const formatted = formatTime(this.secondsElapsed);
+        const victoryTime = document.getElementById('victoryTime');
+        const victoryMoves = document.getElementById('victoryMoves');
+        if (victoryTime) victoryTime.textContent = formatted;
+        if (victoryMoves) victoryMoves.textContent = this.movesCount;
 
         const expEl = document.getElementById('victoryExplanation');
         if (expEl) {
-            if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
-                const steps = (this.currentMode === 'tutorial') ? TUTORIAL_STEPS : ((this.currentMode === 'tutorial_pro') ? TUTORIAL_PRO_STEPS : TUTORIAL_PATTERNS_STEPS);
-                const step = steps[this.tutorialStepIndex];
-                expEl.textContent = customExplanation || step?.explanation || '';
-                expEl.style.display = expEl.textContent ? 'block' : 'none';
-            } else {
-                expEl.style.display = 'none';
-            }
+            expEl.textContent = customExplanation || '';
+            expEl.style.display = customExplanation ? 'block' : 'none';
         }
 
         setTimeout(() => {
@@ -4498,64 +7143,46 @@ class TangoApp {
     }
 
     getCompletedLevels() {
-        try {
-            return JSON.parse(localStorage.getItem('tango_campaign_completed') || '[]');
-        } catch (e) {
-            return [];
+        const key = StorageKeys.puzzleKey(this.activePlugin.id, 'campaign_completed');
+        const completed = StorageManager.getJSON(key, null);
+        if (completed !== null) return completed;
+        // Fallback für Tango
+        if (this.activePlugin.id === 'tango') {
+            return StorageManager.getJSON('tango_campaign_completed', []);
         }
+        return [];
     }
 
     saveCampaignProgress(lvlIndex) {
-        try {
-            const completed = this.getCompletedLevels();
-            if (!completed.includes(lvlIndex)) {
-                completed.push(lvlIndex);
-                localStorage.setItem('tango_campaign_completed', JSON.stringify(completed));
+        const completed = this.getCompletedLevels();
+        if (!completed.includes(lvlIndex)) {
+            completed.push(lvlIndex);
+            const key = StorageKeys.puzzleKey(this.activePlugin.id, 'campaign_completed');
+            StorageManager.setJSON(key, completed);
+            if (this.activePlugin.id === 'tango') {
+                StorageManager.setJSON('tango_campaign_completed', completed);
             }
-        } catch (e) {}
+        }
+    }
+
+    isDailyPuzzleCompleted(dateStr = new Date().toISOString().slice(0, 10)) {
+        const history = StorageManager.getJSON(StorageKeys.DAILY_HISTORY, StorageManager.getJSON('tango_daily_history', []));
+        return Array.isArray(history) && history.includes(dateStr);
     }
 
     saveDailyProgress() {
-        try {
-            const today = new Date().toISOString().slice(0, 10);
-            const history = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
-            if (!history.includes(today)) {
-                history.push(today);
-                localStorage.setItem('tango_daily_history', JSON.stringify(history));
-            }
-            this.checkDailyReminder();
-        } catch (e) {}
-    }
-
-    recordGameStats(won) {
-        // Tutorials fließen nicht in die Statistik oder Bestzeiten ein
-        if (this.currentMode === 'tutorial' || this.currentMode === 'tutorial_pro' || this.currentMode === 'tutorial_patterns') {
-            return;
+        const today = new Date().toISOString().slice(0, 10);
+        const history = StorageManager.getJSON(StorageKeys.DAILY_HISTORY, StorageManager.getJSON('tango_daily_history', []));
+        if (!history.includes(today)) {
+            history.push(today);
+            StorageManager.setJSON(StorageKeys.DAILY_HISTORY, history);
+            StorageManager.setJSON('tango_daily_history', history);
         }
-        try {
-            const stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"lost":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
-            if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
-                stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
-            }
-            stats.played = (stats.played || 0) + 1;
-            if (won) {
-                stats.won = (stats.won || 0) + 1;
-                stats.totalTime = (stats.totalTime || 0) + this.secondsElapsed;
-                if (stats.bestTime === null || stats.bestTime === undefined || this.secondsElapsed < stats.bestTime) {
-                    stats.bestTime = this.secondsElapsed;
-                }
-                const sizeKey = String(this.engine.size);
-                if (stats.bestTimes[sizeKey] === null || stats.bestTimes[sizeKey] === undefined || this.secondsElapsed < stats.bestTimes[sizeKey]) {
-                    stats.bestTimes[sizeKey] = this.secondsElapsed;
-                }
-            } else {
-                stats.lost = (stats.lost || 0) + 1;
-            }
-            localStorage.setItem('tango_stats', JSON.stringify(stats));
-        } catch (e) {}
+        this.checkDailyReminder();
     }
 
     openLevelSelectModal() {
+        this.restoreSelectedPlugin();
         if (typeof this.campaignLevelIndex === 'number' && this.campaignLevelIndex >= 0) {
             this.selectedCampaignChapter = Math.min(3, Math.max(0, Math.floor(this.campaignLevelIndex / 30)));
         }
@@ -4573,11 +7200,7 @@ class TangoApp {
         const tabs = document.querySelectorAll('#campaignChapterTabs .chapter-tab-btn');
         tabs.forEach((tab) => {
             const chap = parseInt(tab.dataset.chapter, 10);
-            if (chap === this.selectedCampaignChapter) {
-                tab.classList.add('active');
-            } else {
-                tab.classList.remove('active');
-            }
+            tab.classList.toggle('active', chap === this.selectedCampaignChapter);
         });
 
         const list = document.getElementById('levelGridList');
@@ -4608,25 +7231,23 @@ class TangoApp {
     }
 
     updateFreePlayLabels() {
-        const sizeLabels = {
-            4: t('free_size_4'),
-            6: t('free_size_6'),
-            8: t('free_size_8'),
-            10: t('free_size_10')
-        };
-        const diffLabels = {
-            'easy': t('free_diff_easy'),
-            'medium': t('free_diff_medium'),
-            'hard': t('free_diff_hard')
-        };
+        const validSizes = this.activePlugin.getSizes().map(s => s.id);
+        if (!validSizes.includes(this.freePlaySize)) {
+            this.freePlaySize = this.activePlugin.id === 'sudoku' ? 9 : (validSizes.includes(6) ? 6 : validSizes[0]);
+        }
         const lblSize = document.getElementById('lblFreePlaySizeValue');
-        if (lblSize) lblSize.textContent = sizeLabels[this.freePlaySize] || `${this.freePlaySize} × ${this.freePlaySize}`;
-
+        if (lblSize) {
+            const sizeObj = this.activePlugin.getSizes().find(s => s.id === this.freePlaySize);
+            lblSize.textContent = sizeObj ? sizeObj.label : `${this.freePlaySize} × ${this.freePlaySize}`;
+        }
         const lblDiff = document.getElementById('lblFreePlayDiffValue');
-        if (lblDiff) lblDiff.textContent = diffLabels[this.freePlayDiff] || this.freePlayDiff;
+        if (lblDiff) {
+            lblDiff.textContent = t(`free_diff_${this.freePlayDiff}`) || this.freePlayDiff;
+        }
     }
 
     openFreePlayModal() {
+        this.restoreSelectedPlugin();
         this.updateFreePlayLabels();
         this.toggleModal('freePlayModal', true);
         const btnStart = document.getElementById('btnStartFreePlay');
@@ -4693,9 +7314,9 @@ class TangoApp {
     }
 
     openCustomTimePickerModal(currentTimeStr, onSave) {
-        let [h, m] = (currentTimeStr || '09:30').split(':').map(Number);
+        let [h, m] = (currentTimeStr || '09:00').split(':').map(Number);
         if (isNaN(h)) h = 9;
-        if (isNaN(m)) m = 30;
+        if (isNaN(m)) m = 0;
 
         const updateDisplay = () => {
             const hStr = h.toString().padStart(2, '0');
@@ -4711,15 +7332,10 @@ class TangoApp {
             });
         };
 
-        const hourUp = document.getElementById('btnHourUp');
-        const hourDown = document.getElementById('btnHourDown');
-        const minUp = document.getElementById('btnMinuteUp');
-        const minDown = document.getElementById('btnMinuteDown');
-
-        if (hourUp) hourUp.onclick = () => { h = (h + 1) % 24; audio.vibrate(20); updateDisplay(); };
-        if (hourDown) hourDown.onclick = () => { h = (h - 1 + 24) % 24; audio.vibrate(20); updateDisplay(); };
-        if (minUp) minUp.onclick = () => { m = (m + 5) % 60; audio.vibrate(20); updateDisplay(); };
-        if (minDown) minDown.onclick = () => { m = (m - 5 + 60) % 60; audio.vibrate(20); updateDisplay(); };
+        document.getElementById('btnHourUp').onclick = () => { h = (h + 1) % 24; audio.vibrate(20); updateDisplay(); };
+        document.getElementById('btnHourDown').onclick = () => { h = (h - 1 + 24) % 24; audio.vibrate(20); updateDisplay(); };
+        document.getElementById('btnMinuteUp').onclick = () => { m = (m + 5) % 60; audio.vibrate(20); updateDisplay(); };
+        document.getElementById('btnMinuteDown').onclick = () => { m = (m - 5 + 60) % 60; audio.vibrate(20); updateDisplay(); };
 
         document.querySelectorAll('.time-preset-btn').forEach(btn => {
             btn.onclick = () => {
@@ -4735,107 +7351,21 @@ class TangoApp {
         if (btnSave) {
             btnSave.onclick = () => {
                 audio.vibrate(30);
-                const hStr = h.toString().padStart(2, '0');
-                const mStr = m.toString().padStart(2, '0');
-                const finalTime = `${hStr}:${mStr}`;
+                const fullTime = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
                 this.toggleModal('customTimePickerModal', false);
-                if (typeof onSave === 'function') {
-                    onSave(finalTime);
-                }
+                if (typeof onSave === 'function') onSave(fullTime);
             };
         }
 
-        const btnCancel = document.getElementById('btnCancelTimePicker');
-        if (btnCancel) {
-            btnCancel.onclick = () => this.toggleModal('customTimePickerModal', false);
-        }
-        const btnClose = document.getElementById('btnCloseTimePicker');
-        if (btnClose) {
-            btnClose.onclick = () => this.toggleModal('customTimePickerModal', false);
-        }
+        document.getElementById('btnCancelTimePicker').onclick = () => this.toggleModal('customTimePickerModal', false);
+        document.getElementById('btnCloseTimePicker').onclick = () => this.toggleModal('customTimePickerModal', false);
 
         updateDisplay();
         this.toggleModal('customTimePickerModal', true);
     }
 
-    openSettingsModal() {
-        this.openMenuTab('settings');
-    }
-
-    openStatsModal() {
-        let stats = { played: 0, won: 0, lost: 0, bestTime: null, bestTimes: { '4': null, '6': null, '8': null, '10': null }, totalTime: 0 };
-        try {
-            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"lost":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
-            if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
-                stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
-            }
-        } catch (e) {}
-
-        let dailyHistory = [];
-        try {
-            dailyHistory = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
-        } catch (e) {}
-
-        const streaks = calculateStreaks(dailyHistory);
-
-        const el = (id) => document.getElementById(id);
-        if (el('statPlayedModal')) el('statPlayedModal').textContent = stats.played || 0;
-        if (el('statWonModal')) el('statWonModal').textContent = stats.won || 0;
-        if (el('statLostModal')) el('statLostModal').textContent = stats.lost || 0;
-        if (el('statWinRateModal')) el('statWinRateModal').textContent = stats.played > 0 ? `${Math.round(((stats.won || 0) / stats.played) * 100)}%` : '0%';
-        if (el('statCurrentStreakModal')) el('statCurrentStreakModal').textContent = `${streaks.currentStreak} 🔥`;
-        if (el('statMaxStreakModal')) el('statMaxStreakModal').textContent = `${streaks.maxStreak} 🏆`;
-        if (el('statBestTime4Modal')) el('statBestTime4Modal').textContent = formatTime(stats.bestTimes['4']);
-        if (el('statBestTime6Modal')) el('statBestTime6Modal').textContent = formatTime(stats.bestTimes['6']);
-        if (el('statBestTime8Modal')) el('statBestTime8Modal').textContent = formatTime(stats.bestTimes['8']);
-        if (el('statBestTime10Modal')) el('statBestTime10Modal').textContent = formatTime(stats.bestTimes['10']);
-
-        this.toggleModal('statsModal', true);
-    }
-
-    setReminderEnabled(enabled) {
-        this.reminderEnabled = enabled;
-        try {
-            localStorage.setItem('tango_reminder_enabled', enabled);
-        } catch (e) {}
-        const remTimeRow = document.getElementById('settingReminderTimeRow');
-        if (remTimeRow) remTimeRow.style.display = enabled ? 'flex' : 'none';
-        
-        if (enabled) {
-            this.requestNotificationPermission();
-            if (window.AndroidNotification && typeof window.AndroidNotification.scheduleDailyReminder === 'function') {
-                const [remH, remM] = this.reminderTime.split(':').map(Number);
-                try {
-                    window.AndroidNotification.scheduleDailyReminder(remH, remM);
-                } catch (e) {}
-            }
-        } else {
-            if (window.AndroidNotification && typeof window.AndroidNotification.cancelDailyReminder === 'function') {
-                try {
-                    window.AndroidNotification.cancelDailyReminder();
-                } catch (e) {}
-            }
-        }
-        this.checkDailyReminder();
-    }
-
-    setReminderTime(timeStr) {
-        if (/^([01]\d|2[0-3]):[0-5]\d$/.test(timeStr)) {
-            this.reminderTime = timeStr;
-            try {
-                localStorage.setItem('tango_reminder_time', timeStr);
-            } catch (e) {}
-            if (this.reminderEnabled && window.AndroidNotification && typeof window.AndroidNotification.scheduleDailyReminder === 'function') {
-                const [remH, remM] = timeStr.split(':').map(Number);
-                try {
-                    window.AndroidNotification.scheduleDailyReminder(remH, remM);
-                } catch (e) {}
-            }
-            this.checkDailyReminder();
-        }
-    }
-
     openMenuTab(tabName = 'play') {
+        this.restoreSelectedPlugin();
         this.toggleModal('menuModal', true);
         this.switchMenuTab(tabName);
     }
@@ -4853,67 +7383,100 @@ class TangoApp {
             this.updateMenuStats();
         } else if (tabName === 'settings') {
             this.updateMenuSettings();
+        } else if (tabName === 'rules') {
+            this.updateRulesContent();
         }
     }
 
     updateMenuStats() {
-        let stats = { played: 0, won: 0, bestTime: null, bestTimes: { '4': null, '6': null, '8': null, '10': null }, totalTime: 0 };
-        try {
-            stats = JSON.parse(localStorage.getItem('tango_stats') || '{"played":0,"won":0,"bestTime":null,"bestTimes":{"4":null,"6":null,"8":null,"10":null},"totalTime":0}');
-            if (!stats.bestTimes || typeof stats.bestTimes !== 'object') {
-                stats.bestTimes = { '4': null, '6': null, '8': null, '10': null };
-            }
-        } catch (e) {}
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku']);
+        const tangoStats = StatsManager.getPuzzleStats('tango');
+        const sudokuStats = StatsManager.getPuzzleStats('sudoku');
 
-        let dailyHistory = [];
-        try {
-            dailyHistory = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
-        } catch (e) {}
+        let displayStats = allStats;
+        const currentTab = this.activeStatsTab || 'all';
 
+        if (currentTab === 'tango') {
+            displayStats = tangoStats;
+        } else if (currentTab === 'sudoku') {
+            displayStats = sudokuStats;
+        }
+        displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
+
+        const dailyHistory = StorageManager.getJSON(StorageKeys.DAILY_HISTORY, []);
         const streaks = calculateStreaks(dailyHistory);
-        
-        const statP = document.getElementById('statPlayed');
-        const statW = document.getElementById('statWon');
-        const statR = document.getElementById('statWinRate');
-        const statCurrStreak = document.getElementById('statCurrentStreak');
-        const statMaxStreak = document.getElementById('statMaxStreak');
 
-        const statT4 = document.getElementById('statBestTime4');
-        const statT6 = document.getElementById('statBestTime6');
-        const statT8 = document.getElementById('statBestTime8');
-        const statT10 = document.getElementById('statBestTime10');
+        const setTxt = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
 
-        if (statP) statP.textContent = stats.played || 0;
-        if (statW) statW.textContent = stats.won || 0;
-        if (statR) statR.textContent = stats.played > 0 ? `${Math.round(((stats.won || 0) / stats.played) * 100)}%` : '0%';
-        if (statCurrStreak) statCurrStreak.textContent = `${streaks.currentStreak} 🔥`;
-        if (statMaxStreak) statMaxStreak.textContent = `${streaks.maxStreak} 🏆`;
+        setTxt('statPlayed', displayStats.played || 0);
+        setTxt('statWon', displayStats.won || 0);
+        setTxt('statWinRate', displayStats.winRate || '0%');
+        setTxt('statCurrentStreak', `${streaks.currentStreak} 🔥`);
+        setTxt('statMaxStreak', `${streaks.maxStreak} 🏆`);
 
-        if (statT4) statT4.textContent = formatTime(stats.bestTimes['4']);
-        if (statT6) statT6.textContent = formatTime(stats.bestTimes['6']);
-        if (statT8) statT8.textContent = formatTime(stats.bestTimes['8']);
-        if (statT10) statT10.textContent = formatTime(stats.bestTimes['10']);
+        // Bestzeiten dynamisch nach aktuellem Tab rendern
+        const grid = document.getElementById('statsBestTimesGrid');
+        if (grid) {
+            while (grid.firstChild) grid.removeChild(grid.firstChild);
+            const bTimes = displayStats.bestTimes || {};
+
+            let sizesToShow = [];
+            if (currentTab === 'sudoku') {
+                sizesToShow = [
+                    { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 9, labelKey: 'stats_best_time_9' },
+                    { id: 16, labelKey: 'stats_best_time_16' }
+                ];
+            } else if (currentTab === 'tango') {
+                sizesToShow = [
+                    { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 8, labelKey: 'stats_best_time_8' },
+                    { id: 10, labelKey: 'stats_best_time_10' }
+                ];
+            } else {
+                // Gesamt-Tab
+                sizesToShow = [
+                    { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 8, labelKey: 'stats_best_time_8' },
+                    { id: 9, labelKey: 'stats_best_time_9' },
+                    { id: 10, labelKey: 'stats_best_time_10' },
+                    { id: 16, labelKey: 'stats_best_time_16' }
+                ];
+            }
+
+            sizesToShow.forEach(sz => {
+                const card = document.createElement('div');
+                card.className = 'stat-card';
+
+                const valSpan = document.createElement('span');
+                valSpan.className = 'stat-val';
+                valSpan.textContent = formatTime(bTimes[String(sz.id)]);
+
+                const lblSpan = document.createElement('span');
+                lblSpan.className = 'stat-lbl';
+                lblSpan.textContent = t(sz.labelKey) || `Bestzeit ${sz.id}×${sz.id}`;
+
+                card.appendChild(valSpan);
+                card.appendChild(lblSpan);
+                grid.appendChild(card);
+            });
+        }
     }
 
     updateMenuSettings() {
-        const themeLabels = {
-            'dark': t('setting_theme_dark'),
-            'amoled': t('setting_theme_amoled'),
-            'light': t('setting_theme_light'),
-            'wood': t('setting_theme_wood'),
-            'cyberpunk': t('setting_theme_cyberpunk')
-        };
         const lblTheme = document.getElementById('lblThemeValue');
-        if (lblTheme) lblTheme.textContent = themeLabels[this.currentTheme] || this.currentTheme;
+        if (lblTheme) {
+            const th = THEMES.find(t => t.id === this.currentTheme);
+            lblTheme.textContent = th ? t(th.labelKey) : this.currentTheme;
+        }
 
-        const vibLabels = {
-            'medium': t('setting_vib_medium'),
-            'strong': t('setting_vib_strong'),
-            'ultra': t('setting_vib_ultra'),
-            'soft': t('setting_vib_soft')
-        };
         const lblVib = document.getElementById('lblVibValue');
-        if (lblVib) lblVib.textContent = vibLabels[audio.vibrationStrength] || audio.vibrationStrength;
+        if (lblVib) lblVib.textContent = t(`setting_vib_${audio.vibrationStrength}`) || audio.vibrationStrength;
 
         const lblLang = document.getElementById('lblLangValue');
         if (lblLang) lblLang.textContent = getLang() === 'de' ? 'Deutsch' : 'English';
@@ -4937,139 +7500,52 @@ class TangoApp {
         if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';
     }
 
-    requestNotificationPermission() {
-        if (window.AndroidNotification) return; // Android NotificationBridge regelt Permissions nativ
-        if ('Notification' in window && Notification.permission === 'default') {
-            try {
-                Notification.requestPermission().catch(() => {});
-            } catch (e) {}
+    setReminderEnabled(enabled) {
+        this.reminderEnabled = enabled;
+        StorageManager.setItem(StorageKeys.REMINDER_ENABLED, enabled);
+        StorageManager.setItem('tango_reminder_enabled', enabled);
+
+        const remTimeRow = document.getElementById('settingReminderTimeRow');
+        if (remTimeRow) remTimeRow.style.display = enabled ? 'flex' : 'none';
+
+        if (enabled && window.AndroidNotification?.scheduleDailyReminder) {
+            const [h, m] = this.reminderTime.split(':').map(Number);
+            try { window.AndroidNotification.scheduleDailyReminder(h, m); } catch (e) {}
+        } else if (!enabled && window.AndroidNotification?.cancelDailyReminder) {
+            try { window.AndroidNotification.cancelDailyReminder(); } catch (e) {}
         }
+        this.checkDailyReminder();
     }
 
-    sendSystemNotification(title, body) {
-        if (window.AndroidNotification && typeof window.AndroidNotification.showNotification === 'function') {
-            try {
-                window.AndroidNotification.showNotification(title, body);
-                return true;
-            } catch (e) {
-                console.warn('AndroidNotification Fehler:', e);
+    setReminderTime(timeStr) {
+        if (/^([01]\d|2[0-3]):[0-5]\d$/.test(timeStr)) {
+            this.reminderTime = timeStr;
+            StorageManager.setItem(StorageKeys.REMINDER_TIME, timeStr);
+            StorageManager.setItem('tango_reminder_time', timeStr);
+            if (this.reminderEnabled && window.AndroidNotification?.scheduleDailyReminder) {
+                const [h, m] = timeStr.split(':').map(Number);
+                try { window.AndroidNotification.scheduleDailyReminder(h, m); } catch (e) {}
             }
-        }
-
-        if ('Notification' in window && Notification.permission === 'granted') {
-            try {
-                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.ready.then(reg => {
-                        reg.showNotification(title, {
-                            body: body,
-                            icon: './assets/icons/icon-192.png',
-                            badge: './assets/icons/icon-192.png',
-                            vibrate: [100, 50, 100],
-                            tag: 'tango-daily-alarm',
-                            renotify: true
-                        });
-                    }).catch(() => {
-                        new Notification(title, { body: body, icon: './assets/icons/icon-192.png' });
-                    });
-                } else {
-                    new Notification(title, { body: body, icon: './assets/icons/icon-192.png' });
-                }
-                return true;
-            } catch (e) {
-                console.warn('System-Benachrichtigung konnte nicht erstellt werden:', e);
-            }
-        }
-        return false;
-    }
-
-    testSystemNotification() {
-        if (window.AndroidNotification && typeof window.AndroidNotification.showNotification === 'function') {
-            try {
-                window.AndroidNotification.showNotification(t('notif_title'), t('notif_body'));
-                alert(t('notif_test_sent'));
-                return;
-            } catch (e) {
-                console.warn('Android Test-Notification Fehler:', e);
-            }
-        }
-
-        if ('Notification' in window) {
-            if (Notification.permission === 'default') {
-                Notification.requestPermission().then(perm => {
-                    if (perm === 'granted') {
-                        this.sendSystemNotification(t('notif_title'), t('notif_body'));
-                        alert(t('notif_test_sent'));
-                    } else {
-                        alert(t('notif_permission_denied'));
-                    }
-                }).catch(() => {
-                    alert(t('notif_permission_denied'));
-                });
-            } else if (Notification.permission === 'granted') {
-                this.sendSystemNotification(t('notif_title'), t('notif_body'));
-                alert(t('notif_test_sent'));
-            } else {
-                alert(t('notif_permission_denied'));
-            }
-            return;
-        }
-
-        alert(t('notif_test_sent'));
-    }
-
-    checkDailySystemNotification() {
-        if (!this.reminderEnabled) return;
-        const today = new Date().toISOString().slice(0, 10);
-        let history = [];
-        try {
-            history = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
-        } catch (e) {}
-        if (history.includes(today)) return; // Heute bereits abgeschlossen
-
-        let lastNotif = '';
-        try {
-            lastNotif = localStorage.getItem('tango_last_notif_date') || '';
-        } catch (e) {}
-        if (lastNotif === today) return; // Heute bereits alarmiert
-
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const [remHour, remMinute] = this.reminderTime.split(':').map(Number);
-
-        if (currentHour > remHour || (currentHour === remHour && currentMinute >= remMinute)) {
-            const sent = this.sendSystemNotification(t('notif_title'), t('notif_body'));
-            if (sent) {
-                try {
-                    localStorage.setItem('tango_last_notif_date', today);
-                } catch (e) {}
-            }
+            this.checkDailyReminder();
         }
     }
 
     checkDailyReminder() {
         const today = new Date().toISOString().slice(0, 10);
-        let history = [];
-        try {
-            history = JSON.parse(localStorage.getItem('tango_daily_history') || '[]');
-        } catch (e) {}
+        const isSolved = this.isDailyPuzzleCompleted(today);
 
-        const isTodaySolved = history.includes(today);
         const badge = document.getElementById('dailyBadge');
-        if (badge) badge.style.display = isTodaySolved ? 'none' : 'inline-block';
+        if (badge) badge.style.display = isSolved ? 'none' : 'inline-block';
 
         const banner = document.getElementById('dailyReminderBanner');
-        if (isTodaySolved || !this.reminderEnabled || this.reminderDismissed) {
+        if (isSolved || !this.reminderEnabled || this.reminderDismissed) {
             if (banner) banner.style.display = 'none';
             return;
         }
 
         const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const [remHour, remMinute] = this.reminderTime.split(':').map(Number);
-
-        if (currentHour > remHour || (currentHour === remHour && currentMinute >= remMinute)) {
+        const [remH, remM] = this.reminderTime.split(':').map(Number);
+        if (now.getHours() > remH || (now.getHours() === remH && now.getMinutes() >= remM)) {
             if (banner) banner.style.display = 'flex';
         } else {
             if (banner) banner.style.display = 'none';
@@ -5082,25 +7558,55 @@ class TangoApp {
         if (banner) banner.style.display = 'none';
     }
 
+    checkDailySystemNotification() {
+        if (!this.reminderEnabled) return;
+        const today = new Date().toISOString().slice(0, 10);
+        if (this.isDailyPuzzleCompleted(today)) return;
+
+        const lastNotif = StorageManager.getItem(StorageKeys.LAST_NOTIF_DATE, '');
+        if (lastNotif === today) return;
+
+        const now = new Date();
+        const [remH, remM] = this.reminderTime.split(':').map(Number);
+        if (now.getHours() > remH || (now.getHours() === remH && now.getMinutes() >= remM)) {
+            if (window.AndroidNotification?.showNotification) {
+                try {
+                    window.AndroidNotification.showNotification(t('notif_title'), t('notif_body'));
+                    StorageManager.setItem(StorageKeys.LAST_NOTIF_DATE, today);
+                } catch (e) {}
+            }
+        }
+    }
+
+    toggleNoteMode() {
+        this.isNoteMode = !this.isNoteMode;
+        const btn = document.getElementById('btnNotes');
+        if (btn) btn.classList.toggle('active', this.isNoteMode);
+        audio.vibrate(30);
+    }
+
+    scrollToTop() {
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (tutHeader) tutHeader.scrollTop = 0;
+        const appRoot = document.getElementById('appRoot');
+        if (appRoot) appRoot.scrollTop = 0;
+        window.scrollTo(0, 0);
+    }
+
     toggleModal(modalId, show) {
         const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.style.display = show ? 'flex' : 'none';
-        }
+        if (modal) modal.style.display = show ? 'flex' : 'none';
     }
 
     showConfirmDialog({ title, message, confirmText, cancelText, isDanger = true }) {
         return new Promise((resolve) => {
             const modal = document.getElementById('confirmModal');
+            if (!modal) { resolve(false); return; }
+
             const titleEl = document.getElementById('confirmTitle');
             const msgEl = document.getElementById('confirmMessage');
             const okBtn = document.getElementById('btnConfirmOk');
             const cancelBtn = document.getElementById('btnConfirmCancel');
-
-            if (!modal) {
-                resolve(false);
-                return;
-            }
 
             if (titleEl) titleEl.textContent = title || t('confirm_title');
             if (msgEl) msgEl.textContent = message || '';
@@ -5125,28 +7631,63 @@ class TangoApp {
     }
 }
 
-// Sichere Initialisierung der App
-function initApp() {
-    if (window.tangoApp) return; // Bereits initialisiert
-    try {
-        window.tangoApp = new TangoApp();
+const TangoApp = CortexApp;
 
-        // Service Worker registrieren für Offline-Betrieb & PWA
+// === Source: js\ui\app.js ===
+/**
+ * Cortex / Tango Main Application Controller
+ * Re-exportiert alle Kernkomponenten und startet die App-Shell.
+ */
+
+
+
+
+
+
+
+
+
+
+
+// App-Initialisierung
+function initApp() {
+    if (window.cortexApp || window.tangoApp) return;
+    try {
+        const app = new CortexApp();
+        window.cortexApp = app;
+        window.tangoApp = app;
+
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
             navigator.serviceWorker.register('./sw.js').catch(err => {
                 console.warn('Service Worker Registrierungsfehler:', err);
             });
         }
     } catch (err) {
-        console.error('Fehler beim Starten der TangoApp:', err);
+        console.error('Fehler beim Starten von Cortex:', err);
     }
 }
 
-// Falls das DOM bereits geladen ist (bei ES-Modulen häufig), direkt starten
-if (document.readyState !== 'loading') {
-    initApp();
-} else {
-    window.addEventListener('DOMContentLoaded', initApp);
+if (typeof document !== 'undefined') {
+    if (document.readyState !== 'loading') {
+        initApp();
+    } else {
+        window.addEventListener('DOMContentLoaded', initApp);
+    }
+}
+
+// === Global Exports for Window & Tests ===
+if (typeof window !== 'undefined') {
+  window.CortexApp = CortexApp;
+  window.TangoApp = TangoApp;
+  if (typeof TangoEngine !== 'undefined') window.TangoEngine = TangoEngine;
+  if (typeof TangoSolver !== 'undefined') window.TangoSolver = TangoSolver;
+  if (typeof TangoGenerator !== 'undefined') window.TangoGenerator = TangoGenerator;
+  if (typeof TangoPlugin !== 'undefined') window.TangoPlugin = TangoPlugin;
+  if (typeof SudokuEngine !== 'undefined') window.SudokuEngine = SudokuEngine;
+  if (typeof SudokuSolver !== 'undefined') window.SudokuSolver = SudokuSolver;
+  if (typeof SudokuGenerator !== 'undefined') window.SudokuGenerator = SudokuGenerator;
+  if (typeof SudokuPlugin !== 'undefined') window.SudokuPlugin = SudokuPlugin;
+  if (typeof puzzleRegistry !== 'undefined') window.puzzleRegistry = puzzleRegistry;
 }
 
 })();

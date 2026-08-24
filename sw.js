@@ -1,20 +1,15 @@
-const CACHE_NAME = 'tango-app-v1.2.6';
+const CACHE_NAME = 'cortex-app-v2.0.0';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './manifest.json',
     './css/main.css',
-    './js/core/engine.js',
-    './js/core/solver.js',
-    './js/core/generator.js',
-    './js/data/levels.js',
-    './js/data/tutorial.js',
-    './js/data/i18n.js',
-    './js/ui/audio.js',
-    './js/ui/animations.js',
-    './js/ui/app.js',
+    './css/puzzles/tango.css',
+    './css/puzzles/sudoku.css',
     './js/bundle.js',
     './assets/favicon.svg',
+    './assets/icons/icon-192.png',
+    './assets/icons/icon-512.png',
     './assets/icons/icon-192.svg',
     './assets/icons/icon-512.svg'
 ];
