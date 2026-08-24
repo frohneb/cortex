@@ -15,7 +15,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 - 🚫 **100 % Werbefrei & Offline**: Keine Werbung, keine In-App-Käufe, kein Tracking, keine unnötigen Berechtigungen (kein Internet-Zugriff erforderlich).
 - 🧩 **Modulare Puzzle-Architektur (Cortex Engine)**:
   - **Tango (Takuzu / Binairo / Binoxxo)**: Größen von 4×4 bis 10×10 mit Sonnen (☀️), Monden (🌙), Gleichheit (`=`) und Gegenteil (`×`).
-  - **Sudoku**: Klassisches 9×9 sowie 4×4 (Mini), 6×6 (Midi) und 16×16 (Monster-Sudoku) mit flexiblen Blockkammern (2×2, 3×2, 3×3, 4×4).
+  - **Sudoku**: Klassisches 9×9 sowie 4×4 (Mini) und 16×16 (Monster-Sudoku) mit passgenauen Blockkammern (2×2, 3×3, 4×4).
 - 🏆 **Umfangreiche Kampagnen**:
   - Jeweils 120 handgefertigte Kampagnen-Level pro Rätseltyp mit dynamischer Sterne- und Fortschrittsspeicherung.
 - 📅 **Tägliches Rätsel (Daily Puzzle)**:
@@ -54,7 +54,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 
 ### v2.0.0 – 2026-08-24
 * **Cortex Multi-Puzzle Engine**: Einführung der modularen Rätselplattform mit nahtloser Unterstützung für **Tango** und **Sudoku**.
-* **Sudoku Integration**: Vollständiges Sudoku-Erlebnis (4×4, 6×6, 9×9, 16×16), 120 Kampagnen-Level, Generatoren, Solver, Ziffern-Keypad und Tutorials.
+* **Sudoku Integration**: Vollständiges Sudoku-Erlebnis (4×4, 9×9, 16×16), 120 Kampagnen-Level, Generatoren, Solver, Ziffern-Keypad und Tutorials.
 * **Harmonisierte UI & Themes**: Maßgeschneiderte Rahmen, Kontraste für Startzahlen und proportionale Eckradien für alle Feldgrößen.
 * **Automatischer Puzzle-Restore**: Zuverlässige Rückkehr zum aktiven Hauptpuzzle nach Tagesrätsel-Sitzungen.
 * **100 % Offline-Sicherheit**: Erweiterter Deep-Scan mit 74 automatisierten Tests bestanden.
