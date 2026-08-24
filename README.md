@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.1.0-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.1.1-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -58,6 +58,12 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.1.1 – 2026-08-24 (Bugfix & Versions-Sync)
+* **Bugfix (Optionen Versionsanzeige)**: Das Versions-Badge im Optionen/Einstellungen-Dialog wurde von `v2.0.0` auf die korrekte Version `v2.1.1` aktualisiert.
+* **Versions-Konsistenz**: Einheitlicher Versionssprung auf `v2.1.1` (`versionCode 27`) über `AndroidManifest.xml`, `build.gradle.kts`, `sw.js` und `index.html`.
+* **Service Worker Refresh**: Cache-Scope auf `cortex-app-v2.1.1` aktualisiert für sofortige PWA-Cache-Invalidierung.
+* **Sicherheits- & Datenschutz-Audit**: Vollständiger Deep-Scan mit 74 bestandenen Sicherheitschecks und 100 % DSGVO-Konformität verifiziert.
 
 ### v2.1.0 – 2026-08-24
 * **Akari (Light Up) Integration**: Vollständiges Glühbirnen- & Lichtstrahl-Rätsel (6×6 bis 14×14), 120 Kampagnen-Level, deterministischer Generator, Backtracking-Solver, Smart-Hint-Engine und 14 Tutorials.

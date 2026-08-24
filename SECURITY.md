@@ -1,10 +1,10 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 24.08.2026 (Release-Audit v2.1.0)  
-**Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische Code-Analyse  
-**Version:** 2.1.0 (versionCode 26)  
-**APK SHA-256:** `61103d1b907cb5677c1e0dc1ae0b5db7c6fd9004605c5d02d0eadbae04176681`  
-**Gesamtbewertung:** 10.0 / 10 – PERFEKT  
+**Audit Datum:** 24.08.2026 (Release-Audit v2.1.1)  
+**Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
+**Version:** 2.1.1 (versionCode 27)  
+**APK SHA-256:** `1df36adb06e286225e27da88e695329f3da410efc66492ba689788bbd9d108bc`  
+**Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---
 
@@ -30,12 +30,13 @@
 * **Zertifikats-Algorithmus:** SHA-256withRSA (2048 Bit)
 * **APK-Größe:** 0.56 MB (661 KB Assets)
 * **Integritätsprüfung:** Vollständig intakt, kein Debug-Zertifikat, keine unsicheren Modifikationen.
+* **Reproduzierbarkeit:** Automatisierter deterministischer Build via `build_apk.py`.
 
 ---
 
 ## 🛡️ 2. Android Berechtigungen (Privacy by Design)
 
-Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip:
+Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip (Minimalprinzip):
 
 | Berechtigung | Zweck | Sicherheitsbewertung |
 |---|---|---|
@@ -56,6 +57,7 @@ Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip:
 * **`android:allowBackup="false"`**: Verhindert unberechtigtes Auslesen von Spieldaten über ADB-Backups.
 * **`android:usesCleartextTraffic="false"`**: Unverschlüsselter Netzwerkverkehr ist systemseitig deaktiviert.
 * **`android:debuggable="false"`**: Keine Debug-Flags im Produktions-Build.
+* **`versionCode="27"` & `versionName="2.1.1"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
 
 ---
 
@@ -93,7 +95,7 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ---
 
-## 📱 7. Datenschutz & Privacy Matrix
+## 📱 7. Datenschutz & Privacy Matrix (DSGVO / GDPR)
 
 | Datenschutz-Kriterium | Implementierung in Cortex |
 |---|---|
@@ -102,10 +104,10 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 | **Benutzerkonten & Cloud** | ❌ Kein Login, kein Server, kein Backend |
 | **Lokale Speicherung** | ✅ Spielstände, Sterne und Zeiten verbleiben zu 100 % auf dem Gerät (`localStorage`) |
 | **Benachrichtigungen** | ✅ Vollständig lokal über Android `AlarmManager` (kein FCM / OneSignal) |
-| **DSGVO / GDPR** | ✅ Vollständig DSGVO-konform (Es werden keinerlei personenbezogene Daten erhoben) |
+| **DSGVO / GDPR** | ✅ 100 % DSGVO-konform (Es werden keinerlei personenbezogene Daten erhoben) |
 
 ---
 
 ## 🏆 Gesamtbewertung
 
-Die Anwendung **Cortex – Logikrätsel (v2.1.0, versionCode 26)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku und neu Akari) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
+Die Anwendung **Cortex – Logikrätsel (v2.1.1, versionCode 27)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku und Akari) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
