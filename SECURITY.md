@@ -1,9 +1,9 @@
 # Sicherheitsbericht - Tango Logikraetsel
 
-**Audit Datum:** 24.08.2026 (Deep Scan nach strategischem Hinweis-Engine-Update - v1.2.5)
+**Audit Datum:** 24.08.2026 (Deep Scan nach Start-Symbol-Kontrast-Update - v1.2.6)
 **Auditiert von:** Automatisierter Deep-Scan (test_security_deep.py) + manuelle Code-Review
-**Version:** 1.2.5 (versionCode 22)
-**APK SHA-256:** a3e0312ef1350961f7ab2d870d1b3481f7d35ddf0b512f96f6ee4e2464a0685f
+**Version:** 1.2.6 (versionCode 23)
+**APK SHA-256:** f6f2d39c043ca610f1a5db8865812d839f7b5bad02ccbd83abc00c250d74e474
 **Gesamtbewertung:** 9.8 / 10 - EXZELLENT
 
 ---
@@ -32,7 +32,7 @@
 |---|---|
 | APK-Datei vorhanden | PASS |
 | APK-Signatur gueltig (v1/v2/v3 APK Signature Scheme) | PASS |
-| SHA-256 Hash berechnet (a3e0312e...) | PASS |
+| SHA-256 Hash berechnet (f6f2d39c...) | PASS |
 | APK-Groesse plausibel (0.33 MB < 5 MB) | PASS |
 
 **Signatur-Schema:** APK Signature Scheme v2/v3 | **Algorithmus:** SHA-256withRSA | **APK-Groesse:** 0.33 MB
@@ -178,7 +178,7 @@ CSP-Header:
 
 ## 9. Service Worker (sw.js)
 
-- Cache-Version: tango-app-v1.2.5 (versioniert)
+- Cache-Version: tango-app-v1.2.6 (versioniert)
 - Strategie: Cache-First, vollstaendig offline-faehig
 - Cache-Bereinigung: Alte Caches werden im activate-Event entfernt
 - Kein Netzwerk-Fallback: Keine externe URL wird angefragt
@@ -200,7 +200,7 @@ CSP-Header:
 
 ## Gesamtbewertung
 
-Die Anwendung Tango - Logikraetsel (v1.2.5, versionCode 22) weist ein vorbildliches
+Die Anwendung Tango - Logikraetsel (v1.2.6, versionCode 23) weist ein vorbildliches
 Sicherheitsniveau auf. Durch den konsequenten Verzicht auf Internet-Berechtigungen, externe
 Bibliotheken und Cloud-Anbindungen existiert keine Angriffsflaeche fuer Remote-Angriffe,
 Datenabfluesse oder Tracking.

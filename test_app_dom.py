@@ -305,19 +305,19 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('.tut-btn-icon', css_content, "main.css muss CSS für .tut-btn-icon definieren")
         self.assertIn('.tut-btn-text', css_content, "main.css muss CSS für .tut-btn-text definieren")
 
-    def test_version_number_consistency_v1_2_5(self):
-        """Überprüft, dass Version 1.2.5 (Code 22) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v1_2_6(self):
+        """Überprüft, dass Version 1.2.6 (Code 23) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('tango-app-v1.2.5', sw_content, "sw.js muss Cache tango-app-v1.2.5 enthalten")
-        self.assertIn('id="appVersionBadge">v1.2.5<', html_content, "index.html muss appVersionBadge mit v1.2.5 enthalten")
-        self.assertIn('versionName = "1.2.5"', gradle_content, "build.gradle.kts muss versionName 1.2.5 enthalten")
-        self.assertIn('versionCode = 22', gradle_content, "build.gradle.kts muss versionCode 22 enthalten")
-        self.assertIn('android:versionName="1.2.5"', manifest_content, "AndroidManifest.xml muss versionName 1.2.5 enthalten")
-        self.assertIn('android:versionCode="22"', manifest_content, "AndroidManifest.xml muss versionCode 22 enthalten")
+        self.assertIn('tango-app-v1.2.6', sw_content, "sw.js muss Cache tango-app-v1.2.6 enthalten")
+        self.assertIn('id="appVersionBadge">v1.2.6<', html_content, "index.html muss appVersionBadge mit v1.2.6 enthalten")
+        self.assertIn('versionName = "1.2.6"', gradle_content, "build.gradle.kts muss versionName 1.2.6 enthalten")
+        self.assertIn('versionCode = 23', gradle_content, "build.gradle.kts muss versionCode 23 enthalten")
+        self.assertIn('android:versionName="1.2.6"', manifest_content, "AndroidManifest.xml muss versionName 1.2.6 enthalten")
+        self.assertIn('android:versionCode="23"', manifest_content, "AndroidManifest.xml muss versionCode 23 enthalten")
 
     def test_locked_cells_darker_background_styling(self):
         """Überprüft, dass main.css spezifische dunklere Hintergründe für Start- und gesperrte Zellen definiert"""

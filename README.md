@@ -1,6 +1,6 @@
 # Tango – Logikrätsel für Android & Web (Werbefrei & 100% Offline)
 
-[![Version](https://img.shields.io/badge/Version-1.2.5-brightgreen.svg)](https://github.com/frohneb/tango)
+[![Version](https://img.shields.io/badge/Version-1.2.6-brightgreen.svg)](https://github.com/frohneb/tango)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -58,7 +58,7 @@ Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logi
 Das Projekt verfügt über ein umfassendes Test- und Sicherheitsframework:
 
 ```bash
-# 1. Alle Unit-, DOM- und Logik-Tests ausführen (63 Tests)
+# 1. Alle Unit-, DOM- und Logik-Tests ausführen (64 Tests)
 python -m unittest test_app_dom.py test_rules.py test_streak_logic.py test_hint_and_defeat_logic.py test_tutorial_patterns.py
 
 # 2. Tiefen-Sicherheitsaudit (74 Prüfungen: Permissions, CSP, XSS, APK-Integrität)
@@ -104,6 +104,10 @@ Dieses Projekt ist unter der [GNU General Public License v3.0 (GPLv3)](LICENSE) 
 ---
 
 ## 📝 Changelog
+
+### v1.2.6 – 2026-08-24
+- 🎨 **Dunklere Start-Symbole für perfekte Unterscheidbarkeit**: Vorgegebene Start-Symbole haben jetzt in allen 5 Themes einen deutlich dunkleren, vertieften Hintergrund (`--cell-locked-bg` mit Inset-Schatten), wodurch sie sich auf den ersten Blick klar von den helleren, leuchtenden Zügen des Spielers abheben.
+- 🧪 64/64 automatisierte Tests bestanden, 74/74 Sicherheitschecks OK.
 
 ### v1.2.5 – 2026-08-24
 - 💡 **Strategischer Hinweis-Engine-Umbau**: Der Hinweis-Assistent priorisiert jetzt Engpass-Zellen (Zeilen/Spalten mit wenig leeren Zellen), Kaskaden-Tiefe und den Spieler-Fokus statt immer triviale Anfangszellen zu wählen.
