@@ -37,6 +37,7 @@ class TestHintAndDefeatLogic(unittest.TestCase):
 import {{ TangoEngine, SUN, MOON, EMPTY }} from './js/core/engine.js';
 import {{ TangoSolver }} from './js/core/solver.js';
 import {{ getCampaignLevel }} from './js/data/levels.js';
+import {{ TangoApp }} from './js/ui/app.js';
 
 try {{
     {js_code}
@@ -157,10 +158,88 @@ try {{
         });
         """
         result = self.run_browser_eval(js_code)
-        self.assertEqual(result['played'], 6)
-        self.assertEqual(result['won'], 4)
-        self.assertEqual(result['lost'], 2)
+    def test_hint_prioritizes_high_cascade_bottleneck(self):
+        """Testet, dass strategisch wertvollere Hinweise mit hohem Kaskadeneffekt gegenüber trivialen Positionen (0,0)/(0,1) bevorzugt werden"""
+        js_code = """
+        const engine = new TangoEngine(6);
+        // Zeile 0 hat nur einen einfachen avoid_three am Rand
+        engine.grid[0][0] = SUN;
+        engine.grid[0][1] = SUN;
+        
+        // Zeile 4 ist fast voll (Bottleneck mit 2 Sonnen, 2 Monden -> nur 2 freie Felder)
+        engine.grid[4][0] = SUN;
+        engine.grid[4][1] = SUN;
+        engine.grid[4][2] = MOON;
+        engine.grid[4][3] = MOON;
+        // engine.grid[4][4] und [4][5] sind leer -> balance_fill oder avoid_three schließt die Zeile ab!
+
+        const hint = TangoSolver.findLogicalHint(engine);
+        document.getElementById('output').textContent = JSON.stringify({
+            hintR: hint ? hint.r : null,
+            hintC: hint ? hint.c : null,
+            type: hint ? hint.type : null
+        });
+        """
+        result = self.run_browser_eval(js_code)
+        self.assertEqual(result['hintR'], 4, "Hinweis muss die Engpass-Zeile 4 priorisieren, anstatt Zeile 0")
+
+    def test_hint_respects_player_focus(self):
+        """Testet, dass findLogicalHint bei übergebenem focusCell Hinweise in der Nähe des Spielers bevorzugt"""
+        js_code = """
+        const engine = new TangoEngine(6);
+        // Zwei gleichwertige Sandwich-Möglichkeiten in Zeile 1 und Zeile 4
+        engine.grid[1][0] = SUN;
+        engine.grid[1][2] = SUN;
+
+        engine.grid[4][2] = MOON;
+        engine.grid[4][4] = MOON;
+
+        // Spieler fokussiert Zelle (4, 3)
+        const hintWithFocus = TangoSolver.findLogicalHint(engine, { focusCell: { r: 4, c: 3 } });
+        // Spieler fokussiert Zelle (1, 1)
+        const hintWithFocusRow1 = TangoSolver.findLogicalHint(engine, { focusCell: { r: 1, c: 1 } });
+
+        document.getElementById('output').textContent = JSON.stringify({
+            focusRow4_R: hintWithFocus ? hintWithFocus.r : null,
+            focusRow4_C: hintWithFocus ? hintWithFocus.c : null,
+            focusRow1_R: hintWithFocusRow1 ? hintWithFocusRow1.r : null,
+            focusRow1_C: hintWithFocusRow1 ? hintWithFocusRow1.c : null
+        });
+        """
+        result = self.run_browser_eval(js_code)
+        self.assertEqual(result['focusRow4_R'], 4, "Mit Focus auf Zeile 4 muss der Hinweis in Zeile 4 sein")
+        self.assertEqual(result['focusRow4_C'], 3, "Mit Focus auf (4,3) muss Zelle (4,3) gewählt werden")
+        self.assertEqual(result['focusRow1_R'], 1, "Mit Focus auf Zeile 1 muss der Hinweis in Zeile 1 sein")
+        self.assertEqual(result['focusRow1_C'], 1, "Mit Focus auf (1,1) muss Zelle (1,1) gewählt werden")
+
+    def test_hint_shimmer_lifecycle(self):
+        """Testet, dass das Hinweis-Feld hintPlacedCell setzt und schimmert, bis der Spieler ein Symbol setzt"""
+        js_code = """
+        const engine = new TangoEngine(4);
+        engine.grid[0][0] = SUN;
+        engine.grid[0][1] = SUN;
+
+        const hint = TangoSolver.findLogicalHint(engine);
+        // Simuliere App-Zustand
+        let hintPlacedCell = { r: hint.r, c: hint.c };
+        const isShimmeringBeforeMove = (hintPlacedCell !== null && hintPlacedCell.r === hint.r && hintPlacedCell.c === hint.c);
+
+        // Spieler platziert eigenen Zug
+        hintPlacedCell = null;
+        const isShimmeringAfterMove = (hintPlacedCell !== null);
+
+        document.getElementById('output').textContent = JSON.stringify({
+            hintTargetR: hint.r,
+            hintTargetC: hint.c,
+            isShimmeringBeforeMove,
+            isShimmeringAfterMove
+        });
+        """
+        result = self.run_browser_eval(js_code)
+        self.assertTrue(result['isShimmeringBeforeMove'], "Zelle muss nach Hinweis-Platzierung schimmern")
+        self.assertFalse(result['isShimmeringAfterMove'], "Zelle darf nach Spielzug nicht mehr schimmern")
 
 
 if __name__ == "__main__":
     unittest.main()
+

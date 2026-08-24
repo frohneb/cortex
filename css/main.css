@@ -305,6 +305,34 @@ html, body {
     animation: hintPulse 1.2s infinite ease-in-out;
 }
 
+.grid-cell.hint-shimmer {
+    position: relative;
+    border-color: var(--accent-sun) !important;
+    animation: hintCellShimmer 2s infinite ease-in-out;
+    overflow: hidden;
+}
+
+.grid-cell.hint-shimmer::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        60deg,
+        rgba(255, 255, 255, 0) 20%,
+        rgba(251, 191, 36, 0.28) 45%,
+        rgba(255, 255, 255, 0.55) 50%,
+        rgba(251, 191, 36, 0.28) 55%,
+        rgba(255, 255, 255, 0) 80%
+    );
+    transform: rotate(25deg) translateY(-120%);
+    animation: hintLightSweep 2.6s infinite cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 2;
+}
+
 .grid-cell.hint-highlight.error-highlight {
     border-color: var(--accent-opposite) !important;
     background: rgba(239, 68, 68, 0.22) !important;
@@ -1041,6 +1069,35 @@ input:checked + .slider:before {
 @keyframes hintPulse {
     0%, 100% { box-shadow: 0 0 6px var(--accent-sun); }
     50% { box-shadow: 0 0 16px var(--accent-sun); }
+}
+
+@keyframes hintCellShimmer {
+    0%, 100% {
+        box-shadow: 0 0 6px var(--accent-sun-bg, rgba(251, 191, 36, 0.3)), inset 0 0 6px var(--accent-sun-bg, rgba(251, 191, 36, 0.15));
+        border-color: rgba(251, 191, 36, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 16px var(--accent-sun, #fbbf24), inset 0 0 12px var(--accent-sun-bg, rgba(251, 191, 36, 0.35));
+        border-color: var(--accent-sun, #fbbf24);
+    }
+}
+
+@keyframes hintLightSweep {
+    0% {
+        transform: rotate(25deg) translateY(-120%);
+        opacity: 0;
+    }
+    15% {
+        opacity: 1;
+    }
+    55% {
+        transform: rotate(25deg) translateY(120%);
+        opacity: 1;
+    }
+    75%, 100% {
+        transform: rotate(25deg) translateY(120%);
+        opacity: 0;
+    }
 }
 
 @keyframes symbolPop {

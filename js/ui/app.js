@@ -107,6 +107,8 @@ export class TangoApp {
         this.secondsElapsed = 0;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.currentHint = null;
+        this.hintPlacedCell = null;
         this.solutionRevealed = false;
         this.isGameActive = false;
         this.ignoreClickUntil = 0;
@@ -299,6 +301,7 @@ export class TangoApp {
         document.getElementById('btnHintApply').addEventListener('click', () => {
             if (this.currentHint) {
                 this.engine.setCellValue(this.currentHint.r, this.currentHint.c, this.currentHint.value);
+                this.hintPlacedCell = { r: this.currentHint.r, c: this.currentHint.c };
                 audio.playSun();
                 this.renderGrid();
                 this.toggleModal('hintModal', false);
@@ -538,6 +541,7 @@ export class TangoApp {
         });
 
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -576,6 +580,7 @@ export class TangoApp {
         });
 
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -616,6 +621,7 @@ export class TangoApp {
         });
 
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -651,6 +657,7 @@ export class TangoApp {
         this.engine.loadPuzzle(level);
         this.scrollToTop();
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -700,6 +707,7 @@ export class TangoApp {
 
         this.engine.loadPuzzle(puzzle);
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -721,6 +729,7 @@ export class TangoApp {
 
         this.engine.loadPuzzle(generated);
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -745,6 +754,7 @@ export class TangoApp {
             solution: this.engine.solution
         });
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -806,10 +816,12 @@ export class TangoApp {
                 const isLocked = this.engine.locked[r][c];
                 const isConflict = !this.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
                 const isSelected = !this.solutionRevealed && this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
+                const isHintShimmer = !this.solutionRevealed && this.hintPlacedCell && this.hintPlacedCell.r === r && this.hintPlacedCell.c === c;
 
                 if (isLocked) cellEl.classList.add('locked');
                 if (isConflict) cellEl.classList.add('conflict');
                 if (isSelected) cellEl.classList.add('selected');
+                if (isHintShimmer) cellEl.classList.add('hint-shimmer');
 
                 if (this.solutionRevealed && solution) {
                     const solVal = solution[r][c];
@@ -955,6 +967,7 @@ export class TangoApp {
 
         this.ignoreClickUntil = Date.now() + 500; // Block fake click after long press release
         this.selectedCell = { r, c };
+        this.hintPlacedCell = null;
 
         if (this.isNoteMode) {
             this.engine.setCellValue(r, c, MOON, true);
@@ -986,6 +999,8 @@ export class TangoApp {
             return;
         }
 
+        this.hintPlacedCell = null;
+
         // Bedienkonzept:
         // 1x Tippen = ☀️ (Sonne)
         // 2x Tippen = 🌙 (Mond)
@@ -1011,6 +1026,7 @@ export class TangoApp {
         const { r, c } = this.selectedCell;
         if (this.engine.locked[r][c]) return;
 
+        this.hintPlacedCell = null;
         this.engine.setCellValue(r, c, val, this.isNoteMode);
         this.movesCount++;
 
@@ -1025,6 +1041,7 @@ export class TangoApp {
     handleUndo() {
         const action = this.engine.undo();
         if (action) {
+            this.hintPlacedCell = null;
             audio.playClear();
             this.renderGrid();
         }
@@ -1033,6 +1050,7 @@ export class TangoApp {
     handleRedo() {
         const action = this.engine.redo();
         if (action) {
+            this.hintPlacedCell = null;
             audio.playClear();
             this.renderGrid();
         }
@@ -1061,6 +1079,7 @@ export class TangoApp {
                 value: mistake.expectedVal,
                 highlightCells: mistake.highlightCells
             };
+            this.hintPlacedCell = { r: mistake.r, c: mistake.c };
             this.hintsUsed++;
             audio.playError();
 
@@ -1082,10 +1101,13 @@ export class TangoApp {
             return;
         }
 
-        // 2. Priorität: Regulärer logischer Tipp für den nächsten Zug
-        const hint = TangoSolver.findLogicalHint(this.engine);
+        // 2. Priorität: Regulärer logischer Tipp für den nächsten Zug (mit Fokus auf ausgewählte Zelle)
+        const hint = TangoSolver.findLogicalHint(this.engine, {
+            focusCell: this.selectedCell || null
+        });
         if (hint) {
             this.currentHint = hint;
+            this.hintPlacedCell = { r: hint.r, c: hint.c };
             this.hintsUsed++;
             audio.playHint();
 

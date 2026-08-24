@@ -555,12 +555,19 @@ class TangoEngine {
 
 class TangoSolver {
     /**
-     * Sucht den nächsten logisch zwingenden Schritt und formuliert einen Hinweistext
+     * Sucht den strategisch besten nächsten logisch zwingenden Schritt.
+     * Sammelt alle verfügbaren logischen Züge, bewertet sie nach Kaskaden-Tiefe,
+     * Engpass-Bedeutung und optionalem Spieler-Fokus, und gibt den besten Tipp zurück.
+     * 
+     * @param {TangoEngine} engine
+     * @param {Object} [options={}]
+     * @param {{r: number, c: number}|null} [options.focusCell=null]
      */
-    static findLogicalHint(engine) {
+    static findLogicalHint(engine, options = {}) {
         const size = engine.size;
         const maxPerLine = size / 2;
         const grid = engine.grid;
+        const candidates = [];
 
         // 1. Logik-Schritt: Zwei gleiche Symbole nebeneinander -> Kanten müssen das Gegenteil sein
         // Horizontal: [S, S, _] -> [S, S, M] oder [_, S, S] -> [M, S, S]
@@ -573,23 +580,23 @@ class TangoSolver {
                     const oppName = opposite === SUN ? 'Sonne' : 'Mond';
                     // Links daneben
                     if (c > 0 && grid[r][c-1] === EMPTY) {
-                        return {
+                        candidates.push({
                             type: 'avoid_three',
                             r, c: c - 1,
                             value: opposite,
                             highlightCells: [{r, c: c-1}, {r, c}, {r, c: c+1}],
                             message: `In Zeile ${r+1} stehen zwei ${symName} nebeneinander. Um eine Dreierreihe zu verhindern, muss links davon ein ${oppName} stehen.`
-                        };
+                        });
                     }
                     // Rechts daneben
                     if (c + 2 < size && grid[r][c+2] === EMPTY) {
-                        return {
+                        candidates.push({
                             type: 'avoid_three',
                             r, c: c + 2,
                             value: opposite,
                             highlightCells: [{r, c}, {r, c: c+1}, {r, c: c+2}],
                             message: `In Zeile ${r+1} stehen zwei ${symName} nebeneinander. Um eine Dreierreihe zu verhindern, muss rechts davon ein ${oppName} stehen.`
-                        };
+                        });
                     }
                 }
             }
@@ -605,23 +612,23 @@ class TangoSolver {
                     const oppName = opposite === SUN ? 'Sonne' : 'Mond';
                     // Oben drüber
                     if (r > 0 && grid[r-1][c] === EMPTY) {
-                        return {
+                        candidates.push({
                             type: 'avoid_three',
                             r: r - 1, c,
                             value: opposite,
                             highlightCells: [{r: r-1, c}, {r, c}, {r: r+1, c}],
                             message: `In Spalte ${c+1} stehen zwei ${symName} untereinander. Um eine Dreierreihe zu verhindern, muss darüber ein ${oppName} stehen.`
-                        };
+                        });
                     }
                     // Unten drunter
                     if (r + 2 < size && grid[r+2][c] === EMPTY) {
-                        return {
+                        candidates.push({
                             type: 'avoid_three',
                             r: r + 2, c,
                             value: opposite,
                             highlightCells: [{r, c}, {r: r+1, c}, {r: r+2, c}],
                             message: `In Spalte ${c+1} stehen zwei ${symName} untereinander. Um eine Dreierreihe zu verhindern, muss darunter ein ${oppName} stehen.`
-                        };
+                        });
                     }
                 }
             }
@@ -636,13 +643,13 @@ class TangoSolver {
                     const opposite = v1 === SUN ? MOON : SUN;
                     const symName = v1 === SUN ? 'Sonnen' : 'Monde';
                     const oppName = opposite === SUN ? 'Sonne' : 'Mond';
-                    return {
+                    candidates.push({
                         type: 'sandwich',
                         r, c: c + 1,
                         value: opposite,
                         highlightCells: [{r, c}, {r, c: c+1}, {r, c: c+2}],
                         message: `In Zeile ${r+1} umschließen zwei ${symName} ein leeres Feld. Um drei gleiche Symbole zu vermeiden, muss in die Mitte ein ${oppName}.`
-                    };
+                    });
                 }
             }
         }
@@ -655,13 +662,13 @@ class TangoSolver {
                     const opposite = v1 === SUN ? MOON : SUN;
                     const symName = v1 === SUN ? 'Sonnen' : 'Monde';
                     const oppName = opposite === SUN ? 'Sonne' : 'Mond';
-                    return {
+                    candidates.push({
                         type: 'sandwich',
                         r: r + 1, c,
                         value: opposite,
                         highlightCells: [{r, c}, {r: r+1, c}, {r: r+2, c}],
                         message: `In Spalte ${c+1} umschließen zwei ${symName} ein leeres Feld. Um drei gleiche Symbole zu vermeiden, muss in die Mitte ein ${oppName}.`
-                    };
+                    });
                 }
             }
         }
@@ -677,24 +684,24 @@ class TangoSolver {
                     const targetVal = (edge === EDGE_EQUAL) ? v1 : (v1 === SUN ? MOON : SUN);
                     const targetName = targetVal === SUN ? 'Sonne' : 'Mond';
                     const relName = edge === EDGE_EQUAL ? 'Gleichheitszeichen (=)' : 'Gegenteilszeichen (×)';
-                    return {
+                    candidates.push({
                         type: 'edge_direct',
                         r, c: c + 1,
                         value: targetVal,
                         highlightCells: [{r, c}, {r, c: c+1}],
                         message: `Das ${relName} zwischen (${r+1},${c+1}) und (${r+1},${c+2}) bestimmt, dass rechts ein ${targetName} gesetzt werden muss.`
-                    };
+                    });
                 } else if (v1 === EMPTY && v2 !== EMPTY) {
                     const targetVal = (edge === EDGE_EQUAL) ? v2 : (v2 === SUN ? MOON : SUN);
                     const targetName = targetVal === SUN ? 'Sonne' : 'Mond';
                     const relName = edge === EDGE_EQUAL ? 'Gleichheitszeichen (=)' : 'Gegenteilszeichen (×)';
-                    return {
+                    candidates.push({
                         type: 'edge_direct',
                         r, c,
                         value: targetVal,
                         highlightCells: [{r, c}, {r, c: c+1}],
                         message: `Das ${relName} zwischen (${r+1},${c+1}) und (${r+1},${c+2}) bestimmt, dass links ein ${targetName} gesetzt werden muss.`
-                    };
+                    });
                 }
             }
         }
@@ -709,24 +716,24 @@ class TangoSolver {
                     const targetVal = (edge === EDGE_EQUAL) ? v1 : (v1 === SUN ? MOON : SUN);
                     const targetName = targetVal === SUN ? 'Sonne' : 'Mond';
                     const relName = edge === EDGE_EQUAL ? 'Gleichheitszeichen (=)' : 'Gegenteilszeichen (×)';
-                    return {
+                    candidates.push({
                         type: 'edge_direct',
                         r: r + 1, c,
                         value: targetVal,
                         highlightCells: [{r, c}, {r: r+1, c}],
                         message: `Das ${relName} zwischen (${r+1},${c+1}) und (${r+2},${c+1}) bestimmt, dass darunter ein ${targetName} gesetzt werden muss.`
-                    };
+                    });
                 } else if (v1 === EMPTY && v2 !== EMPTY) {
                     const targetVal = (edge === EDGE_EQUAL) ? v2 : (v2 === SUN ? MOON : SUN);
                     const targetName = targetVal === SUN ? 'Sonne' : 'Mond';
                     const relName = edge === EDGE_EQUAL ? 'Gleichheitszeichen (=)' : 'Gegenteilszeichen (×)';
-                    return {
+                    candidates.push({
                         type: 'edge_direct',
                         r, c,
                         value: targetVal,
                         highlightCells: [{r, c}, {r: r+1, c}],
                         message: `Das ${relName} zwischen (${r+1},${c+1}) und (${r+2},${c+1}) bestimmt, dass darüber ein ${targetName} gesetzt werden muss.`
-                    };
+                    });
                 }
             }
         }
@@ -743,22 +750,26 @@ class TangoSolver {
             }
             if (emptyCols.length > 0) {
                 if (suns === maxPerLine) {
-                    return {
-                        type: 'balance_fill',
-                        r, c: emptyCols[0],
-                        value: MOON,
-                        highlightCells: emptyCols.map(c => ({r, c})),
-                        message: `In Zeile ${r+1} sind bereits alle ${maxPerLine} Sonnen gesetzt. Alle restlichen leeren Felder müssen daher Monde sein.`
-                    };
+                    for (const c of emptyCols) {
+                        candidates.push({
+                            type: 'balance_fill',
+                            r, c,
+                            value: MOON,
+                            highlightCells: emptyCols.map(col => ({r, c: col})),
+                            message: `In Zeile ${r+1} sind bereits alle ${maxPerLine} Sonnen gesetzt. Alle restlichen leeren Felder müssen daher Monde sein.`
+                        });
+                    }
                 }
                 if (moons === maxPerLine) {
-                    return {
-                        type: 'balance_fill',
-                        r, c: emptyCols[0],
-                        value: SUN,
-                        highlightCells: emptyCols.map(c => ({r, c})),
-                        message: `In Zeile ${r+1} sind bereits alle ${maxPerLine} Monde gesetzt. Alle restlichen leeren Felder müssen daher Sonnen sein.`
-                    };
+                    for (const c of emptyCols) {
+                        candidates.push({
+                            type: 'balance_fill',
+                            r, c,
+                            value: SUN,
+                            highlightCells: emptyCols.map(col => ({r, c: col})),
+                            message: `In Zeile ${r+1} sind bereits alle ${maxPerLine} Monde gesetzt. Alle restlichen leeren Felder müssen daher Sonnen sein.`
+                        });
+                    }
                 }
             }
         }
@@ -774,22 +785,26 @@ class TangoSolver {
             }
             if (emptyRows.length > 0) {
                 if (suns === maxPerLine) {
-                    return {
-                        type: 'balance_fill',
-                        r: emptyRows[0], c,
-                        value: MOON,
-                        highlightCells: emptyRows.map(r => ({r, c})),
-                        message: `In Spalte ${c+1} sind bereits alle ${maxPerLine} Sonnen gesetzt. Alle restlichen leeren Felder müssen daher Monde sein.`
-                    };
+                    for (const r of emptyRows) {
+                        candidates.push({
+                            type: 'balance_fill',
+                            r, c,
+                            value: MOON,
+                            highlightCells: emptyRows.map(row => ({r: row, c})),
+                            message: `In Spalte ${c+1} sind bereits alle ${maxPerLine} Sonnen gesetzt. Alle restlichen leeren Felder müssen daher Monde sein.`
+                        });
+                    }
                 }
                 if (moons === maxPerLine) {
-                    return {
-                        type: 'balance_fill',
-                        r: emptyRows[0], c,
-                        value: SUN,
-                        highlightCells: emptyRows.map(r => ({r, c})),
-                        message: `In Spalte ${c+1} sind bereits alle ${maxPerLine} Monde gesetzt. Alle restlichen leeren Felder müssen daher Sonnen sein.`
-                    };
+                    for (const r of emptyRows) {
+                        candidates.push({
+                            type: 'balance_fill',
+                            r, c,
+                            value: SUN,
+                            highlightCells: emptyRows.map(row => ({r: row, c})),
+                            message: `In Spalte ${c+1} sind bereits alle ${maxPerLine} Monde gesetzt. Alle restlichen leeren Felder müssen daher Sonnen sein.`
+                        });
+                    }
                 }
             }
         }
@@ -798,18 +813,47 @@ class TangoSolver {
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size - 1; c++) {
                 if (engine.hEdges[r][c] === EDGE_EQUAL) {
+                    // Links daneben ausgefüllt
                     if (c > 0 && grid[r][c-1] !== EMPTY && grid[r][c] === EMPTY && grid[r][c+1] === EMPTY) {
                         const vPrev = grid[r][c-1];
                         const opposite = vPrev === SUN ? MOON : SUN;
                         const oppName = opposite === SUN ? 'Sonne' : 'Mond';
                         const prevName = vPrev === SUN ? 'Sonne' : 'Mond';
-                        return {
+                        candidates.push({
                             type: 'edge_cascade',
                             r, c,
                             value: opposite,
                             highlightCells: [{r, c: c-1}, {r, c}, {r, c: c+1}],
                             message: `Kanten-Kaskade: Da an (${r+1},${c+1}) und (${r+1},${c+2}) ein '=' steht, sind beide gleich. Wären sie eine ${prevName} wie an (${r+1},${c}), entstünde eine 3er-Reihe. Daher müssen beide ein ${oppName} sein!`
-                        };
+                        });
+                        candidates.push({
+                            type: 'edge_cascade',
+                            r, c: c + 1,
+                            value: opposite,
+                            highlightCells: [{r, c: c-1}, {r, c}, {r, c: c+1}],
+                            message: `Kanten-Kaskade: Da an (${r+1},${c+1}) und (${r+1},${c+2}) ein '=' steht, sind beide gleich. Wären sie eine ${prevName} wie an (${r+1},${c}), entstünde eine 3er-Reihe. Daher müssen beide ein ${oppName} sein!`
+                        });
+                    }
+                    // Rechts daneben ausgefüllt
+                    if (c + 2 < size && grid[r][c+2] !== EMPTY && grid[r][c] === EMPTY && grid[r][c+1] === EMPTY) {
+                        const vNext = grid[r][c+2];
+                        const opposite = vNext === SUN ? MOON : SUN;
+                        const oppName = opposite === SUN ? 'Sonne' : 'Mond';
+                        const nextName = vNext === SUN ? 'Sonne' : 'Mond';
+                        candidates.push({
+                            type: 'edge_cascade',
+                            r, c,
+                            value: opposite,
+                            highlightCells: [{r, c}, {r, c: c+1}, {r, c: c+2}],
+                            message: `Kanten-Kaskade: Da an (${r+1},${c+1}) und (${r+1},${c+2}) ein '=' steht, sind beide gleich. Wären sie eine ${nextName} wie an (${r+1},${c+3}), entstünde eine 3er-Reihe. Daher müssen beide ein ${oppName} sein!`
+                        });
+                        candidates.push({
+                            type: 'edge_cascade',
+                            r, c: c + 1,
+                            value: opposite,
+                            highlightCells: [{r, c}, {r, c: c+1}, {r, c: c+2}],
+                            message: `Kanten-Kaskade: Da an (${r+1},${c+1}) und (${r+1},${c+2}) ein '=' steht, sind beide gleich. Wären sie eine ${nextName} wie an (${r+1},${c+3}), entstünde eine 3er-Reihe. Daher müssen beide ein ${oppName} sein!`
+                        });
                     }
                 }
             }
@@ -818,24 +862,54 @@ class TangoSolver {
         for (let c = 0; c < size; c++) {
             for (let r = 0; r < size - 1; r++) {
                 if (engine.vEdges[r][c] === EDGE_EQUAL) {
+                    // Oben drüber ausgefüllt
                     if (r > 0 && grid[r-1][c] !== EMPTY && grid[r][c] === EMPTY && grid[r+1][c] === EMPTY) {
                         const vPrev = grid[r-1][c];
                         const opposite = vPrev === SUN ? MOON : SUN;
                         const oppName = opposite === SUN ? 'Sonne' : 'Mond';
                         const prevName = vPrev === SUN ? 'Sonne' : 'Mond';
-                        return {
+                        candidates.push({
                             type: 'edge_cascade',
                             r, c,
                             value: opposite,
                             highlightCells: [{r: r-1, c}, {r, c}, {r: r+1, c}],
                             message: `Kanten-Kaskade: Da an (${r+1},${c+1}) und (${r+2},${c+1}) ein '=' steht, sind beide gleich. Wären sie eine ${prevName} wie an (${r},${c+1}), entstünde eine 3er-Reihe. Daher müssen beide ein ${oppName} sein!`
-                        };
+                        });
+                        candidates.push({
+                            type: 'edge_cascade',
+                            r: r + 1, c,
+                            value: opposite,
+                            highlightCells: [{r: r-1, c}, {r, c}, {r: r+1, c}],
+                            message: `Kanten-Kaskade: Da an (${r+1},${c+1}) und (${r+2},${c+1}) ein '=' steht, sind beide gleich. Wären sie eine ${prevName} wie an (${r},${c+1}), entstünde eine 3er-Reihe. Daher müssen beide ein ${oppName} sein!`
+                        });
+                    }
+                    // Unten drunter ausgefüllt
+                    if (r + 2 < size && grid[r+2][c] !== EMPTY && grid[r][c] === EMPTY && grid[r+1][c] === EMPTY) {
+                        const vNext = grid[r+2][c];
+                        const opposite = vNext === SUN ? MOON : SUN;
+                        const oppName = opposite === SUN ? 'Sonne' : 'Mond';
+                        const nextName = vNext === SUN ? 'Sonne' : 'Mond';
+                        candidates.push({
+                            type: 'edge_cascade',
+                            r, c,
+                            value: opposite,
+                            highlightCells: [{r, c}, {r: r+1, c}, {r: r+2, c}],
+                            message: `Kanten-Kaskade: Da an (${r+1},${c+1}) und (${r+2},${c+1}) ein '=' steht, sind beide gleich. Wären sie eine ${nextName} wie an (${r+3},${c+1}), entstünde eine 3er-Reihe. Daher müssen beide ein ${oppName} sein!`
+                        });
+                        candidates.push({
+                            type: 'edge_cascade',
+                            r: r + 1, c,
+                            value: opposite,
+                            highlightCells: [{r, c}, {r: r+1, c}, {r: r+2, c}],
+                            message: `Kanten-Kaskade: Da an (${r+1},${c+1}) und (${r+2},${c+1}) ein '=' steht, sind beide gleich. Wären sie eine ${nextName} wie an (${r+3},${c+1}), entstünde eine 3er-Reihe. Daher müssen beide ein ${oppName} sein!`
+                        });
                     }
                 }
             }
         }
 
         // 6. Zeilen- & Spalten-Duplikat Ausschluss (Unizitäts-Beweis)
+        // Zeilen-Unizität
         for (let r1 = 0; r1 < size; r1++) {
             const isFull1 = grid[r1].every(v => v !== EMPTY);
             if (!isFull1) continue;
@@ -848,39 +922,110 @@ class TangoSolver {
                     if (grid[r2][c] === EMPTY) emptyIndices.push(c);
                 }
                 if (emptyIndices.length === 1 || emptyIndices.length === 2) {
-                    // Prüfe ob eine Belegung ein Duplikat zu Zeile r1 erzeugen würde
                     for (const candVal of [SUN, MOON]) {
                         const testRow = [...grid[r2]];
                         testRow[emptyIndices[0]] = candVal;
                         if (emptyIndices.length === 2) {
-                            // Wenn noch 2 leere da sind, versuche die Rest-Belegung
                             const remainingVal = candVal === SUN ? MOON : SUN;
                             testRow[emptyIndices[1]] = remainingVal;
                         }
                         if (testRow.join('') === str1) {
-                            // candVal an emptyIndices[0] erzeugt ein verbotenes Zeilen-Duplikat!
                             const oppVal = candVal === SUN ? MOON : SUN;
                             const oppName = oppVal === SUN ? 'Sonne' : 'Mond';
                             const candName = candVal === SUN ? 'Sonne' : 'Mond';
-                            return {
+                            candidates.push({
                                 type: 'row_uniqueness',
                                 r: r2, c: emptyIndices[0],
                                 value: oppVal,
                                 highlightCells: [{r: r1, c: 0}, {r: r2, c: emptyIndices[0]}],
                                 message: `Unizitäts-Axiom: Würde an Position (${r2+1},${emptyIndices[0]+1}) ein ${candName} gesetzt, würde Zeile ${r2+1} exakt identisch zu Zeile ${r1+1} werden! Um ein Zeilen-Duplikat zu verhindern, muss dort ein ${oppName} stehen.`
-                            };
+                            });
                         }
                     }
                 }
             }
         }
 
+        // Spalten-Unizität
+        for (let c1 = 0; c1 < size; c1++) {
+            let isFull1 = true;
+            let str1 = '';
+            for (let r = 0; r < size; r++) {
+                if (grid[r][c1] === EMPTY) { isFull1 = false; break; }
+                str1 += grid[r][c1];
+            }
+            if (!isFull1) continue;
+
+            for (let c2 = 0; c2 < size; c2++) {
+                if (c1 === c2) continue;
+                const emptyIndices = [];
+                for (let r = 0; r < size; r++) {
+                    if (grid[r][c2] === EMPTY) emptyIndices.push(r);
+                }
+                if (emptyIndices.length === 1 || emptyIndices.length === 2) {
+                    for (const candVal of [SUN, MOON]) {
+                        const testCol = [];
+                        for (let r = 0; r < size; r++) testCol.push(grid[r][c2]);
+                        testCol[emptyIndices[0]] = candVal;
+                        if (emptyIndices.length === 2) {
+                            const remainingVal = candVal === SUN ? MOON : SUN;
+                            testCol[emptyIndices[1]] = remainingVal;
+                        }
+                        if (testCol.join('') === str1) {
+                            const oppVal = candVal === SUN ? MOON : SUN;
+                            const oppName = oppVal === SUN ? 'Sonne' : 'Mond';
+                            const candName = candVal === SUN ? 'Sonne' : 'Mond';
+                            candidates.push({
+                                type: 'col_uniqueness',
+                                r: emptyIndices[0], c: c2,
+                                value: oppVal,
+                                highlightCells: [{r: 0, c: c1}, {r: emptyIndices[0], c: c2}],
+                                message: `Unizitäts-Axiom: Würde an Position (${emptyIndices[0]+1},${c2+1}) ein ${candName} gesetzt, würde Spalte ${c2+1} exakt identisch zu Spalte ${c1+1} werden! Um ein Spalten-Duplikat zu verhindern, muss dort ein ${oppName} stehen.`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Strategische Bewertung und Deduplizierung aller Kandidaten ---
+        if (candidates.length > 0) {
+            const cellMap = new Map();
+            const priorityOrder = ['edge_cascade', 'row_uniqueness', 'col_uniqueness', 'sandwich', 'avoid_three', 'edge_direct', 'balance_fill'];
+
+            for (const cand of candidates) {
+                const key = `${cand.r},${cand.c}`;
+                if (!cellMap.has(key)) {
+                    cellMap.set(key, { ...cand, deductionCount: 1 });
+                } else {
+                    const existing = cellMap.get(key);
+                    existing.deductionCount++;
+                    if (priorityOrder.indexOf(cand.type) < priorityOrder.indexOf(existing.type)) {
+                        existing.type = cand.type;
+                        existing.highlightCells = cand.highlightCells;
+                        existing.message = cand.message;
+                    }
+                }
+            }
+
+            const uniqueCandidates = Array.from(cellMap.values());
+            uniqueCandidates.forEach(cand => {
+                cand._score = TangoSolver.computeHintScore(cand, engine, options) + (cand.deductionCount - 1) * 8;
+            });
+
+            uniqueCandidates.sort((a, b) => b._score - a._score);
+            const best = uniqueCandidates[0];
+            delete best._score;
+            delete best.deductionCount;
+            return best;
+        }
+
         // 7. Ausführlicher Widerspruchs-Beweis (Widerspruchs-Test auf jedem leeren Feld)
+        const contradictionCandidates = [];
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 if (grid[r][c] === EMPTY) {
                     for (const testVal of [SUN, MOON]) {
-                        // Teste was passiert wenn testVal gesetzt wird
                         grid[r][c] = testVal;
                         const check = engine.validateRules();
                         grid[r][c] = EMPTY; // Rückgängig machen
@@ -890,41 +1035,215 @@ class TangoSolver {
                             const correctVal = testVal === SUN ? MOON : SUN;
                             const correctName = correctVal === SUN ? 'Sonne' : 'Mond';
                             const wrongName = testVal === SUN ? 'Sonne' : 'Mond';
-                            return {
+                            contradictionCandidates.push({
                                 type: 'proof_by_contradiction',
                                 r, c,
                                 value: correctVal,
                                 highlightCells: [{r, c}],
                                 message: `Widerspruchs-Beweis: Würde an Position (${r+1},${c+1}) ein ${wrongName} gesetzt, führte dies sofort zu einem Regelverstoß (${err.message}). Daher MUSS an Position (${r+1},${c+1}) ein ${correctName} stehen!`
-                            };
+                            });
                         }
                     }
                 }
             }
         }
 
-        // 8. Letzte Absicherung via Solver-Ergebnis mit exakter Positionsangabe
+        if (contradictionCandidates.length > 0) {
+            contradictionCandidates.forEach(cand => {
+                cand._score = TangoSolver.computeHintScore(cand, engine, options);
+            });
+            contradictionCandidates.sort((a, b) => b._score - a._score);
+            const best = contradictionCandidates[0];
+            delete best._score;
+            return best;
+        }
+
+        // 8. Letzte Absicherung via Solver-Ergebnis mit strategischer Positionsauswahl
         const sol = TangoSolver.solve(engine);
         if (sol && sol.length > 0) {
             const firstSol = sol[0];
+            const fallbackCandidates = [];
             for (let r = 0; r < size; r++) {
                 for (let c = 0; c < size; c++) {
                     if (grid[r][c] === EMPTY) {
                         const val = firstSol[r][c];
                         const name = val === SUN ? 'Sonne' : 'Mond';
-                        return {
+                        fallbackCandidates.push({
                             type: 'advanced_deduction',
                             r, c,
                             value: val,
                             highlightCells: [{r, c}],
-                            message: `Tiefe Auschluss-Logik: Aus der Gesamtschau der Zeilen-, Spalten- und Kanten-Abhängigkeiten folgt zwingend ein ${name} an Position (${r+1},${c+1}).`
-                        };
+                            message: `Tiefe Ausschluss-Logik: Aus der Gesamtschau der Zeilen-, Spalten- und Kanten-Abhängigkeiten folgt zwingend ein ${name} an Position (${r+1},${c+1}).`
+                        });
                     }
                 }
+            }
+
+            if (fallbackCandidates.length > 0) {
+                fallbackCandidates.forEach(cand => {
+                    cand._score = TangoSolver.computeHintScore(cand, engine, options);
+                });
+                fallbackCandidates.sort((a, b) => b._score - a._score);
+                const best = fallbackCandidates[0];
+                delete best._score;
+                return best;
             }
         }
 
         return null;
+    }
+
+    /**
+     * Berechnet den strategischen Wert eines Hinweises.
+     * Berücksichtigt Kaskaden-Effekt (Anzahl neuer Folgeschritte), Engpässe,
+     * Kanten-Constraints und optionalen Spieler-Fokus.
+     */
+    static computeHintScore(candidate, engine, options = {}) {
+        let score = 0;
+        const size = engine.size;
+        const grid = engine.grid;
+        const { r, c, value, type } = candidate;
+        const focusCell = options.focusCell;
+
+        // 1. Kaskaden-Tiefe: Simuliere den Zug und zähle neue sofortige Folgeschritte
+        grid[r][c] = value;
+        const followUps = TangoSolver._countTrivialFollowUps(engine, r, c);
+        grid[r][c] = EMPTY; // Rückgängig machen
+        score += Math.min(followUps * 12, 60);
+
+        // 2. Engpass-Bonus: Zeilen / Spalten, die fast voll sind
+        let emptyInRow = 0, emptyInCol = 0;
+        for (let i = 0; i < size; i++) {
+            if (grid[r][i] === EMPTY) emptyInRow++;
+            if (grid[i][c] === EMPTY) emptyInCol++;
+        }
+        if (emptyInRow === 1) score += 25;
+        else if (emptyInRow === 2) score += 15;
+        else if (emptyInRow === 3) score += 8;
+
+        if (emptyInCol === 1) score += 25;
+        else if (emptyInCol === 2) score += 15;
+        else if (emptyInCol === 3) score += 8;
+
+        // 3. Spieler-Fokus: Bonus für Nähe zur aktuell ausgewählten Zelle
+        if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number') {
+            const distR = Math.abs(r - focusCell.r);
+            const distC = Math.abs(c - focusCell.c);
+            const manhattanDist = distR + distC;
+
+            if (r === focusCell.r && c === focusCell.c) {
+                score += 35; // Exakte Zelle, die der Spieler anvisiert
+            } else if (r === focusCell.r || c === focusCell.c) {
+                score += 20; // Selbe Zeile oder Spalte des Spielers
+            } else if (manhattanDist <= 2) {
+                score += 12; // Unmittelbares Nachbarfeld
+            }
+        }
+
+        // 4. Kanten-Bedeutung / Constraint-Hebel
+        let adjacentEdges = 0;
+        if (c > 0 && engine.hEdges[r][c - 1] !== EDGE_NONE) adjacentEdges++;
+        if (c < size - 1 && engine.hEdges[r][c] !== EDGE_NONE) adjacentEdges++;
+        if (r > 0 && engine.vEdges[r - 1][c] !== EDGE_NONE) adjacentEdges++;
+        if (r < size - 1 && engine.vEdges[r][c] !== EDGE_NONE) adjacentEdges++;
+        score += adjacentEdges * 8;
+
+        // 5. Lehrreichere / stärkere Muster bevorzugen
+        if (type === 'edge_cascade') score += 16;
+        else if (type === 'row_uniqueness' || type === 'col_uniqueness') score += 20;
+        else if (type === 'sandwich') score += 10;
+        else if (type === 'avoid_three') score += 8;
+        else if (type === 'edge_direct') score += 8;
+        else if (type === 'balance_fill') {
+            if (emptyInRow > 2 && emptyInCol > 2) {
+                score -= 10;
+            }
+        }
+
+        // 6. Zentralitäts-Bonus (innenliegende Felder verbinden mehr Achsen)
+        if (r > 0 && r < size - 1 && c > 0 && c < size - 1) {
+            score += 6;
+        }
+
+        return score;
+    }
+
+    /**
+     * Zählt, wie viele leere Zellen durch das Setzen von (targetR, targetC)
+     * unmittelbar durch Basisregeln lösbar werden.
+     */
+    static _countTrivialFollowUps(engine, targetR, targetC) {
+        const size = engine.size;
+        const maxPerLine = size / 2;
+        const grid = engine.grid;
+        const solvableCells = new Set();
+
+        // 1. Dreierreihen-Vermeidung & Sandwich in betroffener Zeile targetR
+        for (let c = 0; c < size; c++) {
+            if (c < size - 1 && grid[targetR][c] !== EMPTY && grid[targetR][c] === grid[targetR][c+1]) {
+                if (c > 0 && grid[targetR][c-1] === EMPTY) solvableCells.add(`${targetR},${c-1}`);
+                if (c + 2 < size && grid[targetR][c+2] === EMPTY) solvableCells.add(`${targetR},${c+2}`);
+            }
+            if (c < size - 2 && grid[targetR][c] !== EMPTY && grid[targetR][c] === grid[targetR][c+2] && grid[targetR][c+1] === EMPTY) {
+                solvableCells.add(`${targetR},${c+1}`);
+            }
+        }
+
+        // 2. Dreierreihen-Vermeidung & Sandwich in betroffener Spalte targetC
+        for (let r = 0; r < size; r++) {
+            if (r < size - 1 && grid[r][targetC] !== EMPTY && grid[r][targetC] === grid[r+1][targetC]) {
+                if (r > 0 && grid[r-1][targetC] === EMPTY) solvableCells.add(`${r-1},${targetC}`);
+                if (r + 2 < size && grid[r+2][targetC] === EMPTY) solvableCells.add(`${r+2},${targetC}`);
+            }
+            if (r < size - 2 && grid[r][targetC] !== EMPTY && grid[r][targetC] === grid[r+2][targetC] && grid[r+1][targetC] === EMPTY) {
+                solvableCells.add(`${r+1},${targetC}`);
+            }
+        }
+
+        // 3. Direkte Kantenbedingungen in Zeile targetR
+        for (let c = 0; c < size - 1; c++) {
+            if (engine.hEdges[targetR][c] !== EDGE_NONE) {
+                const v1 = grid[targetR][c], v2 = grid[targetR][c+1];
+                if (v1 !== EMPTY && v2 === EMPTY) solvableCells.add(`${targetR},${c+1}`);
+                else if (v1 === EMPTY && v2 !== EMPTY) solvableCells.add(`${targetR},${c}`);
+            }
+        }
+
+        // 4. Direkte Kantenbedingungen in Spalte targetC
+        for (let r = 0; r < size - 1; r++) {
+            if (engine.vEdges[r][targetC] !== EDGE_NONE) {
+                const v1 = grid[r][targetC], v2 = grid[r+1][targetC];
+                if (v1 !== EMPTY && v2 === EMPTY) solvableCells.add(`${r+1},${targetC}`);
+                else if (v1 === EMPTY && v2 !== EMPTY) solvableCells.add(`${r},${targetC}`);
+            }
+        }
+
+        // 5. Balance in Zeile targetR
+        let sunsR = 0, moonsR = 0;
+        for (let c = 0; c < size; c++) {
+            if (grid[targetR][c] === SUN) sunsR++;
+            else if (grid[targetR][c] === MOON) moonsR++;
+        }
+        if (sunsR === maxPerLine || moonsR === maxPerLine) {
+            for (let c = 0; c < size; c++) {
+                if (grid[targetR][c] === EMPTY) solvableCells.add(`${targetR},${c}`);
+            }
+        }
+
+        // 6. Balance in Spalte targetC
+        let sunsC = 0, moonsC = 0;
+        for (let r = 0; r < size; r++) {
+            if (grid[r][targetC] === SUN) sunsC++;
+            else if (grid[r][targetC] === MOON) moonsC++;
+        }
+        if (sunsC === maxPerLine || moonsC === maxPerLine) {
+            for (let r = 0; r < size; r++) {
+                if (grid[r][targetC] === EMPTY) solvableCells.add(`${r},${targetC}`);
+            }
+        }
+
+        solvableCells.delete(`${targetR},${targetC}`);
+        return solvableCells.size;
     }
 
     /**
@@ -3051,6 +3370,8 @@ class TangoApp {
         this.secondsElapsed = 0;
         this.movesCount = 0;
         this.hintsUsed = 0;
+        this.currentHint = null;
+        this.hintPlacedCell = null;
         this.solutionRevealed = false;
         this.isGameActive = false;
         this.ignoreClickUntil = 0;
@@ -3243,6 +3564,7 @@ class TangoApp {
         document.getElementById('btnHintApply').addEventListener('click', () => {
             if (this.currentHint) {
                 this.engine.setCellValue(this.currentHint.r, this.currentHint.c, this.currentHint.value);
+                this.hintPlacedCell = { r: this.currentHint.r, c: this.currentHint.c };
                 audio.playSun();
                 this.renderGrid();
                 this.toggleModal('hintModal', false);
@@ -3482,6 +3804,7 @@ class TangoApp {
         });
 
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -3520,6 +3843,7 @@ class TangoApp {
         });
 
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -3560,6 +3884,7 @@ class TangoApp {
         });
 
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -3595,6 +3920,7 @@ class TangoApp {
         this.engine.loadPuzzle(level);
         this.scrollToTop();
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -3644,6 +3970,7 @@ class TangoApp {
 
         this.engine.loadPuzzle(puzzle);
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -3665,6 +3992,7 @@ class TangoApp {
 
         this.engine.loadPuzzle(generated);
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -3689,6 +4017,7 @@ class TangoApp {
             solution: this.engine.solution
         });
         this.selectedCell = null;
+        this.hintPlacedCell = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -3750,10 +4079,12 @@ class TangoApp {
                 const isLocked = this.engine.locked[r][c];
                 const isConflict = !this.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
                 const isSelected = !this.solutionRevealed && this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
+                const isHintShimmer = !this.solutionRevealed && this.hintPlacedCell && this.hintPlacedCell.r === r && this.hintPlacedCell.c === c;
 
                 if (isLocked) cellEl.classList.add('locked');
                 if (isConflict) cellEl.classList.add('conflict');
                 if (isSelected) cellEl.classList.add('selected');
+                if (isHintShimmer) cellEl.classList.add('hint-shimmer');
 
                 if (this.solutionRevealed && solution) {
                     const solVal = solution[r][c];
@@ -3899,6 +4230,7 @@ class TangoApp {
 
         this.ignoreClickUntil = Date.now() + 500; // Block fake click after long press release
         this.selectedCell = { r, c };
+        this.hintPlacedCell = null;
 
         if (this.isNoteMode) {
             this.engine.setCellValue(r, c, MOON, true);
@@ -3930,6 +4262,8 @@ class TangoApp {
             return;
         }
 
+        this.hintPlacedCell = null;
+
         // Bedienkonzept:
         // 1x Tippen = ☀️ (Sonne)
         // 2x Tippen = 🌙 (Mond)
@@ -3955,6 +4289,7 @@ class TangoApp {
         const { r, c } = this.selectedCell;
         if (this.engine.locked[r][c]) return;
 
+        this.hintPlacedCell = null;
         this.engine.setCellValue(r, c, val, this.isNoteMode);
         this.movesCount++;
 
@@ -3969,6 +4304,7 @@ class TangoApp {
     handleUndo() {
         const action = this.engine.undo();
         if (action) {
+            this.hintPlacedCell = null;
             audio.playClear();
             this.renderGrid();
         }
@@ -3977,6 +4313,7 @@ class TangoApp {
     handleRedo() {
         const action = this.engine.redo();
         if (action) {
+            this.hintPlacedCell = null;
             audio.playClear();
             this.renderGrid();
         }
@@ -4005,6 +4342,7 @@ class TangoApp {
                 value: mistake.expectedVal,
                 highlightCells: mistake.highlightCells
             };
+            this.hintPlacedCell = { r: mistake.r, c: mistake.c };
             this.hintsUsed++;
             audio.playError();
 
@@ -4026,10 +4364,13 @@ class TangoApp {
             return;
         }
 
-        // 2. Priorität: Regulärer logischer Tipp für den nächsten Zug
-        const hint = TangoSolver.findLogicalHint(this.engine);
+        // 2. Priorität: Regulärer logischer Tipp für den nächsten Zug (mit Fokus auf ausgewählte Zelle)
+        const hint = TangoSolver.findLogicalHint(this.engine, {
+            focusCell: this.selectedCell || null
+        });
         if (hint) {
             this.currentHint = hint;
+            this.hintPlacedCell = { r: hint.r, c: hint.c };
             this.hintsUsed++;
             audio.playHint();
 

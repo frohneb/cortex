@@ -1,6 +1,6 @@
 # Tango – Logikrätsel für Android & Web (Werbefrei & 100% Offline)
 
-[![Version](https://img.shields.io/badge/Version-1.2.4-brightgreen.svg)](https://github.com/frohneb/tango)
+[![Version](https://img.shields.io/badge/Version-1.2.5-brightgreen.svg)](https://github.com/frohneb/tango)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -58,7 +58,7 @@ Eine moderne, elegante und werbefreie Offline-Implementierung des beliebten Logi
 Das Projekt verfügt über ein umfassendes Test- und Sicherheitsframework:
 
 ```bash
-# 1. Alle Unit-, DOM- und Logik-Tests ausführen (66 Tests)
+# 1. Alle Unit-, DOM- und Logik-Tests ausführen (63 Tests)
 python -m unittest test_app_dom.py test_rules.py test_streak_logic.py test_hint_and_defeat_logic.py test_tutorial_patterns.py
 
 # 2. Tiefen-Sicherheitsaudit (74 Prüfungen: Permissions, CSP, XSS, APK-Integrität)
@@ -100,3 +100,16 @@ Tango wird nach den Prinzipien **„Privacy by Design"** und **„Defense in Dep
 ## 📄 Lizenz
  
 Dieses Projekt ist unter der [GNU General Public License v3.0 (GPLv3)](LICENSE) lizenziert.
+
+---
+
+## 📝 Changelog
+
+### v1.2.5 – 2026-08-24
+- 💡 **Strategischer Hinweis-Engine-Umbau**: Der Hinweis-Assistent priorisiert jetzt Engpass-Zellen (Zeilen/Spalten mit wenig leeren Zellen), Kaskaden-Tiefe und den Spieler-Fokus statt immer triviale Anfangszellen zu wählen.
+- ✨ **Schimmer-Effekt auf Hinweis-Feld**: Die Zielzelle eines Hinweises leuchtet golden auf und schimmert, bis der Spieler seinen nächsten Zug macht.
+- 🧪 Alle 63 automatisierten Tests bestanden, 74/74 Sicherheitschecks OK.
+
+### v1.2.4 – 2026-08-22
+- 📐 14 Meister-Muster-Lektionen im Tutorial-Bereich (Muster).
+- 🐛 Bugfixes und UI-Verbesserungen.
