@@ -3,7 +3,7 @@
 **Audit Datum:** 24.08.2026 (Deep Scan nach strategischem Hinweis-Engine-Update - v1.2.5)
 **Auditiert von:** Automatisierter Deep-Scan (test_security_deep.py) + manuelle Code-Review
 **Version:** 1.2.5 (versionCode 22)
-**APK SHA-256:** afe52068ed8bf445d34b8d2a71447f11ccf333986dd913257bfa65a7a7e20bdd
+**APK SHA-256:** a3e0312ef1350961f7ab2d870d1b3481f7d35ddf0b512f96f6ee4e2464a0685f
 **Gesamtbewertung:** 9.8 / 10 - EXZELLENT
 
 ---
@@ -32,7 +32,7 @@
 |---|---|
 | APK-Datei vorhanden | PASS |
 | APK-Signatur gueltig (v1/v2/v3 APK Signature Scheme) | PASS |
-| SHA-256 Hash berechnet (afe52068...) | PASS |
+| SHA-256 Hash berechnet (a3e0312e...) | PASS |
 | APK-Groesse plausibel (0.33 MB < 5 MB) | PASS |
 
 **Signatur-Schema:** APK Signature Scheme v2/v3 | **Algorithmus:** SHA-256withRSA | **APK-Groesse:** 0.33 MB

@@ -17,7 +17,7 @@
     --accent-opposite: #ef4444;
     --cell-bg: #1e293b;
     --cell-border: #334155;
-    --cell-locked-bg: #0f172a;
+    --cell-locked-bg: #090e1a;
     --cell-hover: #334155;
     --shadow-color: rgba(0, 0, 0, 0.4);
     --radius-sm: 8px;
@@ -34,8 +34,8 @@ body.theme-amoled {
     --bg-card: rgba(18, 18, 18, 0.95);
     --accent-sun: #facc15;
     --accent-moon: #38bdf8;
-    --cell-bg: #141414;
-    --cell-border: #262626;
+    --cell-bg: #1a1a1e;
+    --cell-border: #282828;
     --cell-locked-bg: #000000;
 }
 
@@ -51,7 +51,7 @@ body.theme-light {
     --accent-moon: #0284c7;
     --cell-bg: #ffffff;
     --cell-border: #cbd5e1;
-    --cell-locked-bg: #e2e8f0;
+    --cell-locked-bg: #cbd5e1;
     --cell-hover: #e2e8f0;
     --shadow-color: rgba(0, 0, 0, 0.08);
 }
@@ -66,9 +66,9 @@ body.theme-wood {
     --text-secondary: #d97706;
     --accent-sun: #fbbf24;
     --accent-moon: #60a5fa;
-    --cell-bg: #3a1e14;
+    --cell-bg: #3e2217;
     --cell-border: #5e3223;
-    --cell-locked-bg: #27140d;
+    --cell-locked-bg: #180a05;
 }
 
 /* Theme: Cyberpunk Neon */
@@ -83,9 +83,9 @@ body.theme-cyberpunk {
     --accent-moon: #00f0ff;
     --accent-equal: #00ff66;
     --accent-opposite: #ff0055;
-    --cell-bg: #14142b;
+    --cell-bg: #191938;
     --cell-border: #2a2a5a;
-    --cell-locked-bg: #090914;
+    --cell-locked-bg: #070712;
 }
 
 * {
@@ -286,7 +286,12 @@ html, body {
 .grid-cell.locked {
     background: var(--cell-locked-bg);
     border-color: var(--border-color);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
     cursor: default;
+}
+
+body.theme-light .grid-cell.locked {
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.12);
 }
 
 .grid-cell.selected {
@@ -499,26 +504,44 @@ html, body {
 
 .grid-cell.val-sun {
     color: var(--accent-sun);
-    background: radial-gradient(circle at center, rgba(251, 191, 36, 0.16) 0%, var(--cell-bg) 75%);
-    border-color: rgba(251, 191, 36, 0.42);
-    box-shadow: inset 0 0 12px rgba(251, 191, 36, 0.12);
+    background: radial-gradient(circle at center, rgba(251, 191, 36, 0.2) 0%, var(--cell-bg) 75%);
+    border-color: rgba(251, 191, 36, 0.48);
+    box-shadow: inset 0 0 14px rgba(251, 191, 36, 0.14);
 }
 
 .grid-cell.val-moon {
     color: var(--accent-moon);
-    background: radial-gradient(circle at center, rgba(56, 189, 248, 0.18) 0%, var(--cell-bg) 75%);
-    border-color: rgba(56, 189, 248, 0.42);
-    box-shadow: inset 0 0 12px rgba(56, 189, 248, 0.12);
+    background: radial-gradient(circle at center, rgba(56, 189, 248, 0.22) 0%, var(--cell-bg) 75%);
+    border-color: rgba(56, 189, 248, 0.48);
+    box-shadow: inset 0 0 14px rgba(56, 189, 248, 0.14);
 }
 
-.grid-cell.val-sun.locked {
-    background: radial-gradient(circle at center, rgba(251, 191, 36, 0.11) 0%, var(--cell-locked-bg) 80%);
-    border-color: rgba(251, 191, 36, 0.3);
+.grid-cell.val-sun.locked,
+.grid-cell.locked.val-sun {
+    background: var(--cell-locked-bg) !important;
+    border-color: rgba(251, 191, 36, 0.25) !important;
+    box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.55) !important;
 }
 
-.grid-cell.val-moon.locked {
-    background: radial-gradient(circle at center, rgba(56, 189, 248, 0.12) 0%, var(--cell-locked-bg) 80%);
-    border-color: rgba(56, 189, 248, 0.3);
+.grid-cell.val-moon.locked,
+.grid-cell.locked.val-moon {
+    background: var(--cell-locked-bg) !important;
+    border-color: rgba(56, 189, 248, 0.25) !important;
+    box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.55) !important;
+}
+
+body.theme-light .grid-cell.val-sun.locked,
+body.theme-light .grid-cell.locked.val-sun {
+    background: var(--cell-locked-bg) !important;
+    border-color: rgba(217, 119, 6, 0.35) !important;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.18) !important;
+}
+
+body.theme-light .grid-cell.val-moon.locked,
+body.theme-light .grid-cell.locked.val-moon {
+    background: var(--cell-locked-bg) !important;
+    border-color: rgba(2, 132, 199, 0.35) !important;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.18) !important;
 }
 
 /* Notizen in Zelle */
