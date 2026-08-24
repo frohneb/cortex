@@ -1,7 +1,7 @@
 {
   "name": "Cortex - Logikrätsel",
   "short_name": "Cortex",
-  "description": "Minimalistische Logikrätsel-Sammlung (Tango, Sudoku). 100% werbefrei und offline spielbar.",
+  "description": "Minimalistische Logikrätsel-Sammlung (Tango, Sudoku, Akari). 100% werbefrei und offline spielbar.",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",

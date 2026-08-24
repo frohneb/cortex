@@ -121,13 +121,14 @@ export class StatsManager {
     /**
      * Berechnet die Gesamt-Statistiken über alle Puzzles hinweg
      */
-    static getAggregatedStats(puzzleIds = ['tango', 'sudoku']) {
+    static getAggregatedStats(puzzleIds = ['tango', 'sudoku', 'akari']) {
         let totalPlayed = 0;
         let totalWon = 0;
         let totalLost = 0;
         let totalTime = 0;
         let bestOverallTime = null;
 
+        const aggregatedBestTimes = {};
         for (const id of puzzleIds) {
             const s = this.getPuzzleStats(id);
             totalPlayed += s.played || 0;
@@ -137,6 +138,15 @@ export class StatsManager {
             if (s.bestTime !== null && s.bestTime !== undefined) {
                 if (bestOverallTime === null || s.bestTime < bestOverallTime) {
                     bestOverallTime = s.bestTime;
+                }
+            }
+            if (s.bestTimes) {
+                for (const [sizeKey, timeVal] of Object.entries(s.bestTimes)) {
+                    if (timeVal !== null && timeVal !== undefined) {
+                        if (aggregatedBestTimes[sizeKey] === undefined || timeVal < aggregatedBestTimes[sizeKey]) {
+                            aggregatedBestTimes[sizeKey] = timeVal;
+                        }
+                    }
                 }
             }
         }
@@ -153,6 +163,7 @@ export class StatsManager {
             winRateNum: winRate,
             totalTime,
             bestTime: bestOverallTime,
+            bestTimes: aggregatedBestTimes,
             streaks
         };
     }

@@ -1,12 +1,12 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.0.0-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.1.0-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
-[![Security](https://img.shields.io/badge/Security-9.9%2F10%20Exzellent-brightgreen.svg)](SECURITY.md)
+[![Security](https://img.shields.io/badge/Security-10.0%2F10%20Perfekt-brightgreen.svg)](SECURITY.md)
 
-Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango** und **Sudoku**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones und Web-Browser.
+Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku** und **Akari / Light Up**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones und Web-Browser.
 
 ---
 
@@ -16,8 +16,9 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 - 🧩 **Modulare Puzzle-Architektur (Cortex Engine)**:
   - **Tango (Takuzu / Binairo / Binoxxo)**: Größen von 4×4 bis 10×10 mit Sonnen (☀️), Monden (🌙), Gleichheit (`=`) und Gegenteil (`×`).
   - **Sudoku**: Klassisches 9×9 sowie 4×4 (Mini) und 16×16 (Monster-Sudoku) mit passgenauen Blockkammern (2×2, 3×3, 4×4).
+  - **Akari (Light Up / Glühbirnen)**: Größen von 6×6 bis 14×14 mit Lichtstrahlen-Glow, Wand-Nachbarschaftszahlen ($0 \dots 4$) und SVG-Glühbirnen (💡).
 - 🏆 **Umfangreiche Kampagnen**:
-  - Jeweils 120 handgefertigte Kampagnen-Level pro Rätseltyp mit dynamischer Sterne- und Fortschrittsspeicherung.
+  - Jeweils 120 handgefertigte Kampagnen-Level pro Rätseltyp mit dynamischer Sterne- und Fortschrittsspeicherung (insgesamt 360 Level).
 - 📅 **Tägliches Rätsel (Daily Puzzle)**:
   - Jeden Tag ein neues, synchrones Tagesrätsel mit automatischer Puzzle-Rotation und Streak-Zähler.
 - 🎲 **Freies Spiel (Endlos-Generator)**:
@@ -25,6 +26,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 - 🎓 **Interaktive Tutorials & Lösungsstrategien**:
   - **Tango**: Grundlagen (6 Schritte), Mathematik (8 Lektionen) und Meister-Muster (14 Lektionen).
   - **Sudoku**: Grundlagen (Reihen, Spalten, Blöcke) und Fortgeschrittene Lektionen (*Naked Pairs*, *Hidden Singles*, Block-Interferenzen).
+  - **Akari**: Grundlagen (8 Lektionen) und Fortgeschrittene Lektionen (6 Meister-Muster & Wand-Interferenzen).
 - ✏️ **Notizen-Modus (Kandidaten & Entwürfe)**:
   - Ermöglicht das Festhalten von temporären Markierungen und Annahmen direkt auf dem Spielfeld.
 - 💡 **Intelligenter Hinweis-Assistent & Lösungsaufdeckung**:
@@ -48,9 +50,20 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 1. Jede Ziffer darf in jeder **Zeile**, jeder **Spalte** und jedem **Teilblock** (Kammer) nur genau **einmal** vorkommen.
 2. Vorgegebene Startzahlen sind fixiert und heben sich farblich von den Spielereingaben ab.
 
+### 💡 Akari (Light Up)
+1. **Vollständige Ausleuchtung**: Platziere Glühlampen (💡) auf weißen Feldern, um jede Zelle horizontal und vertikal bis zu einer schwarzen Wand zu erleuchten.
+2. **Kein Blenden**: Zwei Lampen dürfen sich niemals in direkter Sichtlinie gegenseitig anstrahlen.
+3. **Wand-Zahlen**: Zahlen auf schwarzen Wänden ($0 \dots 4$) geben die exakte Anzahl orthogonal angrenzender Lampen an.
+
 ---
 
 ## 📜 Changelog
+
+### v2.1.0 – 2026-08-24
+* **Akari (Light Up) Integration**: Vollständiges Glühbirnen- & Lichtstrahl-Rätsel (6×6 bis 14×14), 120 Kampagnen-Level, deterministischer Generator, Backtracking-Solver, Smart-Hint-Engine und 14 Tutorials.
+* **Dynamische Lichtstrahl-Effekte**: Schimmernde Lichtausbreitung über Zeilen und Spalten in allen 5 Farb-Themes (*Modern Dark*, *AMOLED*, *Light*, *Wood*, *Cyberpunk*).
+* **Audio-Synthesizer**: Neuer warmer Glühbirnen-Soundeffekt `playBulb()`.
+* **Erweiterte Statistik-Filter**: Separates Tracking für Tango, Sudoku und Akari inklusive Bestzeiten.
 
 ### v2.0.0 – 2026-08-24
 * **Cortex Multi-Puzzle Engine**: Einführung der modularen Rätselplattform mit nahtloser Unterstützung für **Tango** und **Sudoku**.
@@ -77,7 +90,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ```bash
 # Web-Bundle und Tests ausführen
 python build_bundle.py
-python -m unittest test_sudoku.py test_cortex_plugins.py test_app_dom.py
+python -m unittest test_akari.py test_sudoku.py test_cortex_plugins.py test_app_dom.py
 
 # Native Cortex.apk erstellen und sicherheitsüberprüfen
 python build_apk.py

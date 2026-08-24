@@ -1,0 +1,323 @@
+/* ==========================================================================
+   Akari (Light Up) Puzzle Specific Stylesheet
+   Dynamische Lichtstrahlen, Wände, leuchtende Glühlampen und Theme-Integration
+   ========================================================================== */
+
+.akari-grid {
+    display: grid !important;
+    width: 100%;
+    height: 100%;
+    max-width: 440px;
+    max-height: 440px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    gap: 2px !important;
+    padding: 6px !important;
+    background-color: var(--bg-secondary);
+    border: 2.5px solid var(--accent-sun) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: 0 10px 30px var(--shadow-color);
+    box-sizing: border-box;
+}
+
+body.theme-cyberpunk .akari-grid {
+    border-color: #ff007f !important;
+    box-shadow: 0 0 25px rgba(255, 0, 127, 0.25);
+}
+
+body.theme-minimal .akari-grid {
+    border-color: var(--border-color) !important;
+}
+
+body.theme-amoled .akari-grid {
+    background-color: #000000;
+}
+
+/* Dynamische Skalierung für Gittergrößen */
+.akari-grid.size-5, .akari-grid.size-6 { gap: 4px !important; padding: 6px !important; }
+.akari-grid.size-7, .akari-grid.size-8 { gap: 3px !important; padding: 5px !important; }
+.akari-grid.size-10 { gap: 2px !important; padding: 4px !important; }
+.akari-grid.size-12, .akari-grid.size-14 { gap: 1.5px !important; padding: 3px !important; }
+
+/* Akari Zellen Basis */
+.akari-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    box-sizing: border-box;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+/* 1. Schwarze Wände */
+.akari-cell.akari-wall {
+    background-color: #0b0f19 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: default;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+body.theme-amoled .akari-cell.akari-wall {
+    background-color: #111111 !important;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+body.theme-light .akari-cell.akari-wall {
+    background-color: #1e293b !important;
+    border-color: #0f172a;
+}
+
+body.theme-wood .akari-cell.akari-wall {
+    background-color: #2b1810 !important;
+    border-color: #4a2818;
+}
+
+body.theme-cyberpunk .akari-cell.akari-wall {
+    background-color: #0a001a !important;
+    border-color: rgba(255, 0, 127, 0.35);
+}
+
+/* Wand-Zahlen */
+.wall-clue-digit {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    font-weight: 900;
+    color: #ffffff;
+    line-height: 1;
+    font-size: 1.3rem;
+}
+
+.akari-grid.size-5 .wall-clue-digit,
+.akari-grid.size-6 .wall-clue-digit { font-size: 1.6rem; }
+.akari-grid.size-7 .wall-clue-digit,
+.akari-grid.size-8 .wall-clue-digit { font-size: 1.3rem; }
+.akari-grid.size-10 .wall-clue-digit { font-size: 1.05rem; }
+.akari-grid.size-12 .wall-clue-digit,
+.akari-grid.size-14 .wall-clue-digit { font-size: 0.82rem; }
+
+/* Erfüllte Wände (Grüner dezenter Status) */
+.akari-cell.akari-wall.wall-satisfied {
+    border-color: rgba(16, 185, 129, 0.6) !important;
+    box-shadow: inset 0 0 8px rgba(16, 185, 129, 0.35) !important;
+}
+
+.akari-cell.akari-wall.wall-satisfied .wall-clue-digit {
+    color: #34d399;
+}
+
+/* Fehlerhafte Wände (Rot pulsierend) */
+.akari-cell.akari-wall.wall-error {
+    border-color: #ef4444 !important;
+    box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.6) !important;
+    animation: akari-error-pulse 1.2s infinite ease-in-out;
+}
+
+.akari-cell.akari-wall.wall-error .wall-clue-digit {
+    color: #ef4444;
+}
+
+/* 2. Weiße Zellen */
+.akari-cell.akari-white {
+    background-color: var(--cell-bg);
+    border: 1px solid var(--cell-border);
+}
+
+.akari-cell.akari-white:active {
+    transform: scale(0.94);
+}
+
+/* 3. Ausleuchtung (Lichtstrahl-Glow) */
+.akari-cell.akari-white.is-lit {
+    background-color: rgba(251, 191, 36, 0.16) !important;
+    border-color: rgba(251, 191, 36, 0.28) !important;
+    box-shadow: inset 0 0 12px rgba(251, 191, 36, 0.12);
+}
+
+body.theme-amoled .akari-cell.akari-white.is-lit {
+    background-color: rgba(251, 191, 36, 0.22) !important;
+    border-color: rgba(251, 191, 36, 0.4) !important;
+}
+
+body.theme-light .akari-cell.akari-white.is-lit {
+    background-color: rgba(245, 158, 11, 0.18) !important;
+    border-color: rgba(245, 158, 11, 0.35) !important;
+}
+
+body.theme-wood .akari-cell.akari-white.is-lit {
+    background-color: rgba(217, 119, 6, 0.22) !important;
+    border-color: rgba(217, 119, 6, 0.4) !important;
+}
+
+body.theme-cyberpunk .akari-cell.akari-white.is-lit {
+    background-color: rgba(0, 240, 255, 0.18) !important;
+    border-color: rgba(0, 240, 255, 0.35) !important;
+    box-shadow: inset 0 0 14px rgba(0, 240, 255, 0.2);
+}
+
+/* 4. Glühbirne (💡) */
+.akari-symbol.akari-bulb {
+    width: 75%;
+    height: 75%;
+    color: #fbbf24;
+    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.8)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    transform: scale(1.05);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+body.theme-cyberpunk .akari-symbol.akari-bulb {
+    color: #00f0ff;
+    filter: drop-shadow(0 0 12px rgba(0, 240, 255, 0.9)) drop-shadow(0 0 4px #ffffff);
+}
+
+/* 5. Punkt / Marker (•) */
+.akari-symbol.akari-dot {
+    width: 32%;
+    height: 32%;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.mini-dot {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    line-height: 1;
+}
+
+/* 6. Kollision / Fehler-Lampen */
+.akari-cell.akari-white.has-conflict {
+    background-color: rgba(239, 68, 68, 0.3) !important;
+    border-color: #ef4444 !important;
+    animation: akari-error-pulse 1s infinite ease-in-out;
+}
+
+.akari-cell.akari-white.has-conflict .akari-symbol.akari-bulb {
+    color: #ef4444 !important;
+    filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.9));
+}
+
+/* 7. Selektion & Hinweis-Animation */
+.akari-cell.akari-white.selected {
+    box-shadow: inset 0 0 0 2px var(--accent-sun) !important;
+    z-index: 2;
+}
+
+body.theme-cyberpunk .akari-cell.akari-white.selected {
+    box-shadow: inset 0 0 0 2px #00f0ff !important;
+}
+
+@keyframes akari-error-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.96); filter: brightness(1.2); }
+}
+
+/* Akari Keypad */
+.akari-keypad {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 380px;
+    margin: 8px auto;
+}
+
+.akari-key-btn {
+    flex: 1;
+    height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--cell-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 700;
+    transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+.akari-key-btn:active {
+    transform: scale(0.93);
+}
+
+.akari-key-btn .key-lbl {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+/* 8. Aufgedeckte Lösung & Fehler-Markierungen */
+.akari-cell.cell-revealed-solution {
+    background-color: var(--cell-bg);
+}
+
+.akari-cell .ghost-bulb {
+    opacity: 0.85;
+    animation: symbolPop 0.3s ease-out;
+}
+
+.akari-cell .ghost-dot {
+    opacity: 0.7;
+    animation: symbolPop 0.3s ease-out;
+}
+
+.akari-cell.cell-revealed-correct {
+    border-color: rgba(34, 197, 94, 0.6) !important;
+    box-shadow: inset 0 0 8px rgba(34, 197, 94, 0.2);
+}
+
+.akari-cell.cell-revealed-error {
+    border-color: #ef4444 !important;
+    background: radial-gradient(circle at center, rgba(239, 68, 68, 0.32) 0%, var(--cell-bg) 85%) !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5) !important;
+    position: relative;
+}
+
+.akari-cell.cell-revealed-error .wrong-marker-cross {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: #ef4444;
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+    z-index: 3;
+}
+
+.akari-cell.cell-revealed-error .wrong-bulb,
+.akari-cell.cell-revealed-error .wrong-dot {
+    opacity: 0.45;
+    filter: grayscale(0.7);
+}
+
+.akari-cell.cell-revealed-error .revealed-correct-sub {
+    position: absolute;
+    bottom: 2px;
+    left: 2px;
+    right: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.akari-cell.cell-revealed-error .revealed-correct-sub .mini-badge {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--accent-sun);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 0.65rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+

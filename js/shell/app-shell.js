@@ -15,6 +15,7 @@ import { puzzleRegistry } from './puzzle-registry.js';
 
 import { TangoPlugin } from '../puzzles/tango/index.js';
 import { SudokuPlugin } from '../puzzles/sudoku/index.js';
+import { AkariPlugin } from '../puzzles/akari/index.js';
 import { getSunSvg, getMoonSvg } from '../puzzles/tango/renderer.js';
 
 export { formatTime, calculateStreaks, getSunSvg, getMoonSvg };
@@ -27,6 +28,7 @@ export class CortexApp {
         // Plugins registrieren
         puzzleRegistry.register(TangoPlugin);
         puzzleRegistry.register(SudokuPlugin);
+        puzzleRegistry.register(AkariPlugin);
 
         // Aktives Plugin laden
         const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
@@ -209,9 +211,9 @@ export class CortexApp {
 
         // Vorschau auf kommende Puzzles
         const upcoming = [
-            { name: 'Queens', icon: '👑', desc: 'Farbzonen & Königinnen' },
+            { name: 'Star Battle', icon: '⭐', desc: 'Sternenschlacht & Regionen' },
             { name: 'Futoshiki', icon: '📐', desc: 'Ungleichungs-Gitter' },
-            { name: 'KenKen', icon: '➕', desc: 'Rechen-Kästchen' }
+            { name: 'Tents & Trees', icon: '⛺', desc: 'Zelte & Bäume' }
         ];
         for (const u of upcoming) {
             const card = document.createElement('div');
@@ -257,36 +259,31 @@ export class CortexApp {
         const tutTutPro = document.getElementById('navTutorialPro');
         const tutPatterns = document.getElementById('navTutorialPatterns');
 
-        // Für Sudoku nur 2 Tutorials (Grundlagen & Fortgeschritten)
-        if (this.activePlugin.id === 'sudoku') {
+        const tutSteps = this.activePlugin.getTutorialSteps ? this.activePlugin.getTutorialSteps() : null;
+        const sections = tutSteps?.sections || [];
+
+        if (sections.length > 1) {
             if (tutTutPro) {
                 tutTutPro.style.display = 'flex';
                 const textEl = tutTutPro.querySelector('.tut-btn-text');
                 if (textEl) {
-                    textEl.textContent = t('sudoku_tut_advanced') || 'Fortgeschritten';
-                    textEl.setAttribute('data-i18n', 'sudoku_tut_advanced');
+                    textEl.textContent = sections[1].name;
                 }
-            }
-            if (tutPatterns) {
-                tutPatterns.style.display = 'none';
             }
         } else {
-            if (tutTutPro) {
-                tutTutPro.style.display = 'flex';
-                const textEl = tutTutPro.querySelector('.tut-btn-text');
-                if (textEl) {
-                    textEl.textContent = t('nav_tutorial_pro');
-                    textEl.setAttribute('data-i18n', 'nav_tutorial_pro');
-                }
-            }
+            if (tutTutPro) tutTutPro.style.display = 'none';
+        }
+
+        if (sections.length > 2) {
             if (tutPatterns) {
                 tutPatterns.style.display = 'flex';
                 const textEl = tutPatterns.querySelector('.tut-btn-text');
                 if (textEl) {
-                    textEl.textContent = t('nav_tutorial_patterns');
-                    textEl.setAttribute('data-i18n', 'nav_tutorial_patterns');
+                    textEl.textContent = sections[2].name;
                 }
             }
+        } else {
+            if (tutPatterns) tutPatterns.style.display = 'none';
         }
     }
 
@@ -727,16 +724,22 @@ export class CortexApp {
             return;
         }
 
-        // Direktes Durchschalten (Cycle-Modus für Tango)
+        // Direktes Durchschalten (Cycle-Modus für Tango & Akari)
         if (this.isNoteMode) {
             this.engine.cycleNoteValue(r, c);
             audio.vibrate(25);
         } else {
             const nextVal = this.engine.cycleCellValue(r, c);
             this.movesCount++;
-            if (nextVal === 1) audio.playSun();
-            else if (nextVal === 2) audio.playMoon();
-            else audio.playClear();
+            if (this.activePlugin.id === 'akari') {
+                if (nextVal === 1) audio.playBulb();
+                else if (nextVal === 2) audio.vibrate(25);
+                else audio.playClear();
+            } else {
+                if (nextVal === 1) audio.playSun();
+                else if (nextVal === 2) audio.playMoon();
+                else audio.playClear();
+            }
         }
 
         this.renderGrid();
@@ -757,6 +760,14 @@ export class CortexApp {
                 this.engine.setCellValue(r, c, 2);
                 this.movesCount++;
                 audio.playMoon();
+            }
+        } else if (this.activePlugin.id === 'akari') {
+            if (this.isNoteMode) {
+                this.engine.setCellValue(r, c, 2, true);
+            } else {
+                this.engine.setCellValue(r, c, 2);
+                this.movesCount++;
+                audio.vibrate(30);
             }
         }
 
@@ -797,6 +808,9 @@ export class CortexApp {
             } else if (this.activePlugin.id === 'tango') {
                 if (val === 1) audio.playSun();
                 else if (val === 2) audio.playMoon();
+            } else if (this.activePlugin.id === 'akari') {
+                if (val === 1) audio.playBulb();
+                else if (val === 2) audio.vibrate(25);
             } else {
                 audio.playDigit(val);
             }
@@ -1042,6 +1056,7 @@ export class CortexApp {
         this.engine.loadPuzzle({
             size: this.engine.size,
             initialGrid: this.engine.initialGrid,
+            walls: this.engine.initialWalls || this.engine.walls,
             hEdges: this.engine.hEdges,
             vEdges: this.engine.vEdges,
             solution: this.engine.solution
@@ -1099,8 +1114,8 @@ export class CortexApp {
         const descEl = document.getElementById('hintModalDesc');
         const btnApply = document.getElementById('btnHintApply');
 
-        if (titleEl) titleEl.textContent = hint.strategy || t('hint_title');
-        if (descEl) descEl.textContent = hint.message || '';
+        if (titleEl) titleEl.textContent = hint.strategy || hint.title || t('hint_title');
+        if (descEl) descEl.textContent = hint.message || hint.description || '';
 
         if (btnApply) {
             const hasMove = (hint.value !== undefined || hint.expectedVal !== undefined);
@@ -1116,15 +1131,19 @@ export class CortexApp {
                     if (this.activePlugin.id === 'tango') {
                         if (hint.value === 1) audio.playSun();
                         else if (hint.value === 2) audio.playMoon();
+                    } else if (this.activePlugin.id === 'akari') {
+                        if (hint.value === 1) audio.playBulb();
+                        else audio.playClear();
                     } else {
                         audio.playDigit(hint.value);
                     }
                     this.renderGrid();
                     this.checkCompletion();
-                } else if (hint.type === 'rule_violation' || hint.type === 'solution_mismatch') {
+                } else if (hint.type === 'rule_violation' || hint.type === 'solution_mismatch' || (hint.type && hint.type.startsWith('error_'))) {
                     if (hint.r !== undefined && hint.c !== undefined) {
                         this.selectedCell = { r: hint.r, c: hint.c };
-                        this.engine.setCellValue(hint.r, hint.c, hint.expectedVal || 0);
+                        const valToSet = hint.expectedVal !== undefined ? hint.expectedVal : (hint.value !== undefined ? hint.value : 0);
+                        this.engine.setCellValue(hint.r, hint.c, valToSet);
                         audio.playClear();
                         this.renderGrid();
                         this.checkCompletion();
@@ -1483,9 +1502,10 @@ export class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
+        const akariStats = StatsManager.getPuzzleStats('akari');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -1494,6 +1514,8 @@ export class CortexApp {
             displayStats = tangoStats;
         } else if (currentTab === 'sudoku') {
             displayStats = sudokuStats;
+        } else if (currentTab === 'akari') {
+            displayStats = akariStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -1531,6 +1553,13 @@ export class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 10, labelKey: 'stats_best_time_10' }
                 ];
+            } else if (currentTab === 'akari') {
+                sizesToShow = [
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 8, labelKey: 'stats_best_time_8' },
+                    { id: 10, labelKey: 'stats_best_time_10' },
+                    { id: 14, labelKey: 'stats_best_time_14' }
+                ];
             } else {
                 // Gesamt-Tab
                 sizesToShow = [
@@ -1539,6 +1568,7 @@ export class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 9, labelKey: 'stats_best_time_9' },
                     { id: 10, labelKey: 'stats_best_time_10' },
+                    { id: 14, labelKey: 'stats_best_time_14' },
                     { id: 16, labelKey: 'stats_best_time_16' }
                 ];
             }
@@ -1553,7 +1583,12 @@ export class CortexApp {
 
                 const lblSpan = document.createElement('span');
                 lblSpan.className = 'stat-lbl';
-                lblSpan.textContent = t(sz.labelKey) || `Bestzeit ${sz.id}×${sz.id}`;
+                let labelText = t(sz.labelKey);
+                if (!labelText || labelText === sz.labelKey) {
+                    const prefix = t('stats_best_time_prefix') || (getLang() === 'en' ? 'Best Time' : 'Bestzeit');
+                    labelText = `${prefix} ${sz.id}×${sz.id}`;
+                }
+                lblSpan.textContent = labelText;
 
                 card.appendChild(valSpan);
                 card.appendChild(lblSpan);

@@ -117,7 +117,11 @@ export const translations = {
         stats_best_time_4: "Bestzeit 4×4",
         stats_best_time_6: "Bestzeit 6×6",
         stats_best_time_8: "Bestzeit 8×8",
+        stats_best_time_9: "Bestzeit 9×9",
         stats_best_time_10: "Bestzeit 10×10",
+        stats_best_time_12: "Bestzeit 12×12",
+        stats_best_time_14: "Bestzeit 14×14",
+        stats_best_time_16: "Bestzeit 16×16",
         stats_no_data: "Noch keine Spieldaten vorhanden.",
 
         // PWA Install Prompt
@@ -282,7 +286,11 @@ export const translations = {
         stats_best_time_4: "Best Time 4×4",
         stats_best_time_6: "Best Time 6×6",
         stats_best_time_8: "Best Time 8×8",
+        stats_best_time_9: "Best Time 9×9",
         stats_best_time_10: "Best Time 10×10",
+        stats_best_time_12: "Best Time 12×12",
+        stats_best_time_14: "Best Time 14×14",
+        stats_best_time_16: "Best Time 16×16",
         stats_no_data: "No game data recorded yet.",
         pwa_install_title: "Install App",
         pwa_install_desc: "Install Tango on your home screen for instant offline play.",

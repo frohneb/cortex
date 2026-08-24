@@ -406,13 +406,14 @@ class StatsManager {
     /**
      * Berechnet die Gesamt-Statistiken über alle Puzzles hinweg
      */
-    static getAggregatedStats(puzzleIds = ['tango', 'sudoku']) {
+    static getAggregatedStats(puzzleIds = ['tango', 'sudoku', 'akari']) {
         let totalPlayed = 0;
         let totalWon = 0;
         let totalLost = 0;
         let totalTime = 0;
         let bestOverallTime = null;
 
+        const aggregatedBestTimes = {};
         for (const id of puzzleIds) {
             const s = this.getPuzzleStats(id);
             totalPlayed += s.played || 0;
@@ -422,6 +423,15 @@ class StatsManager {
             if (s.bestTime !== null && s.bestTime !== undefined) {
                 if (bestOverallTime === null || s.bestTime < bestOverallTime) {
                     bestOverallTime = s.bestTime;
+                }
+            }
+            if (s.bestTimes) {
+                for (const [sizeKey, timeVal] of Object.entries(s.bestTimes)) {
+                    if (timeVal !== null && timeVal !== undefined) {
+                        if (aggregatedBestTimes[sizeKey] === undefined || timeVal < aggregatedBestTimes[sizeKey]) {
+                            aggregatedBestTimes[sizeKey] = timeVal;
+                        }
+                    }
                 }
             }
         }
@@ -438,6 +448,7 @@ class StatsManager {
             winRateNum: winRate,
             totalTime,
             bestTime: bestOverallTime,
+            bestTimes: aggregatedBestTimes,
             streaks
         };
     }
@@ -587,6 +598,31 @@ class AudioManager {
         osc.start(now);
         osc.stop(now + 0.12);
         this.vibrate(70);
+    }
+
+    playBulb() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        // Warmer Aufglüh-Ton (440Hz -> 660Hz E5 Ping)
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.06);
+
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.14);
+        this.vibrate(55);
     }
 
     playMoon() {
@@ -1029,6 +1065,8 @@ const baseTranslations = {
         stats_best_time_8: "Bestzeit 8×8",
         stats_best_time_9: "Bestzeit 9×9",
         stats_best_time_10: "Bestzeit 10×10",
+        stats_best_time_12: "Bestzeit 12×12",
+        stats_best_time_14: "Bestzeit 14×14",
         stats_best_time_16: "Bestzeit 16×16",
         stats_total_time: "Gesamte Spielzeit",
         stats_reset_btn: "Statistiken zurücksetzen",
@@ -1212,6 +1250,8 @@ const baseTranslations = {
         stats_best_time_8: "Best Time 8×8",
         stats_best_time_9: "Best Time 9×9",
         stats_best_time_10: "Best Time 10×10",
+        stats_best_time_12: "Best Time 12×12",
+        stats_best_time_14: "Best Time 14×14",
         stats_best_time_16: "Best Time 16×16",
         stats_total_time: "Total Playtime",
         stats_reset_btn: "Reset Statistics",
@@ -1272,6 +1312,2084 @@ function setLang(lang) {
 function getLang() {
     return currentLang;
 }
+
+// === Source: js\puzzles\akari\engine.js ===
+/**
+ * Akari (Light Up) Puzzle Engine
+ * Verwaltet den Gitter-Zustand, Wände, Lichtstrahl-Ausbreitung,
+ * Regelvalidierung, Undo/Redo und Notizen.
+ */
+
+const AKARI_EMPTY = 0;
+const AKARI_BULB = 1;
+const AKARI_DOT = 2;
+
+class AkariEngine {
+    constructor(size = 7) {
+        this.size = size;
+        this.rows = size;
+        this.cols = size;
+
+        // walls[r][c]: null = weißes Feld, -1 = unnummerierte Wand, 0..4 = nummerierte Wand
+        this.walls = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
+        // grid[r][c]: 0 = Leer, 1 = Lampe 💡, 2 = Punkt •
+        this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(AKARI_EMPTY));
+        // locked[r][c]: true für schwarze Wände, false für weiße Felder
+        this.locked = Array.from({ length: this.rows }, () => Array(this.cols).fill(false));
+        // notes[r][c]: Set von Notizen/Kandidaten
+        this.notes = Array.from({ length: this.rows }, () => Array.from({ length: this.cols }, () => new Set()));
+
+        this.initialGrid = null;
+        this.initialWalls = null;
+        this.solution = null;
+
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Prüft, ob eine Koordinate eine Wand ist
+     */
+    isWall(r, c) {
+        if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) return false;
+        return this.walls[r][c] !== null;
+    }
+
+    /**
+     * Gibt den Wand-Hinweis zurück (0..4, -1 für unnummeriert, oder null)
+     */
+    getWallClue(r, c) {
+        if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) return null;
+        return this.walls[r][c];
+    }
+
+    /**
+     * Gibt alle 4 orthogonalen Nachbarn einer Zelle zurück
+     */
+    getOrthogonalNeighbors(r, c) {
+        const neighbors = [];
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        for (const [dr, dc] of dirs) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
+                neighbors.push({ r: nr, c: nc });
+            }
+        }
+        return neighbors;
+    }
+
+    /**
+     * Gibt alle weißen Zellen in der Sichtlinie (Sterne-Kreuz) einer Zelle zurück
+     */
+    getRayCells(r, c) {
+        if (this.isWall(r, c)) return [];
+        const cells = [{ r, c }];
+
+        // Oben
+        for (let rr = r - 1; rr >= 0; rr--) {
+            if (this.isWall(rr, c)) break;
+            cells.push({ r: rr, c });
+        }
+        // Unten
+        for (let rr = r + 1; rr < this.rows; rr++) {
+            if (this.isWall(rr, c)) break;
+            cells.push({ r: rr, c });
+        }
+        // Links
+        for (let cc = c - 1; cc >= 0; cc--) {
+            if (this.isWall(r, cc)) break;
+            cells.push({ r, c: cc });
+        }
+        // Rechts
+        for (let cc = c + 1; cc < this.cols; cc++) {
+            if (this.isWall(r, cc)) break;
+            cells.push({ r, c: cc });
+        }
+
+        return cells;
+    }
+
+    /**
+     * Berechnet die Ausleuchtungs-Matrix (wie viele Lampen jede Zelle beleuchten)
+     * Gibt ein 2D-Array [r][c] zurück.
+     */
+    computeIllumination() {
+        const illumination = Array.from({ length: this.rows }, () => Array(this.cols).fill(0));
+
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (this.grid[r][c] === AKARI_BULB && !this.isWall(r, c)) {
+                    // Lampe beleuchtet sich selbst
+                    illumination[r][c]++;
+
+                    // Strahlen in 4 Richtungen aussenden
+                    // Oben
+                    for (let rr = r - 1; rr >= 0; rr--) {
+                        if (this.isWall(rr, c)) break;
+                        illumination[rr][c]++;
+                    }
+                    // Unten
+                    for (let rr = r + 1; rr < this.rows; rr++) {
+                        if (this.isWall(rr, c)) break;
+                        illumination[rr][c]++;
+                    }
+                    // Links
+                    for (let cc = c - 1; cc >= 0; cc--) {
+                        if (this.isWall(r, cc)) break;
+                        illumination[r][cc]++;
+                    }
+                    // Rechts
+                    for (let cc = c + 1; cc < this.cols; cc++) {
+                        if (this.isWall(r, cc)) break;
+                        illumination[r][cc]++;
+                    }
+                }
+            }
+        }
+
+        return illumination;
+    }
+
+    /**
+     * Setzt den Wert einer Zelle (0 = Leer, 1 = Lampe, 2 = Punkt)
+     */
+    setCellValue(r, c, val, isNote = false) {
+        if (this.isWall(r, c) || this.locked[r][c]) return false;
+
+        const oldVal = this.grid[r][c];
+        const oldNotes = new Set(this.notes[r][c]);
+
+        if (isNote) {
+            if (val === AKARI_DOT) {
+                if (this.notes[r][c].has(AKARI_DOT)) {
+                    this.notes[r][c].delete(AKARI_DOT);
+                } else {
+                    this.notes[r][c].add(AKARI_DOT);
+                }
+            } else if (val === AKARI_EMPTY) {
+                this.notes[r][c].clear();
+            }
+            this.pushUndo({ r, c, oldVal, newVal: oldVal, oldNotes, newNotes: new Set(this.notes[r][c]) });
+            return true;
+        }
+
+        if (oldVal === val) return true;
+
+        this.pushUndo({ r, c, oldVal, newVal: val, oldNotes, newNotes: new Set() });
+        this.grid[r][c] = val;
+        this.notes[r][c].clear();
+        return true;
+    }
+
+    /**
+     * Schaltet den Wert einer Zelle zyklisch durch: Leer -> Lampe -> Punkt -> Leer
+     */
+    cycleCellValue(r, c) {
+        if (this.isWall(r, c) || this.locked[r][c]) return this.grid[r][c];
+
+        const current = this.grid[r][c];
+        let nextVal = AKARI_EMPTY;
+        if (current === AKARI_EMPTY) {
+            nextVal = AKARI_BULB;
+        } else if (current === AKARI_BULB) {
+            nextVal = AKARI_DOT;
+        } else {
+            nextVal = AKARI_EMPTY;
+        }
+
+        this.setCellValue(r, c, nextVal);
+        return nextVal;
+    }
+
+    /**
+     * Schaltet den Notizen-Modus für eine Zelle um (Punkt setzen/entfernen)
+     */
+    cycleNoteValue(r, c) {
+        if (this.isWall(r, c) || this.locked[r][c]) return;
+        this.setCellValue(r, c, AKARI_DOT, true);
+    }
+
+    pushUndo(action) {
+        this.undoStack.push(action);
+        this.redoStack = [];
+    }
+
+    undo() {
+        if (this.undoStack.length === 0) return false;
+        const action = this.undoStack.pop();
+        this.grid[action.r][action.c] = action.oldVal;
+        this.notes[action.r][action.c] = new Set(action.oldNotes);
+        this.redoStack.push(action);
+        return true;
+    }
+
+    redo() {
+        if (this.redoStack.length === 0) return false;
+        const action = this.redoStack.pop();
+        this.grid[action.r][action.c] = action.newVal;
+        this.notes[action.r][action.c] = new Set(action.newNotes);
+        this.undoStack.push(action);
+        return true;
+    }
+
+    canUndo() {
+        return this.undoStack.length > 0;
+    }
+
+    canRedo() {
+        return this.redoStack.length > 0;
+    }
+
+    /**
+     * Lädt ein Puzzle
+     * @param {Object} puzzleData - { size, walls: Array<Array<number|null>>, grid?: Array<Array<number>>, solution?: Array<Array<number>> }
+     */
+    loadPuzzle(puzzleData) {
+        this.size = puzzleData.size || (puzzleData.walls ? puzzleData.walls.length : 7);
+        this.rows = this.size;
+        this.cols = this.size;
+
+        this.walls = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
+        this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(AKARI_EMPTY));
+        this.locked = Array.from({ length: this.rows }, () => Array(this.cols).fill(false));
+        this.notes = Array.from({ length: this.rows }, () => Array.from({ length: this.cols }, () => new Set()));
+
+        if (puzzleData.walls) {
+            for (let r = 0; r < this.rows; r++) {
+                for (let c = 0; c < this.cols; c++) {
+                    const w = puzzleData.walls[r][c];
+                    if (w !== null && w !== undefined && w !== '') {
+                        this.walls[r][c] = typeof w === 'number' ? w : parseInt(w, 10);
+                        this.locked[r][c] = true;
+                    } else {
+                        this.walls[r][c] = null;
+                        this.locked[r][c] = false;
+                    }
+                }
+            }
+        }
+
+        if (puzzleData.initialGrid) {
+            for (let r = 0; r < this.rows; r++) {
+                for (let c = 0; c < this.cols; c++) {
+                    if (!this.isWall(r, c) && puzzleData.initialGrid[r][c]) {
+                        this.grid[r][c] = puzzleData.initialGrid[r][c];
+                    }
+                }
+            }
+        }
+
+        this.initialWalls = JSON.parse(JSON.stringify(this.walls));
+        this.initialGrid = JSON.parse(JSON.stringify(this.grid));
+        this.solution = puzzleData.solution ? JSON.parse(JSON.stringify(puzzleData.solution)) : null;
+
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Prüft auf Fehler (Kollisionen, überfüllte Wände oder Abweichungen von der Lösung)
+     */
+    findMistakes() {
+        const val = this.validateRules();
+        if (val.conflicts.size > 0) {
+            const first = Array.from(val.conflicts)[0].split(',').map(Number);
+            return {
+                type: 'error_conflict',
+                strategy: 'Fehler: Kollidierende Lampen',
+                title: 'Fehler: Kollidierende Lampen',
+                r: first[0],
+                c: first[1],
+                value: AKARI_EMPTY,
+                expectedVal: AKARI_EMPTY,
+                highlightCells: [{ r: first[0], c: first[1] }],
+                message: `Zwei Lampen stehen in direkter Sichtlinie zueinander. Entferne die fehlerhafte Lampe bei Zeile ${first[0] + 1}, Spalte ${first[1] + 1}.`,
+                description: `Zwei Lampen stehen in direkter Sichtlinie zueinander. Entferne die fehlerhafte Lampe bei Zeile ${first[0] + 1}, Spalte ${first[1] + 1}.`
+            };
+        }
+        if (val.wallErrors.size > 0) {
+            const first = Array.from(val.wallErrors)[0].split(',').map(Number);
+            const r = first[0];
+            const c = first[1];
+            const clue = this.walls[r][c];
+            return {
+                type: 'error_wall_overflow',
+                strategy: 'Fehler: Wand-Bedingung verletzt',
+                title: 'Fehler: Wand-Bedingung verletzt',
+                r,
+                c,
+                value: AKARI_EMPTY,
+                expectedVal: AKARI_EMPTY,
+                highlightCells: [{ r, c }],
+                message: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} mit Zahl ${clue} hat zu viele oder unzulässige Lampen in ihrer Nachbarschaft.`,
+                description: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} mit Zahl ${clue} hat zu viele oder unzulässige Lampen in ihrer Nachbarschaft.`
+            };
+        }
+        if (this.solution) {
+            for (let r = 0; r < this.rows; r++) {
+                for (let c = 0; c < this.cols; c++) {
+                    if (!this.isWall(r, c)) {
+                        const playerVal = this.grid[r][c];
+                        const solVal = this.solution[r][c] === 1 ? AKARI_BULB : AKARI_DOT;
+                        if (playerVal === AKARI_BULB && solVal !== AKARI_BULB) {
+                            return {
+                                type: 'solution_mismatch',
+                                strategy: 'Fehlerhafte Lampe',
+                                title: 'Fehlerhafte Lampe',
+                                r, c,
+                                value: AKARI_EMPTY,
+                                expectedVal: AKARI_EMPTY,
+                                highlightCells: [{ r, c }],
+                                message: `Auf Feld (${r + 1}, ${c + 1}) darf laut Spiellogik keine Lampe stehen. Entferne die Lampe.`,
+                                description: `Auf Feld (${r + 1}, ${c + 1}) darf laut Spiellogik keine Lampe stehen. Entferne die Lampe.`
+                            };
+                        } else if (playerVal === AKARI_DOT && solVal === AKARI_BULB) {
+                            return {
+                                type: 'solution_mismatch',
+                                strategy: 'Fehlerhafter Ausschluss',
+                                title: 'Fehlerhafter Ausschluss',
+                                r, c,
+                                value: AKARI_BULB,
+                                expectedVal: AKARI_BULB,
+                                highlightCells: [{ r, c }],
+                                message: `Auf Feld (${r + 1}, ${c + 1}) wurde fälschlicherweise ein Ausschluss (•) gesetzt, obwohl hier eine Lampe benötigt wird.`,
+                                description: `Auf Feld (${r + 1}, ${c + 1}) wurde fälschlicherweise ein Ausschluss (•) gesetzt, obwohl hier eine Lampe benötigt wird.`
+                            };
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Validiert alle Regeln und gibt Status-Informationen zurück
+     */
+    validateRules() {
+        const errors = [];
+        const conflicts = new Set(); // Koordinaten "r,c" von kollidierenden Lampen
+        const wallErrors = new Set(); // Koordinaten "r,c" von verletzten Wänden
+        const wallSatisfied = new Set(); // Koordinaten "r,c" von voll erfüllten Wänden
+
+        const illumination = this.computeIllumination();
+
+        // 1. Lampen-Kollisionen (zwei Lampen im selben Strahlengang)
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (this.grid[r][c] === AKARI_BULB && !this.isWall(r, c)) {
+                    if (illumination[r][c] > 1) {
+                        conflicts.add(`${r},${c}`);
+                        errors.push(`Lampe bei (${r + 1}, ${c + 1}) strahlt eine andere Lampe an.`);
+                    }
+                }
+            }
+        }
+
+        // 2. Wand-Nachbarschaftszahlen überprüfen
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const clue = this.walls[r][c];
+                if (clue !== null && clue >= 0) {
+                    const neighbors = this.getOrthogonalNeighbors(r, c);
+                    let bulbCount = 0;
+                    let emptyCount = 0;
+
+                    for (const n of neighbors) {
+                        if (!this.isWall(n.r, n.c)) {
+                            if (this.grid[n.r][n.c] === AKARI_BULB) {
+                                bulbCount++;
+                            } else if (this.grid[n.r][n.c] === AKARI_EMPTY) {
+                                emptyCount++;
+                            }
+                        }
+                    }
+
+                    if (bulbCount > clue) {
+                        wallErrors.add(`${r},${c}`);
+                        errors.push(`Wand (${r + 1}, ${c + 1}) mit Zahl ${clue} hat zu viele Lampen (${bulbCount}).`);
+                    } else if (bulbCount + emptyCount < clue) {
+                        wallErrors.add(`${r},${c}`);
+                        errors.push(`Wand (${r + 1}, ${c + 1}) mit Zahl ${clue} kann nicht mehr genug Lampen erhalten.`);
+                    } else if (bulbCount === clue) {
+                        wallSatisfied.add(`${r},${c}`);
+                    }
+                }
+            }
+        }
+
+        // 3. Ausleuchtung aller weißen Zellen prüfen
+        let allWhiteLit = true;
+        let whiteCount = 0;
+        let litCount = 0;
+
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (!this.isWall(r, c)) {
+                    whiteCount++;
+                    if (illumination[r][c] > 0) {
+                        litCount++;
+                    } else {
+                        allWhiteLit = false;
+                    }
+                }
+            }
+        }
+
+        // 4. Prüfen, ob alle nummerierten Wände exakt erfüllt sind
+        let allWallsSatisfied = true;
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const clue = this.walls[r][c];
+                if (clue !== null && clue >= 0) {
+                    if (!wallSatisfied.has(`${r},${c}`)) {
+                        allWallsSatisfied = false;
+                        break;
+                    }
+                }
+            }
+            if (!allWallsSatisfied) break;
+        }
+
+        const isComplete = allWhiteLit && conflicts.size === 0 && wallErrors.size === 0 && allWallsSatisfied;
+        const isValid = conflicts.size === 0 && wallErrors.size === 0;
+
+        return {
+            isValid,
+            isComplete,
+            errors,
+            conflicts,
+            wallErrors,
+            wallSatisfied,
+            illumination,
+            whiteCount,
+            litCount
+        };
+    }
+
+    /**
+     * Prüft, ob das Akari-Rätsel vollständig und fehlerfrei gelöst ist
+     */
+    isCompleted() {
+        return this.validateRules().isComplete;
+    }
+
+    /**
+     * Gibt die Anzahl der gesetzten Lampen/Marker zurück
+     */
+    getFilledCount() {
+        let count = 0;
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (!this.isWall(r, c) && this.grid[r][c] !== AKARI_EMPTY) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Gibt die Lösung des Akari-Rätsels zurück
+     */
+    getSolution() {
+        if (this.solution) return this.solution;
+        return null;
+    }
+
+    /**
+     * Erstellt eine tiefe Kopie der Engine
+     */
+    clone() {
+        const cloned = new AkariEngine(this.size);
+        cloned.walls = JSON.parse(JSON.stringify(this.walls));
+        cloned.grid = JSON.parse(JSON.stringify(this.grid));
+        cloned.locked = JSON.parse(JSON.stringify(this.locked));
+        cloned.notes = this.notes.map(row => row.map(cellSet => new Set(cellSet)));
+        cloned.initialGrid = this.initialGrid ? JSON.parse(JSON.stringify(this.initialGrid)) : null;
+        cloned.initialWalls = this.initialWalls ? JSON.parse(JSON.stringify(this.initialWalls)) : null;
+        cloned.solution = this.solution ? JSON.parse(JSON.stringify(this.solution)) : null;
+        return cloned;
+    }
+}
+
+// === Source: js\puzzles\akari\solver.js ===
+/**
+ * Akari (Light Up) Solver & Smart Hint Engine
+ * Findet Lösungen via Backtracking & Constraint-Propagation
+ * und liefert didaktisch verständliche, schrittweise logische Hinweise.
+ */
+
+
+
+class AkariSolver {
+    /**
+     * Löst ein Akari-Rätsel und gibt bis zu maxSolutions Lösungen zurück.
+     * Jede Lösung ist eine 2D-Matrix [r][c] mit 1 (Lampe) oder 0 (keine Lampe).
+     */
+    static solve(engine, maxSolutions = 2) {
+        const rows = engine.rows;
+        const cols = engine.cols;
+
+        // White cells list
+        const whiteCells = [];
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (!engine.isWall(r, c)) {
+                    whiteCells.push({ r, c });
+                }
+            }
+        }
+
+        // boardState[r][c]: 0 = unentschieden, 1 = Lampe, 2 = keine Lampe (Punkt/Wand)
+        const boardState = Array.from({ length: rows }, () => Array(cols).fill(0));
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (engine.isWall(r, c)) {
+                    boardState[r][c] = -1; // Wand
+                }
+            }
+        }
+
+        const solutions = [];
+
+        function getRayIndices(r, c) {
+            const indices = [{ r, c }];
+            for (let rr = r - 1; rr >= 0 && !engine.isWall(rr, c); rr--) indices.push({ r: rr, c });
+            for (let rr = r + 1; rr < rows && !engine.isWall(rr, c); rr++) indices.push({ r: rr, c });
+            for (let cc = c - 1; cc >= 0 && !engine.isWall(r, cc); cc--) indices.push({ r, c: cc });
+            for (let cc = c + 1; cc < cols && !engine.isWall(r, cc); cc++) indices.push({ r, c: cc });
+            return indices;
+        }
+
+        function propagate(state) {
+            let changed = true;
+            while (changed) {
+                changed = false;
+
+                // 1. Wand-Bedingungen
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const clue = engine.walls[r][c];
+                        if (clue !== null && clue >= 0) {
+                            const neighbors = engine.getOrthogonalNeighbors(r, c);
+                            let bulbs = 0;
+                            let emptyNeighbors = [];
+
+                            for (const n of neighbors) {
+                                if (state[n.r][n.c] === 1) bulbs++;
+                                else if (state[n.r][n.c] === 0) emptyNeighbors.push(n);
+                            }
+
+                            if (bulbs > clue) return false; // Widerspruch
+                            if (bulbs + emptyNeighbors.length < clue) return false; // Widerspruch
+
+                            if (bulbs === clue && emptyNeighbors.length > 0) {
+                                for (const n of emptyNeighbors) {
+                                    state[n.r][n.c] = 2; // keine Lampe
+                                    changed = true;
+                                }
+                            } else if (bulbs + emptyNeighbors.length === clue && emptyNeighbors.length > 0) {
+                                for (const n of emptyNeighbors) {
+                                    state[n.r][n.c] = 1; // Lampe erzwingen
+                                    // Alle Zellen im Strahlengang der neuen Lampe dürfen keine Lampe mehr sein
+                                    const rays = getRayIndices(n.r, n.c);
+                                    for (const rc of rays) {
+                                        if (rc.r === n.r && rc.c === n.c) continue;
+                                        if (state[rc.r][rc.c] === 1) return false; // Kollision
+                                        if (state[rc.r][rc.c] === 0) {
+                                            state[rc.r][rc.c] = 2;
+                                            changed = true;
+                                        }
+                                    }
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. Lampen-Kollisionen prüfen & Strahlen ausschließen
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        if (state[r][c] === 1) {
+                            const rays = getRayIndices(r, c);
+                            for (const rc of rays) {
+                                if (rc.r === r && rc.c === c) continue;
+                                if (state[rc.r][rc.c] === 1) return false; // Kollision
+                                if (state[rc.r][rc.c] === 0) {
+                                    state[rc.r][rc.c] = 2;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Unbeleuchtete Zellen prüfen
+                for (const cell of whiteCells) {
+                    const rays = getRayIndices(cell.r, cell.c);
+                    let isLit = false;
+                    let candidateSpots = [];
+
+                    for (const rc of rays) {
+                        if (state[rc.r][rc.c] === 1) {
+                            isLit = true;
+                            break;
+                        }
+                        if (state[rc.r][rc.c] === 0) {
+                            candidateSpots.push(rc);
+                        }
+                    }
+
+                    if (!isLit) {
+                        if (candidateSpots.length === 0) return false; // Kann nie beleuchtet werden!
+                        if (candidateSpots.length === 1) {
+                            const target = candidateSpots[0];
+                            state[target.r][target.c] = 1;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function isFullValid(state) {
+            // Alle Wände erfüllt?
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const clue = engine.walls[r][c];
+                    if (clue !== null && clue >= 0) {
+                        const neighbors = engine.getOrthogonalNeighbors(r, c);
+                        let bulbs = 0;
+                        for (const n of neighbors) {
+                            if (state[n.r][n.c] === 1) bulbs++;
+                        }
+                        if (bulbs !== clue) return false;
+                    }
+                }
+            }
+
+            // Alle weißen Zellen beleuchtet?
+            for (const cell of whiteCells) {
+                const rays = getRayIndices(cell.r, cell.c);
+                let lit = false;
+                for (const rc of rays) {
+                    if (state[rc.r][rc.c] === 1) {
+                        lit = true;
+                        break;
+                    }
+                }
+                if (!lit) return false;
+            }
+
+            return true;
+        }
+
+        function backtrack(state) {
+            if (solutions.length >= maxSolutions) return;
+
+            const copy = state.map(row => [...row]);
+            if (!propagate(copy)) return;
+
+            // Finde nächste freie Zelle
+            let bestCell = null;
+            let minBranching = Infinity;
+
+            for (const cell of whiteCells) {
+                if (copy[cell.r][cell.c] === 0) {
+                    // Heuristik: Zelle neben nummerierter Wand bevorzugen
+                    const neighbors = engine.getOrthogonalNeighbors(cell.r, cell.c);
+                    let wallAdjScore = 0;
+                    for (const n of neighbors) {
+                        if (engine.walls[n.r][n.c] !== null && engine.walls[n.r][n.c] >= 0) {
+                            wallAdjScore += 5;
+                        }
+                    }
+
+                    const score = 10 - wallAdjScore;
+                    if (score < minBranching) {
+                        minBranching = score;
+                        bestCell = cell;
+                    }
+                }
+            }
+
+            if (!bestCell) {
+                if (isFullValid(copy)) {
+                    const sol = Array.from({ length: rows }, () => Array(cols).fill(0));
+                    for (let r = 0; r < rows; r++) {
+                        for (let c = 0; c < cols; c++) {
+                            if (copy[r][c] === 1) sol[r][c] = 1;
+                        }
+                    }
+                    solutions.push(sol);
+                }
+                return;
+            }
+
+            // Zweig 1: Lampe setzen
+            const branch1 = copy.map(row => [...row]);
+            branch1[bestCell.r][bestCell.c] = 1;
+            backtrack(branch1);
+
+            if (solutions.length >= maxSolutions) return;
+
+            // Zweig 2: Keine Lampe (Punkt)
+            const branch2 = copy.map(row => [...row]);
+            branch2[bestCell.r][bestCell.c] = 2;
+            backtrack(branch2);
+        }
+
+        backtrack(boardState);
+        return solutions;
+    }
+
+    /**
+     * Findet einen logischen Hinweis für den aktuellen Spielstand
+     */
+    static findLogicalHint(engine, options = {}) {
+        const rows = engine.rows;
+        const cols = engine.cols;
+        const focusCell = options.focusCell || null;
+
+        // 1. FEHLER-ERKENNUNG ZUERST (Kollisionen, Überfüllungen, Widersprüche zur Lösung)
+        const mistake = engine.findMistakes();
+        if (mistake) return mistake;
+
+        const illumination = engine.computeIllumination();
+        const candidates = [];
+
+        // 2. REGEL 1: 0er-Wände (alle noch leeren Nachbarn müssen Punkte sein)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (engine.walls[r][c] === 0) {
+                    const neighbors = engine.getOrthogonalNeighbors(r, c);
+                    for (const n of neighbors) {
+                        if (!engine.isWall(n.r, n.c) && engine.grid[n.r][n.c] === AKARI_EMPTY) {
+                            candidates.push({
+                                type: 'wall_zero',
+                                strategy: '0er-Wand: Ausschluss',
+                                title: '0er-Wand: Ausschluss',
+                                r: n.r,
+                                c: n.c,
+                                value: AKARI_DOT,
+                                expectedVal: AKARI_DOT,
+                                highlightCells: [{ r: n.r, c: n.c }, { r, c }],
+                                message: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} hat die Zahl 0. Keines ihrer Nachbarfelder darf eine Lampe enthalten. Setze einen Punkt (•).`,
+                                description: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} hat die Zahl 0. Keines ihrer Nachbarfelder darf eine Lampe enthalten. Setze einen Punkt (•).`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. REGEL 2: Erfüllte Wände (restliche leere Nachbarn müssen Punkte sein)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const clue = engine.walls[r][c];
+                if (clue !== null && clue > 0) {
+                    const neighbors = engine.getOrthogonalNeighbors(r, c);
+                    let bulbs = 0;
+                    const emptyNeighbors = [];
+
+                    for (const n of neighbors) {
+                        if (!engine.isWall(n.r, n.c)) {
+                            if (engine.grid[n.r][n.c] === AKARI_BULB) bulbs++;
+                            else if (engine.grid[n.r][n.c] === AKARI_EMPTY) emptyNeighbors.push(n);
+                        }
+                    }
+
+                    if (bulbs === clue && emptyNeighbors.length > 0) {
+                        for (const target of emptyNeighbors) {
+                            candidates.push({
+                                type: 'wall_satisfied',
+                                strategy: 'Wand erfüllt',
+                                title: 'Wand erfüllt',
+                                r: target.r,
+                                c: target.c,
+                                value: AKARI_DOT,
+                                expectedVal: AKARI_DOT,
+                                highlightCells: [{ r: target.r, c: target.c }, { r, c }],
+                                message: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} hat bereits alle ${clue} erforderlichen Lampen. Das Feld (${target.r + 1}, ${target.c + 1}) kann keine Lampe sein. Setze einen Punkt (•).`,
+                                description: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} hat bereits alle ${clue} erforderlichen Lampen. Das Feld (${target.r + 1}, ${target.c + 1}) kann keine Lampe sein. Setze einen Punkt (•).`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. REGEL 3: Erzwungene Lampen (Restbedarf = freie Nachbarn)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const clue = engine.walls[r][c];
+                if (clue !== null && clue > 0) {
+                    const neighbors = engine.getOrthogonalNeighbors(r, c);
+                    let bulbs = 0;
+                    const emptyNeighbors = [];
+
+                    for (const n of neighbors) {
+                        if (!engine.isWall(n.r, n.c)) {
+                            if (engine.grid[n.r][n.c] === AKARI_BULB) bulbs++;
+                            else if (engine.grid[n.r][n.c] === AKARI_EMPTY) emptyNeighbors.push(n);
+                        }
+                    }
+
+                    const needed = clue - bulbs;
+                    if (needed > 0 && emptyNeighbors.length === needed) {
+                        for (const target of emptyNeighbors) {
+                            candidates.push({
+                                type: 'wall_forced_bulb',
+                                strategy: 'Erzwungene Lampe',
+                                title: 'Erzwungene Lampe',
+                                r: target.r,
+                                c: target.c,
+                                value: AKARI_BULB,
+                                expectedVal: AKARI_BULB,
+                                highlightCells: [{ r: target.r, c: target.c }, { r, c }],
+                                message: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} benötigt noch ${needed} Lampe(n) und hat genau ${emptyNeighbors.length} freie Nachbarfelder. Setze hier eine Lampe (💡).`,
+                                description: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} benötigt noch ${needed} Lampe(n) und hat genau ${emptyNeighbors.length} freie Nachbarfelder. Setze hier eine Lampe (💡).`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. REGEL 4: Einsame unbeleuchtete Zelle (kann nur von genau 1 Zelle beleuchtet werden)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (!engine.isWall(r, c) && illumination[r][c] === 0) {
+                    const rays = engine.getRayCells(r, c);
+                    const spots = [];
+
+                    for (const rc of rays) {
+                        if (engine.grid[rc.r][rc.c] === AKARI_EMPTY) {
+                            spots.push(rc);
+                        }
+                    }
+
+                    if (spots.length === 1) {
+                        const target = spots[0];
+                        candidates.push({
+                            type: 'lonely_unlit',
+                            strategy: 'Einzige Beleuchtung',
+                            title: 'Einzige Beleuchtung',
+                            r: target.r,
+                            c: target.c,
+                            value: AKARI_BULB,
+                            expectedVal: AKARI_BULB,
+                            highlightCells: [{ r: target.r, c: target.c }, { r, c }],
+                            message: `Das unbeleuchtete Feld bei (${r + 1}, ${c + 1}) kann nur noch durch eine Lampe auf Position (${target.r + 1}, ${target.c + 1}) erleuchtet werden!`,
+                            description: `Das unbeleuchtete Feld bei (${r + 1}, ${c + 1}) kann nur noch durch eine Lampe auf Position (${target.r + 1}, ${target.c + 1}) erleuchtet werden!`
+                        });
+                    }
+                }
+            }
+        }
+
+        // Wenn deduktive Kandidaten vorliegen:
+        if (candidates.length > 0) {
+            if (focusCell) {
+                const focused = candidates.find(h => h.r === focusCell.r && h.c === focusCell.c);
+                if (focused) return focused;
+            }
+            return candidates[0];
+        }
+
+        // 6. FALLBACK: Solver-Lösung konsultieren
+        let sol = engine.solution;
+        if (!sol) {
+            const cleanEngine = new AkariEngine(engine.size);
+            cleanEngine.loadPuzzle({
+                size: engine.size,
+                walls: engine.initialWalls || engine.walls
+            });
+            const solutions = AkariSolver.solve(cleanEngine, 1);
+            if (solutions.length > 0) {
+                sol = solutions[0];
+            }
+        }
+
+        if (sol) {
+            // Falls focusCell gewählt und leer ist
+            if (focusCell && !engine.isWall(focusCell.r, focusCell.c) && engine.grid[focusCell.r][focusCell.c] === AKARI_EMPTY) {
+                const targetVal = sol[focusCell.r][focusCell.c] === 1 ? AKARI_BULB : AKARI_DOT;
+                const isBulb = targetVal === AKARI_BULB;
+                return {
+                    type: isBulb ? 'solution_bulb' : 'solution_dot',
+                    strategy: isBulb ? 'Logische Lampe' : 'Logischer Ausschluss',
+                    title: isBulb ? 'Logische Lampe' : 'Logischer Ausschluss',
+                    r: focusCell.r,
+                    c: focusCell.c,
+                    value: targetVal,
+                    expectedVal: targetVal,
+                    highlightCells: [{ r: focusCell.r, c: focusCell.c }],
+                    message: isBulb
+                        ? `Auf dem ausgewählten Feld (${focusCell.r + 1}, ${focusCell.c + 1}) muss eine Lampe (💡) platziert werden.`
+                        : `Auf dem ausgewählten Feld (${focusCell.r + 1}, ${focusCell.c + 1}) darf keine Lampe stehen. Setze einen Punkt (•).`,
+                    description: isBulb
+                        ? `Auf dem ausgewählten Feld (${focusCell.r + 1}, ${focusCell.c + 1}) muss eine Lampe (💡) platziert werden.`
+                        : `Auf dem ausgewählten Feld (${focusCell.r + 1}, ${focusCell.c + 1}) darf keine Lampe stehen. Setze einen Punkt (•).`
+                };
+            }
+
+            // Ansonsten erstes leeres Feld
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (!engine.isWall(r, c) && engine.grid[r][c] === AKARI_EMPTY) {
+                        const targetVal = sol[r][c] === 1 ? AKARI_BULB : AKARI_DOT;
+                        const isBulb = targetVal === AKARI_BULB;
+                        return {
+                            type: isBulb ? 'solution_bulb' : 'solution_dot',
+                            strategy: isBulb ? 'Logische Lampe' : 'Logischer Ausschluss',
+                            title: isBulb ? 'Logische Lampe' : 'Logischer Ausschluss',
+                            r,
+                            c,
+                            value: targetVal,
+                            expectedVal: targetVal,
+                            highlightCells: [{ r, c }],
+                            message: isBulb
+                                ? `Auf Feld (${r + 1}, ${c + 1}) muss eine Lampe (💡) platziert werden, um die Ausleuchtung zu sichern.`
+                                : `Feld (${r + 1}, ${c + 1}) darf keine Lampe enthalten. Setze einen Punkt (•).`,
+                            description: isBulb
+                                ? `Auf Feld (${r + 1}, ${c + 1}) muss eine Lampe (💡) platziert werden, um die Ausleuchtung zu sichern.`
+                                : `Feld (${r + 1}, ${c + 1}) darf keine Lampe enthalten. Setze einen Punkt (•).`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+// === Source: js\puzzles\akari\generator.js ===
+/**
+ * Akari (Light Up) Procedural Puzzle Generator
+ * Generiert deterministisch eindeutige, lösbare Akari-Rätsel
+ * in verschiedenen Schwierigkeitsgraden und Gittergrößen.
+ */
+
+
+
+
+class AkariGenerator {
+    /**
+     * Pseudo-Random Number Generator (LCG / Mulberry32)
+     */
+    static createPrng(seed) {
+        let s = Math.floor(Math.abs(seed)) % 2147483647;
+        if (s === 0) s = 123456789;
+        return () => {
+            s = (s * 16807) % 2147483647;
+            return (s - 1) / 2147483646;
+        };
+    }
+
+    /**
+     * Generiert ein eindeutiges Akari-Rätsel
+     * @param {Object} opts - { size: number, difficulty: 'easy'|'medium'|'hard', seed?: number }
+     */
+    static generatePuzzle(opts = {}) {
+        const size = opts.size || 7;
+        const difficulty = opts.difficulty || 'medium';
+        const seed = opts.seed !== undefined ? opts.seed : Math.floor(Math.random() * 10000000);
+        const rand = this.createPrng(seed);
+
+        const rows = size;
+        const cols = size;
+
+        // Wand-Dichte nach Größe und Stufe
+        let wallRatio = 0.20;
+        if (size <= 6) wallRatio = 0.18;
+        else if (size >= 10) wallRatio = 0.22;
+
+        const totalCells = rows * cols;
+        const targetWallCount = Math.max(3, Math.floor(totalCells * wallRatio));
+
+        let attempts = 0;
+        const maxAttempts = 50;
+
+        while (attempts < maxAttempts) {
+            attempts++;
+
+            // 1. Wände mit 180° Rotationssymmetrie platzieren
+            const walls = Array.from({ length: rows }, () => Array(cols).fill(null));
+            let placedWalls = 0;
+
+            const candidateCoords = [];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    candidateCoords.push({ r, c });
+                }
+            }
+            // Shuffle
+            for (let i = candidateCoords.length - 1; i > 0; i--) {
+                const j = Math.floor(rand() * (i + 1));
+                [candidateCoords[i], candidateCoords[j]] = [candidateCoords[j], candidateCoords[i]];
+            }
+
+            for (const { r, c } of candidateCoords) {
+                if (placedWalls >= targetWallCount) break;
+                const symR = rows - 1 - r;
+                const symC = cols - 1 - c;
+
+                if (walls[r][c] === null && walls[symR][symC] === null) {
+                    walls[r][c] = -1; // Unnummerierte Wand
+                    walls[symR][symC] = -1;
+                    placedWalls += (r === symR && c === symC) ? 1 : 2;
+                }
+            }
+
+            // 2. Erzeuge eine gültige Lampen-Konfiguration
+            const engine = new AkariEngine(size);
+            engine.loadPuzzle({ size, walls });
+
+            // Finde eine Lösung mit dem Solver
+            const solutions = AkariSolver.solve(engine, 1);
+            if (solutions.length === 0) continue;
+
+            const solution = solutions[0];
+
+            // 3. Berechne alle tatsächlichen Nachbar-Lampen-Zahlen für alle Wände
+            const fullClues = Array.from({ length: rows }, () => Array(cols).fill(null));
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (walls[r][c] !== null) {
+                        const neighbors = engine.getOrthogonalNeighbors(r, c);
+                        let bulbs = 0;
+                        for (const n of neighbors) {
+                            if (!engine.isWall(n.r, n.c) && solution[n.r][n.c] === 1) {
+                                bulbs++;
+                            }
+                        }
+                        fullClues[r][c] = bulbs;
+                    }
+                }
+            }
+
+            // 4. Decke Wand-Zahlen auf basierend auf Schwierigkeit
+            // easy: ~75% nummeriert, medium: ~50%, hard: ~30%
+            let clueProb = 0.50;
+            if (difficulty === 'easy') clueProb = 0.75;
+            else if (difficulty === 'hard') clueProb = 0.32;
+
+            const puzzleWalls = Array.from({ length: rows }, () => Array(cols).fill(null));
+            const wallList = [];
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (walls[r][c] !== null) {
+                        wallList.push({ r, c });
+                        if (rand() < clueProb) {
+                            puzzleWalls[r][c] = fullClues[r][c];
+                        } else {
+                            puzzleWalls[r][c] = -1; // unnummeriert
+                        }
+                    }
+                }
+            }
+
+            // 5. Teste Eindeutigkeit
+            const testEngine = new AkariEngine(size);
+            testEngine.loadPuzzle({ size, walls: puzzleWalls });
+
+            let testSols = AkariSolver.solve(testEngine, 2);
+
+            // Falls nicht eindeutig: decke schrittweise weitere Wände auf
+            if (testSols.length !== 1) {
+                // Shuffle unnummerierte Wände
+                const unnumbered = wallList.filter(w => puzzleWalls[w.r][w.c] === -1);
+                for (let i = unnumbered.length - 1; i > 0; i--) {
+                    const j = Math.floor(rand() * (i + 1));
+                    [unnumbered[i], unnumbered[j]] = [unnumbered[j], unnumbered[i]];
+                }
+
+                for (const w of unnumbered) {
+                    puzzleWalls[w.r][w.c] = fullClues[w.r][w.c];
+                    testEngine.loadPuzzle({ size, walls: puzzleWalls });
+                    testSols = AkariSolver.solve(testEngine, 2);
+                    if (testSols.length === 1) break;
+                }
+            }
+
+            if (testSols.length === 1) {
+                return {
+                    size,
+                    difficulty,
+                    seed,
+                    walls: puzzleWalls,
+                    initialGrid: Array.from({ length: rows }, () => Array(cols).fill(AKARI_EMPTY)),
+                    solution
+                };
+            }
+        }
+
+        // Robuster Fallback: Strukturierte Standard-Vorlage
+        return this.getFallbackPuzzle(size, difficulty);
+    }
+
+    /**
+     * Fallback-Puzzle Generator bei Timeout
+     */
+    static getFallbackPuzzle(size = 7, difficulty = 'medium') {
+        const walls = Array.from({ length: size }, () => Array(size).fill(null));
+        // Ein paar Standard-Wände
+        const mid = Math.floor(size / 2);
+        walls[1][1] = 1;
+        walls[1][size - 2] = -1;
+        walls[size - 2][1] = -1;
+        walls[size - 2][size - 2] = 2;
+        if (size >= 7) {
+            walls[mid][mid] = 0;
+        }
+
+        const engine = new AkariEngine(size);
+        engine.loadPuzzle({ size, walls });
+        const sols = AkariSolver.solve(engine, 1);
+        const solution = sols.length > 0 ? sols[0] : Array.from({ length: size }, () => Array(size).fill(0));
+
+        return {
+            size,
+            difficulty,
+            walls,
+            initialGrid: Array.from({ length: size }, () => Array(size).fill(AKARI_EMPTY)),
+            solution
+        };
+    }
+}
+
+// === Source: js\puzzles\akari\renderer.js ===
+/**
+ * Akari (Light Up) DOM Renderer & SVG Asset Generator
+ * Rendert das Gitter mit dynamischen Lichtstrahlen, Wänden,
+ * SVG-Glühbirnen, Konflikt-Hervorhebungen und Theme-Effekten.
+ */
+
+
+
+
+class AkariRenderer {
+    /**
+     * Rendert das vollständige Akari-Board in den Zielcontainer
+     */
+    static renderBoard(container, engine, state, onCellInteraction) {
+        container.innerHTML = '';
+
+        const gridEl = document.createElement('div');
+        gridEl.className = `akari-grid size-${engine.size}`;
+        gridEl.style.display = 'grid';
+        gridEl.style.gridTemplateColumns = `repeat(${engine.cols}, 1fr)`;
+        gridEl.style.gridTemplateRows = `repeat(${engine.rows}, 1fr)`;
+
+        const validation = engine.validateRules();
+        let illumination = validation.illumination;
+        const solution = state.solutionRevealed ? (engine.getSolution ? engine.getSolution() : engine.solution) : null;
+
+        if (state.solutionRevealed && solution) {
+            const solIllum = Array.from({ length: engine.rows }, () => Array(engine.cols).fill(0));
+            for (let r = 0; r < engine.rows; r++) {
+                for (let c = 0; c < engine.cols; c++) {
+                    if (solution[r][c] === 1 && !engine.isWall(r, c)) {
+                        solIllum[r][c]++;
+                        for (let rr = r - 1; rr >= 0 && !engine.isWall(rr, c); rr--) solIllum[rr][c]++;
+                        for (let rr = r + 1; rr < engine.rows && !engine.isWall(rr, c); rr++) solIllum[rr][c]++;
+                        for (let cc = c - 1; cc >= 0 && !engine.isWall(r, cc); cc--) solIllum[r][cc]++;
+                        for (let cc = c + 1; cc < engine.cols && !engine.isWall(r, cc); cc++) solIllum[r][cc]++;
+                    }
+                }
+            }
+            illumination = solIllum;
+        }
+
+        for (let r = 0; r < engine.rows; r++) {
+            for (let c = 0; c < engine.cols; c++) {
+                const cellEl = document.createElement('div');
+                cellEl.dataset.r = r;
+                cellEl.dataset.c = c;
+
+                if (engine.isWall(r, c)) {
+                    // Schwarze Wand
+                    cellEl.className = 'akari-cell akari-wall';
+                    const clue = engine.getWallClue(r, c);
+
+                    if (clue !== null && clue >= 0) {
+                        cellEl.classList.add('wall-numbered');
+                        if (state.solutionRevealed || validation.wallSatisfied.has(`${r},${c}`)) {
+                            cellEl.classList.add('wall-satisfied');
+                        } else if (validation.wallErrors.has(`${r},${c}`)) {
+                            cellEl.classList.add('wall-error');
+                        }
+                        cellEl.innerHTML = `<span class="wall-clue-digit">${clue}</span>`;
+                    }
+                } else {
+                    // Weißes Feld
+                    cellEl.className = 'akari-cell akari-white';
+                    const cellVal = engine.grid[r][c];
+                    const isLit = illumination[r][c] > 0;
+
+                    if (isLit) {
+                        cellEl.classList.add('is-lit');
+                    }
+
+                    if (state.solutionRevealed && solution) {
+                        const solVal = solution[r][c] === 1 ? AKARI_BULB : AKARI_DOT;
+                        if (cellVal === AKARI_EMPTY) {
+                            cellEl.classList.add('cell-revealed-solution');
+                            if (solVal === AKARI_BULB) {
+                                cellEl.classList.add('is-bulb', 'revealed-ghost');
+                                cellEl.innerHTML = this.getSymbolSvg(AKARI_BULB, 'akari-bulb-svg ghost-bulb');
+                            } else {
+                                cellEl.classList.add('is-dot', 'revealed-ghost');
+                                cellEl.innerHTML = this.getSymbolSvg(AKARI_DOT, 'akari-dot-svg ghost-dot');
+                            }
+                        } else if (cellVal === solVal) {
+                            cellEl.classList.add('cell-revealed-correct');
+                            if (cellVal === AKARI_BULB) {
+                                cellEl.classList.add('is-bulb');
+                                cellEl.innerHTML = this.getSymbolSvg(AKARI_BULB, 'akari-bulb-svg');
+                            } else {
+                                cellEl.classList.add('is-dot');
+                                cellEl.innerHTML = this.getSymbolSvg(AKARI_DOT, 'akari-dot-svg');
+                            }
+                        } else {
+                            cellEl.classList.add('cell-revealed-error');
+                            if (cellVal === AKARI_BULB) {
+                                cellEl.innerHTML = `
+                                    <span class="wrong-marker-cross">✕</span>
+                                    ${this.getSymbolSvg(AKARI_BULB, 'akari-bulb-svg wrong-bulb')}
+                                    <div class="revealed-correct-sub">
+                                        <span class="mini-badge">•</span>
+                                    </div>
+                                `;
+                            } else {
+                                cellEl.innerHTML = `
+                                    <span class="wrong-marker-cross">✕</span>
+                                    ${this.getSymbolSvg(AKARI_DOT, 'akari-dot-svg wrong-dot')}
+                                    <div class="revealed-correct-sub">
+                                        <span class="mini-badge">💡</span>
+                                    </div>
+                                `;
+                            }
+                        }
+                    } else {
+                        if (cellVal === AKARI_BULB) {
+                            cellEl.classList.add('is-bulb');
+                            if (validation.conflicts.has(`${r},${c}`)) {
+                                cellEl.classList.add('has-conflict');
+                            }
+                            cellEl.innerHTML = this.getSymbolSvg(AKARI_BULB, 'akari-bulb-svg');
+                        } else if (cellVal === AKARI_DOT) {
+                            cellEl.classList.add('is-dot');
+                            cellEl.innerHTML = this.getSymbolSvg(AKARI_DOT, 'akari-dot-svg');
+                        } else if (engine.notes[r][c] && engine.notes[r][c].has(AKARI_DOT)) {
+                            cellEl.classList.add('is-note-dot');
+                            cellEl.innerHTML = `<span class="mini-dot">•</span>`;
+                        }
+
+                        // Selektion / Fokus
+                        if (state.selectedCell && state.selectedCell.r === r && state.selectedCell.c === c) {
+                            cellEl.classList.add('selected');
+                        }
+
+                        // Hinweis-Animation
+                        if (state.hintPlacedCell && state.hintPlacedCell.r === r && state.hintPlacedCell.c === c) {
+                            cellEl.classList.add('hint-pulse');
+                        }
+
+                        // Interaktion verbinden
+                        if (typeof onCellInteraction === 'function') {
+                            onCellInteraction(cellEl, r, c);
+                        }
+                    }
+                }
+
+                gridEl.appendChild(cellEl);
+            }
+        }
+
+        container.appendChild(gridEl);
+    }
+
+    /**
+     * Rendert das optionale Keypad / Aktionsleiste
+     */
+    static renderKeypad(container, engine, state, onKeyInput) {
+        container.innerHTML = '';
+
+        const keypad = document.createElement('div');
+        keypad.className = 'akari-keypad';
+
+        // 1. Glühbirne (💡)
+        const btnBulb = document.createElement('button');
+        btnBulb.className = 'akari-key-btn key-bulb';
+        btnBulb.setAttribute('aria-label', 'Glühbirne');
+        btnBulb.innerHTML = `${this.getSymbolSvg(AKARI_BULB, '', 22)}<span class="key-lbl">Lampe</span>`;
+        btnBulb.addEventListener('click', () => onKeyInput(AKARI_BULB));
+
+        // 2. Punkt (•)
+        const btnDot = document.createElement('button');
+        btnDot.className = 'akari-key-btn key-dot';
+        btnDot.setAttribute('aria-label', 'Punkt');
+        btnDot.innerHTML = `${this.getSymbolSvg(AKARI_DOT, '', 16)}<span class="key-lbl">Punkt</span>`;
+        btnDot.addEventListener('click', () => onKeyInput(AKARI_DOT));
+
+        // 3. Löschen (✕)
+        const btnClear = document.createElement('button');
+        btnClear.className = 'akari-key-btn key-clear';
+        btnClear.setAttribute('aria-label', 'Löschen');
+        btnClear.innerHTML = `<span style="font-size: 1.2rem; line-height:1;">✕</span><span class="key-lbl">Leeren</span>`;
+        btnClear.addEventListener('click', () => onKeyInput(AKARI_EMPTY));
+
+        keypad.appendChild(btnBulb);
+        keypad.appendChild(btnDot);
+        keypad.appendChild(btnClear);
+
+        container.appendChild(keypad);
+    }
+
+    /**
+     * Liefert optimierte SVG-Symbole für Glühbirnen und Marker
+     */
+    static getSymbolSvg(val, extraClass = '', size = 24) {
+        if (val === AKARI_BULB) {
+            return `
+                <svg class="akari-symbol akari-bulb ${extraClass}" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">
+                    <!-- Glühbirnen-Kontur & Sockel -->
+                    <path d="M9 21h6m-5 0v-1.5m4 1.5v-1.5M8 17h8m-9-6a5 5 0 1 1 10 0c0 2-1 3.5-1.8 4.5-.4.5-.6 1.5-.6 2.5H9.4c0-1-.2-2-.6-2.5C8 14.5 7 13 7 11z" 
+                          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <!-- Glühfaden / Glow Kern -->
+                    <path d="M10 11a2 2 0 0 1 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <!-- Lichtstrahlen-Akzente -->
+                    <circle cx="12" cy="11" r="2" fill="currentColor" opacity="0.6"/>
+                </svg>
+            `;
+        }
+
+        if (val === AKARI_DOT) {
+            return `
+                <svg class="akari-symbol akari-dot ${extraClass}" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4.5" fill="currentColor"/>
+                </svg>
+            `;
+        }
+
+        return '';
+    }
+
+    /**
+     * Erzeugt das HTML für das Regeln-Modal
+     */
+    static getRulesHtml(lang = 'de') {
+        if (lang === 'en') {
+            return `
+                <div class="rules-container">
+                    <div class="rule-box">
+                        <div class="rule-badge">1</div>
+                        <div class="rule-content">
+                            <strong>Light up all White Cells</strong>
+                            <p>Place light bulbs (💡) on white cells. Light rays travel horizontally and vertically until they hit a black wall or the grid boundary.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">2</div>
+                        <div class="rule-content">
+                            <strong>No Bulb Clashes</strong>
+                            <p>No two light bulbs may illuminate each other. A bulb cannot be in the direct line of sight of another bulb.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">3</div>
+                        <div class="rule-content">
+                            <strong>Wall Numbers (0 to 4)</strong>
+                            <p>A number on a black wall indicates exactly how many light bulbs must be placed in its orthogonally adjacent neighbors (up, down, left, right).</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="rules-container">
+                <div class="rule-box">
+                    <div class="rule-badge">1</div>
+                    <div class="rule-content">
+                        <strong>Vollständige Ausleuchtung</strong>
+                        <p>Platziere Glühlampen (💡) auf weißen Feldern. Jede Lampe sendet Lichtstrahlen horizontal und vertikal aus, bis sie auf eine schwarze Wand oder den Außenrand trifft. Alle weißen Felder müssen erleuchtet sein.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">2</div>
+                    <div class="rule-content">
+                        <strong>Kein Blenden (Keine Kollisionen)</strong>
+                        <p>Zwei Glühlampen dürfen sich niemals gegenseitig anstrahlen. Zwischen zwei Lampen in derselben Zeile oder Spalte muss sich mindestens eine schwarze Wand befinden.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">3</div>
+                    <div class="rule-content">
+                        <strong>Wand-Zahlen (0 bis 4)</strong>
+                        <p>Eine Zahl auf einem schwarzen Block gibt exakt an, wie viele Glühlampen sich auf den direkt orthogonal angrenzenden Feldern (oben, unten, links, rechts) befinden müssen. Wände ohne Zahl haben keine Einschränkung.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// === Source: js\puzzles\akari\data\i18n.js ===
+/**
+ * Akari-spezifische Übersetzungen (DE & EN)
+ */
+
+const AKARI_I18N = {
+    de: {
+        akari_title: "Akari",
+        akari_desc: "Lichtstrahlen & Glühbirnen auf Wänden",
+        akari_btn_clear: "Leeren",
+        akari_btn_bulb: "Lampe",
+        akari_btn_dot: "Punkt",
+        akari_rules_title: "Akari Regeln",
+        akari_chapter_1: "Glühwürmchen",
+        akari_chapter_2: "Laternenstadt",
+        akari_chapter_3: "Lichtkuppel",
+        akari_chapter_4: "Photonen-Palast",
+        akari_tut_basics: "Grundlagen",
+        akari_tut_advanced: "Fortgeschritten"
+    },
+    en: {
+        akari_title: "Akari",
+        akari_desc: "Light rays & bulbs with wall numbers",
+        akari_btn_clear: "Clear",
+        akari_btn_bulb: "Bulb",
+        akari_btn_dot: "Dot",
+        akari_rules_title: "Akari Rules",
+        akari_chapter_1: "Fireflies",
+        akari_chapter_2: "Lantern City",
+        akari_chapter_3: "Light Dome",
+        akari_chapter_4: "Photon Palace",
+        akari_tut_basics: "Basics",
+        akari_tut_advanced: "Advanced"
+    }
+};
+
+// === Source: js\puzzles\akari\data\levels.js ===
+/**
+ * Akari Level & Tagesrätsel-Generierung
+ * 120 deterministisch generierte Kampagnen-Level in 4 Kapiteln (6×6, 8×8, 10×10, 12×12/14×14)
+ * und synchrones Tagesrätsel.
+ */
+
+
+
+function getAkariCampaignLevel(levelIndex) {
+    // 120 Level in 4 Kapiteln:
+    // Kapitel 1 (0–29): Glühwürmchen (Level 1–15: 6×6 Easy, Level 16–25: 6×6 Medium, Level 26–30: 7×7 Easy)
+    // Kapitel 2 (30–59): Laternenstadt (Level 31–45: 8×8 Easy, Level 46–60: 8×8 Medium)
+    // Kapitel 3 (60–89): Lichtkuppel (Level 61–75: 10×10 Medium, Level 76–90: 10×10 Hard)
+    // Kapitel 4 (90–119): Photonen-Palast (Level 91–105: 12×12 Medium, Level 106–120: 14×14 Hard)
+
+    let size, difficulty;
+    if (levelIndex < 15) {
+        size = 6;
+        difficulty = 'easy';
+    } else if (levelIndex < 25) {
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 30) {
+        size = 7;
+        difficulty = 'easy';
+    } else if (levelIndex < 45) {
+        size = 8;
+        difficulty = 'easy';
+    } else if (levelIndex < 60) {
+        size = 8;
+        difficulty = 'medium';
+    } else if (levelIndex < 75) {
+        size = 10;
+        difficulty = 'medium';
+    } else if (levelIndex < 90) {
+        size = 10;
+        difficulty = 'hard';
+    } else if (levelIndex < 105) {
+        size = 12;
+        difficulty = 'medium';
+    } else {
+        size = 14;
+        difficulty = 'hard';
+    }
+
+    const seed = 50000 + (levelIndex + 1) * 313;
+    const generated = AkariGenerator.generatePuzzle({ size, difficulty, seed });
+
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1} (${size}×${size})`,
+        ...generated
+    };
+}
+
+/**
+ * Erzeugt das synchrone Akari-Tagesrätsel basierend auf dem Datum
+ */
+function getAkariDailyPuzzle(dateStr) {
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10) + 333;
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+
+    // Werktags 8x8 Medium, Wochenende 10x10 Hard
+    const size = isWeekend ? 10 : 8;
+    const difficulty = isWeekend ? 'hard' : 'medium';
+
+    const generated = AkariGenerator.generatePuzzle({ size, difficulty, seed });
+
+    return {
+        date: dateStr,
+        name: `Tagesrätsel: Akari (${dateStr})`,
+        tier: isWeekend ? 'Wochenende (Meister)' : 'Werktag',
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\akari\data\tutorial.js ===
+/**
+ * Akari Grundlagen-Tutorial (8 Lektionen)
+ * Führt schrittweise in Lichtstrahlen, Wände, Wandzahlen und Ausleuchtung ein.
+ */
+
+const AKARI_TUTORIAL_STEPS = [
+    {
+        id: 1,
+        title: "1. Das Licht der Glühbirne",
+        subtitle: "Horizontale & vertikale Strahlen",
+        size: 5,
+        walls: [
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [{ r: 2, c: 2, val: 1 }],
+        solution: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Glühlampen (💡) senden helle Lichtstrahlen **horizontal und vertikal** über das gesamte Spielfeld aus.\n\nTippe auf die Mitte (Zeile 3, Spalte 3), um eine Lampe zu setzen.",
+        explanation: "Hervorragend! Die Lampe beleuchtet sofort ihre gesamte Zeile und Spalte."
+    },
+    {
+        id: 2,
+        title: "2. Schwarze Wände",
+        subtitle: "Hindernisse für Licht",
+        size: 5,
+        walls: [
+            [null, null, null, null, null],
+            [null, null, -1, null, null],
+            [null, -1, null, -1, null],
+            [null, null, -1, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, 0, null, 0, 0],
+            [0, null, 0, null, 0],
+            [0, 0, null, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [{ r: 2, c: 2, val: 1 }],
+        solution: [
+            [0, 0, 0, 0, 0],
+            [0, 0, null, 0, 0],
+            [0, null, 1, null, 0],
+            [0, 0, null, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Schwarze Wände **blockieren** das Licht. Strahlen stoppen an der Wand.\n\nPlatziere die Lampe im Zentrum. Siehe wie die 4 Wände den Lichtstrahl eingrenzen.",
+        explanation: "Genau! Wände teilen das Gitter in separate Sichtbereiche auf."
+    },
+    {
+        id: 3,
+        title: "3. Kein Blenden",
+        subtitle: "Keine zwei Lampen in einer Sichtlinie",
+        size: 5,
+        walls: [
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, -1, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [1, 0, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [{ r: 2, c: 4, val: 1 }],
+        solution: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [1, 0, null, 0, 1],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Zwei Lampen dürfen sich **niemals** gegenseitig anstrahlen.\n\nRechts von der Wand darf eine zweite Lampe stehen, da die schwarze Wand in der Mitte das Blenden verhindert. Setze eine Lampe auf (Zeile 3, Spalte 5).",
+        explanation: "Sehr gut! Durch die Wand dazwischen ist diese Platzierung absolut regelkonform."
+    },
+    {
+        id: 4,
+        title: "4. Wandzahlen (0 bis 4)",
+        subtitle: "Orthogonale Lampenzählung",
+        size: 5,
+        walls: [
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, 2, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0],
+            [0, 0, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [{ r: 2, c: 3, val: 1 }],
+        solution: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0],
+            [0, 0, null, 1, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Eine Zahl auf einer Wand gibt an, wie viele Lampen **orthogonal direkt angrenzen** (oben, unten, links, rechts).\n\nDie Wand '2' hat oben bereits 1 Lampe. Setze die zweite Lampe rechts daneben (Zeile 3, Spalte 4).",
+        explanation: "Perfekt! Die Wand '2' ist damit vollständig erfüllt und leuchtet dezent auf."
+    },
+    {
+        id: 5,
+        title: "5. Die 0-Wand & Ausschluss",
+        subtitle: "Punkte setzen zur Markierung",
+        size: 5,
+        walls: [
+            [null, null, null, null, null],
+            [null, null, 0, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, 0, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 0, c: 2, val: 2 },
+            { r: 1, c: 1, val: 2 },
+            { r: 1, c: 3, val: 2 },
+            { r: 2, c: 2, val: 2 }
+        ],
+        solution: [
+            [0, 0, 2, 0, 0],
+            [0, 2, null, 2, 0],
+            [0, 0, 2, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "An einer Wand mit der Zahl **0** darf **keine einzige Lampe** angrenzen!\n\nMarkiere alle 4 angrenzenden Nachbarfelder mit Punkten (•) durch 2-maliges Antippen.",
+        explanation: "Klasse! Punkte helfen dir, sichere Felder für spätere Züge zu reservieren."
+    },
+    {
+        id: 6,
+        title: "6. Die 4-Wand & Volle Belegung",
+        subtitle: "Erzwungene Platzierung",
+        size: 5,
+        walls: [
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, 4, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 1, c: 2, val: 1 },
+            { r: 2, c: 1, val: 1 },
+            { r: 2, c: 3, val: 1 },
+            { r: 3, c: 2, val: 1 }
+        ],
+        solution: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0],
+            [0, 1, null, 1, 0],
+            [0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Eine Wand mit **4** hat nur 4 orthogonale Nachbarn. Daher muss **jedes einzelne** Nachbarfeld eine Lampe (💡) sein!\n\nSetze alle 4 Lampen um die '4'.",
+        explanation: "Wunderbar! 4er-Wände sind immer ein sofortiger, sicherer Startpunkt."
+    },
+    {
+        id: 7,
+        title: "7. Vollständige Ausleuchtung",
+        subtitle: "Jedes weiße Feld muss Licht erhalten",
+        size: 5,
+        walls: [
+            [-1, null, null, null, -1],
+            [null, null, null, null, null],
+            [null, null, 0, null, null],
+            [null, null, null, null, null],
+            [-1, null, null, null, -1]
+        ],
+        initialGrid: [
+            [null, 0, 0, 0, null],
+            [0, 0, 2, 0, 0],
+            [0, 2, null, 2, 0],
+            [0, 0, 2, 0, 0],
+            [null, 0, 0, 0, null]
+        ],
+        solution: [
+            [null, 1, 0, 1, null],
+            [1, 0, 2, 0, 1],
+            [0, 2, null, 2, 0],
+            [1, 0, 2, 0, 1],
+            [null, 1, 0, 1, null]
+        ],
+        description: "Alle weißen Felder müssen am Ende beleuchtet sein. Platziere Lampen strategisch an den Rändern, um das gesamte Gitter strahlen zu lassen.",
+        explanation: "Toll gemacht! Das gesamte 5×5 Gitter ist nun lückenlos ausgeleuchtet."
+    },
+    {
+        id: 8,
+        title: "8. Erstes vollständiges Rätsel",
+        subtitle: "Kombiniere alle Regeln",
+        size: 5,
+        walls: [
+            [null, 1, null, null, null],
+            [null, null, null, null, -1],
+            [null, -1, 1, null, null],
+            [-1, null, null, null, null],
+            [null, null, null, 2, null]
+        ],
+        initialGrid: [
+            [0, null, 0, 0, 0],
+            [0, 0, 0, 0, null],
+            [0, null, null, 0, 0],
+            [null, 0, 0, 0, 0],
+            [0, 0, 0, null, 0]
+        ],
+        solution: [
+            [0, null, 0, 1, 0],
+            [1, 0, 0, 0, null],
+            [0, null, null, 0, 1],
+            [null, 0, 1, 0, 0],
+            [0, 0, 0, null, 1]
+        ],
+        description: "Löse dein erstes vollständiges 5×5 Akari-Rätsel! Nutze die Wandzahlen und die Ausleuchtungs-Prüfung.",
+        explanation: "Herzlichen Glückwunsch! Du beherrschst die Grundlagen von Akari perfekt."
+    }
+];
+
+// === Source: js\puzzles\akari\data\tutorial_advanced.js ===
+/**
+ * Akari Fortgeschrittenes Tutorial (6 Lektionen)
+ * Didaktische Meister-Strategien: Ecken, Wand-Interferenzen und Strahlenausschluss.
+ */
+
+const AKARI_TUTORIAL_ADVANCED_STEPS = [
+    {
+        id: 1,
+        title: "1. Die 3er-Wand am Rand",
+        subtitle: "Erzwungene Belegung bei 3 Nachbarn",
+        size: 5,
+        walls: [
+            [null, 3, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, null, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 0, c: 0, val: 1 },
+            { r: 0, c: 2, val: 1 },
+            { r: 1, c: 1, val: 1 }
+        ],
+        solution: [
+            [1, null, 1, 0, 0],
+            [0, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Wenn eine **3er-Wand** direkt am Außenrand liegt, hat sie nur genau 3 weiße Nachbarfelder (links, rechts, unten). Alle 3 müssen daher **zwingend Lampen** sein!\n\nSetze alle 3 Lampen um die '3'.",
+        explanation: "Exzellent! Rand-3er sind wie 4er im Zentrum: Alle verfügbaren Felder werden sofort Lampen."
+    },
+    {
+        id: 2,
+        title: "2. Geteilte Sichtlinien",
+        subtitle: "Ausschluss durch Strahlengang",
+        size: 5,
+        walls: [
+            [null, null, null, null, null],
+            [null, 1, null, 1, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, null, 0, null, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [{ r: 1, c: 2, val: 2 }],
+        solution: [
+            [0, 0, 0, 0, 0],
+            [0, null, 2, null, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Zwei '1'-Wände teilen sich die Zelle dazwischen (Zeile 2, Spalte 3). Wenn dort eine Lampe stünde, würde sie **beide** Wände gleichzeitig erfüllen – aber keine weiteren Nachbarn zulassen.\n\nMarkiere das Zwischenfeld als Punkt (•), falls andere Lampen notwendig sind.",
+        explanation: "Sehr scharf deduziert! Geteilte Nachbarzellen sind oft der Schlüssel zu kniffligen Mustern."
+    },
+    {
+        id: 3,
+        title: "3. Die einsame Zelle",
+        subtitle: "Einzige Rettung für unbeleuchtete Felder",
+        size: 5,
+        walls: [
+            [-1, null, -1, null, null],
+            [null, -1, null, null, null],
+            [-1, null, -1, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [null, 0, null, 0, 0],
+            [0, null, 0, 0, 0],
+            [null, 0, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [{ r: 0, c: 1, val: 1 }],
+        solution: [
+            [null, 1, null, 0, 0],
+            [0, null, 0, 0, 0],
+            [null, 0, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Das Feld bei (Zeile 1, Spalte 2) ist von 3 Seiten durch Wände und Ränder umschlossen. Es kann **nur** durch sich selbst beleuchtet werden, da unterhalb eine Wand liegt!\n\nSetze eine Lampe auf (1, 2).",
+        explanation: "Genial! Unbeleuchtete 'Sackgassen' erzwingen oft direkte Lampen."
+    },
+    {
+        id: 4,
+        title: "4. Wand-Interferenz (1 neben 2)",
+        subtitle: "Schrittweise Reduktion",
+        size: 5,
+        walls: [
+            [null, null, null, null, null],
+            [null, 1, 2, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, null, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 0, c: 2, val: 1 },
+            { r: 1, c: 3, val: 1 }
+        ],
+        solution: [
+            [0, 0, 1, 0, 0],
+            [0, null, null, 1, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Die '2' benötigt 2 Lampen. Da sie sich Nachbarn mit der '1' teilt, kann maximal 1 Lampe auf den geteilten Feldern liegen. Das bedeutet: Mindestens eine Lampe muss auf der rechten oder oberen Seite der '2' liegen!\n\nSetze Lampen oben (1, 3) und rechts (2, 4) von der '2'.",
+        explanation: "Perfekt analysiert! Kombinierte Wandbetrachtung löst selbst schwierigste Level."
+    },
+    {
+        id: 5,
+        title: "5. Diagonale Wand-Einschlüsse",
+        subtitle: "Schräg versetzte Wände",
+        size: 5,
+        walls: [
+            [null, 1, null, null, null],
+            [null, null, 1, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null],
+            [null, null, null, null, null]
+        ],
+        initialGrid: [
+            [0, null, 0, 0, 0],
+            [0, 0, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [{ r: 0, c: 2, val: 2 }],
+        solution: [
+            [0, null, 2, 0, 0],
+            [0, 0, null, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Zwei diagonal versetzte '1'-Wände: Die gemeinsame Ecke bei (Zeile 1, Spalte 3) würde beide Wände gleichzeitig erfüllen. Wenn ein anderer Nachbar besetzt wird, markiere die Ecke als Punkt (•).",
+        explanation: "Großartig! Diagonale Beziehungen sind ein mächtiges Werkzeug für Meister."
+    },
+    {
+        id: 6,
+        title: "6. Meister-Deduktion",
+        subtitle: "Vollständiges Experten-Szenario",
+        size: 6,
+        walls: [
+            [null, 0, null, null, 2, null],
+            [null, null, null, null, null, null],
+            [null, -1, null, 1, null, null],
+            [null, null, 2, null, -1, null],
+            [null, null, null, null, null, null],
+            [null, 1, null, null, 0, null]
+        ],
+        initialGrid: [
+            [0, null, 0, 0, null, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, null, 0, null, 0, 0],
+            [0, 0, null, 0, null, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, null, 0, 0, null, 0]
+        ],
+        solution: [
+            [0, null, 1, 0, null, 1],
+            [1, 0, 0, 0, 1, 0],
+            [0, null, 0, null, 0, 0],
+            [0, 0, null, 0, null, 0],
+            [0, 1, 0, 0, 0, 1],
+            [1, null, 0, 1, null, 0]
+        ],
+        description: "Wende alle gelernten Meister-Techniken an, um dieses anspruchsvolle 6×6 Akari-Meisterrätsel vollständig zu lösen!",
+        explanation: "Hervorragend! Du bist nun ein wahrer Akari-Großmeister."
+    }
+];
+
+// === Source: js\puzzles\akari\index.js ===
+/**
+ * Akari (Light Up) Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für Akari (6×6, 8×8, 10×10, 12×12, 14×14).
+ */
+
+
+
+
+
+
+
+
+
+
+const AkariPlugin = {
+    id: 'akari',
+    name: 'Akari',
+    icon: '💡',
+    description: 'Lichtstrahlen & Glühbirnen auf Wänden',
+    badge: 'Neu',
+    cssPath: './css/puzzles/akari.css',
+
+    getSizes: () => [
+        { id: 6, label: '6 × 6 (Kompakt)', gridSize: 6 },
+        { id: 8, label: '8 × 8 (Klassisch)', gridSize: 8 },
+        { id: 10, label: '10 × 10 (Meister)', gridSize: 10 },
+        { id: 14, label: '14 × 14 (Gigant)', gridSize: 14 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [AKARI_EMPTY, AKARI_BULB, AKARI_DOT],
+
+    getInputConfig: () => ({
+        type: 'cycle',
+        allowKeypad: false,
+        keys: [AKARI_EMPTY, AKARI_BULB, AKARI_DOT]
+    }),
+
+    createEngine: (size = 8) => new AkariEngine(size),
+    generatePuzzle: (opts) => AkariGenerator.generatePuzzle(opts),
+    solvePuzzle: (engine, max = 1) => AkariSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => AkariRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => AkariRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass, size) => AkariRenderer.getSymbolSvg(val, extraClass, size),
+
+    getHint: (engine, options) => AkariSolver.findLogicalHint(engine, options),
+    getRules: (lang) => AkariRenderer.getRulesHtml(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 120,
+        chapters: [
+            { id: 0, name: 'Glühwürmchen', levelRange: [0, 29], desc: '6×6 & 7×7 Grundlagen' },
+            { id: 1, name: 'Laternenstadt', levelRange: [30, 59], desc: '8×8 Klassische Straßen' },
+            { id: 2, name: 'Lichtkuppel', levelRange: [60, 89], desc: '10×10 Meister-Architektur' },
+            { id: 3, name: 'Photonen-Palast', levelRange: [90, 119], desc: '12×12 & 14×14 Giganten' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getAkariCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getAkariDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: AKARI_TUTORIAL_STEPS, badge: '8 Lektionen' },
+            { id: 'advanced', name: 'Fortgeschritten', steps: AKARI_TUTORIAL_ADVANCED_STEPS, badge: '6 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => AKARI_I18N[lang] || {}
+};
 
 // === Source: js\puzzles\sudoku\engine.js ===
 /**
@@ -5925,6 +8043,7 @@ const puzzleRegistry = new PuzzleRegistry();
 
 
 
+
 class CortexApp {
     constructor() {
         // Storage Migration
@@ -5933,6 +8052,7 @@ class CortexApp {
         // Plugins registrieren
         puzzleRegistry.register(TangoPlugin);
         puzzleRegistry.register(SudokuPlugin);
+        puzzleRegistry.register(AkariPlugin);
 
         // Aktives Plugin laden
         const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
@@ -6115,9 +8235,9 @@ class CortexApp {
 
         // Vorschau auf kommende Puzzles
         const upcoming = [
-            { name: 'Queens', icon: '👑', desc: 'Farbzonen & Königinnen' },
+            { name: 'Star Battle', icon: '⭐', desc: 'Sternenschlacht & Regionen' },
             { name: 'Futoshiki', icon: '📐', desc: 'Ungleichungs-Gitter' },
-            { name: 'KenKen', icon: '➕', desc: 'Rechen-Kästchen' }
+            { name: 'Tents & Trees', icon: '⛺', desc: 'Zelte & Bäume' }
         ];
         for (const u of upcoming) {
             const card = document.createElement('div');
@@ -6163,36 +8283,31 @@ class CortexApp {
         const tutTutPro = document.getElementById('navTutorialPro');
         const tutPatterns = document.getElementById('navTutorialPatterns');
 
-        // Für Sudoku nur 2 Tutorials (Grundlagen & Fortgeschritten)
-        if (this.activePlugin.id === 'sudoku') {
+        const tutSteps = this.activePlugin.getTutorialSteps ? this.activePlugin.getTutorialSteps() : null;
+        const sections = tutSteps?.sections || [];
+
+        if (sections.length > 1) {
             if (tutTutPro) {
                 tutTutPro.style.display = 'flex';
                 const textEl = tutTutPro.querySelector('.tut-btn-text');
                 if (textEl) {
-                    textEl.textContent = t('sudoku_tut_advanced') || 'Fortgeschritten';
-                    textEl.setAttribute('data-i18n', 'sudoku_tut_advanced');
+                    textEl.textContent = sections[1].name;
                 }
-            }
-            if (tutPatterns) {
-                tutPatterns.style.display = 'none';
             }
         } else {
-            if (tutTutPro) {
-                tutTutPro.style.display = 'flex';
-                const textEl = tutTutPro.querySelector('.tut-btn-text');
-                if (textEl) {
-                    textEl.textContent = t('nav_tutorial_pro');
-                    textEl.setAttribute('data-i18n', 'nav_tutorial_pro');
-                }
-            }
+            if (tutTutPro) tutTutPro.style.display = 'none';
+        }
+
+        if (sections.length > 2) {
             if (tutPatterns) {
                 tutPatterns.style.display = 'flex';
                 const textEl = tutPatterns.querySelector('.tut-btn-text');
                 if (textEl) {
-                    textEl.textContent = t('nav_tutorial_patterns');
-                    textEl.setAttribute('data-i18n', 'nav_tutorial_patterns');
+                    textEl.textContent = sections[2].name;
                 }
             }
+        } else {
+            if (tutPatterns) tutPatterns.style.display = 'none';
         }
     }
 
@@ -6633,16 +8748,22 @@ class CortexApp {
             return;
         }
 
-        // Direktes Durchschalten (Cycle-Modus für Tango)
+        // Direktes Durchschalten (Cycle-Modus für Tango & Akari)
         if (this.isNoteMode) {
             this.engine.cycleNoteValue(r, c);
             audio.vibrate(25);
         } else {
             const nextVal = this.engine.cycleCellValue(r, c);
             this.movesCount++;
-            if (nextVal === 1) audio.playSun();
-            else if (nextVal === 2) audio.playMoon();
-            else audio.playClear();
+            if (this.activePlugin.id === 'akari') {
+                if (nextVal === 1) audio.playBulb();
+                else if (nextVal === 2) audio.vibrate(25);
+                else audio.playClear();
+            } else {
+                if (nextVal === 1) audio.playSun();
+                else if (nextVal === 2) audio.playMoon();
+                else audio.playClear();
+            }
         }
 
         this.renderGrid();
@@ -6663,6 +8784,14 @@ class CortexApp {
                 this.engine.setCellValue(r, c, 2);
                 this.movesCount++;
                 audio.playMoon();
+            }
+        } else if (this.activePlugin.id === 'akari') {
+            if (this.isNoteMode) {
+                this.engine.setCellValue(r, c, 2, true);
+            } else {
+                this.engine.setCellValue(r, c, 2);
+                this.movesCount++;
+                audio.vibrate(30);
             }
         }
 
@@ -6703,6 +8832,9 @@ class CortexApp {
             } else if (this.activePlugin.id === 'tango') {
                 if (val === 1) audio.playSun();
                 else if (val === 2) audio.playMoon();
+            } else if (this.activePlugin.id === 'akari') {
+                if (val === 1) audio.playBulb();
+                else if (val === 2) audio.vibrate(25);
             } else {
                 audio.playDigit(val);
             }
@@ -6948,6 +9080,7 @@ class CortexApp {
         this.engine.loadPuzzle({
             size: this.engine.size,
             initialGrid: this.engine.initialGrid,
+            walls: this.engine.initialWalls || this.engine.walls,
             hEdges: this.engine.hEdges,
             vEdges: this.engine.vEdges,
             solution: this.engine.solution
@@ -7005,8 +9138,8 @@ class CortexApp {
         const descEl = document.getElementById('hintModalDesc');
         const btnApply = document.getElementById('btnHintApply');
 
-        if (titleEl) titleEl.textContent = hint.strategy || t('hint_title');
-        if (descEl) descEl.textContent = hint.message || '';
+        if (titleEl) titleEl.textContent = hint.strategy || hint.title || t('hint_title');
+        if (descEl) descEl.textContent = hint.message || hint.description || '';
 
         if (btnApply) {
             const hasMove = (hint.value !== undefined || hint.expectedVal !== undefined);
@@ -7022,15 +9155,19 @@ class CortexApp {
                     if (this.activePlugin.id === 'tango') {
                         if (hint.value === 1) audio.playSun();
                         else if (hint.value === 2) audio.playMoon();
+                    } else if (this.activePlugin.id === 'akari') {
+                        if (hint.value === 1) audio.playBulb();
+                        else audio.playClear();
                     } else {
                         audio.playDigit(hint.value);
                     }
                     this.renderGrid();
                     this.checkCompletion();
-                } else if (hint.type === 'rule_violation' || hint.type === 'solution_mismatch') {
+                } else if (hint.type === 'rule_violation' || hint.type === 'solution_mismatch' || (hint.type && hint.type.startsWith('error_'))) {
                     if (hint.r !== undefined && hint.c !== undefined) {
                         this.selectedCell = { r: hint.r, c: hint.c };
-                        this.engine.setCellValue(hint.r, hint.c, hint.expectedVal || 0);
+                        const valToSet = hint.expectedVal !== undefined ? hint.expectedVal : (hint.value !== undefined ? hint.value : 0);
+                        this.engine.setCellValue(hint.r, hint.c, valToSet);
                         audio.playClear();
                         this.renderGrid();
                         this.checkCompletion();
@@ -7389,9 +9526,10 @@ class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
+        const akariStats = StatsManager.getPuzzleStats('akari');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -7400,6 +9538,8 @@ class CortexApp {
             displayStats = tangoStats;
         } else if (currentTab === 'sudoku') {
             displayStats = sudokuStats;
+        } else if (currentTab === 'akari') {
+            displayStats = akariStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -7437,6 +9577,13 @@ class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 10, labelKey: 'stats_best_time_10' }
                 ];
+            } else if (currentTab === 'akari') {
+                sizesToShow = [
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 8, labelKey: 'stats_best_time_8' },
+                    { id: 10, labelKey: 'stats_best_time_10' },
+                    { id: 14, labelKey: 'stats_best_time_14' }
+                ];
             } else {
                 // Gesamt-Tab
                 sizesToShow = [
@@ -7445,6 +9592,7 @@ class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 9, labelKey: 'stats_best_time_9' },
                     { id: 10, labelKey: 'stats_best_time_10' },
+                    { id: 14, labelKey: 'stats_best_time_14' },
                     { id: 16, labelKey: 'stats_best_time_16' }
                 ];
             }
@@ -7459,7 +9607,12 @@ class CortexApp {
 
                 const lblSpan = document.createElement('span');
                 lblSpan.className = 'stat-lbl';
-                lblSpan.textContent = t(sz.labelKey) || `Bestzeit ${sz.id}×${sz.id}`;
+                let labelText = t(sz.labelKey);
+                if (!labelText || labelText === sz.labelKey) {
+                    const prefix = t('stats_best_time_prefix') || (getLang() === 'en' ? 'Best Time' : 'Bestzeit');
+                    labelText = `${prefix} ${sz.id}×${sz.id}`;
+                }
+                lblSpan.textContent = labelText;
 
                 card.appendChild(valSpan);
                 card.appendChild(lblSpan);
@@ -7687,6 +9840,10 @@ if (typeof window !== 'undefined') {
   if (typeof SudokuSolver !== 'undefined') window.SudokuSolver = SudokuSolver;
   if (typeof SudokuGenerator !== 'undefined') window.SudokuGenerator = SudokuGenerator;
   if (typeof SudokuPlugin !== 'undefined') window.SudokuPlugin = SudokuPlugin;
+  if (typeof AkariEngine !== 'undefined') window.AkariEngine = AkariEngine;
+  if (typeof AkariSolver !== 'undefined') window.AkariSolver = AkariSolver;
+  if (typeof AkariGenerator !== 'undefined') window.AkariGenerator = AkariGenerator;
+  if (typeof AkariPlugin !== 'undefined') window.AkariPlugin = AkariPlugin;
   if (typeof puzzleRegistry !== 'undefined') window.puzzleRegistry = puzzleRegistry;
 }
 

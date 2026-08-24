@@ -22,6 +22,7 @@ class TestCortexPlugins(unittest.TestCase):
         self.assertIn('const puzzleRegistry = new PuzzleRegistry()', bundle)
         self.assertIn('puzzleRegistry.register(TangoPlugin)', bundle)
         self.assertIn('puzzleRegistry.register(SudokuPlugin)', bundle)
+        self.assertIn('puzzleRegistry.register(AkariPlugin)', bundle)
 
     def test_storage_namespacing_and_migration(self):
         """Überprüft, dass die Storage-Namensräume und Migration im Bundle vorhanden sind"""
@@ -50,6 +51,7 @@ class TestCortexPlugins(unittest.TestCase):
         self.assertIn('data-stats-tab="all"', html)
         self.assertIn('data-stats-tab="tango"', html)
         self.assertIn('data-stats-tab="sudoku"', html)
+        self.assertIn('data-stats-tab="akari"', html)
 
     def test_themes_and_timer_classes_in_bundle(self):
         """Überprüft, dass ThemeManager und GameTimer sauber im Bundle existieren"""
@@ -65,6 +67,12 @@ class TestCortexPlugins(unittest.TestCase):
         self.assertIn('"name": "Cortex - Logikrätsel"', manifest)
         self.assertIn('cortex-app-v2.', sw)
         self.assertIn('./css/puzzles/sudoku.css', sw)
+    def test_stats_14x14_i18n_and_aggregation(self):
+        """Überprüft, dass 14x14 Bestzeit-Übersetzung und Aggregation vorhanden sind"""
+        bundle = (BASE_DIR / "js" / "bundle.js").read_text(encoding='utf-8')
+        self.assertIn('stats_best_time_14: "Bestzeit 14×14"', bundle)
+        self.assertIn('stats_best_time_14: "Best Time 14×14"', bundle)
+        self.assertIn('aggregatedBestTimes', bundle)
 
 
 if __name__ == "__main__":

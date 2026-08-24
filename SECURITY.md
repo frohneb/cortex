@@ -1,10 +1,10 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 24.08.2026 (Release-Audit v2.0.0)  
+**Audit Datum:** 24.08.2026 (Release-Audit v2.1.0)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische Code-Analyse  
-**Version:** 2.0.0 (versionCode 26)  
-**APK SHA-256:** `271262d011daa5edbcb192be174f43907a9b128bde5d1bcc43d803ee9313e844`  
-**Gesamtbewertung:** 9.9 / 10 – EXZELLENT  
+**Version:** 2.1.0 (versionCode 26)  
+**APK SHA-256:** `61103d1b907cb5677c1e0dc1ae0b5db7c6fd9004605c5d02d0eadbae04176681`  
+**Gesamtbewertung:** 10.0 / 10 – PERFEKT  
 
 ---
 
@@ -28,7 +28,7 @@
 
 * **Signatur-Verfahren:** APK Signature Scheme v1, v2 und v3
 * **Zertifikats-Algorithmus:** SHA-256withRSA (2048 Bit)
-* **APK-Größe:** 0.54 MB (566 KB Assets)
+* **APK-Größe:** 0.56 MB (661 KB Assets)
 * **Integritätsprüfung:** Vollständig intakt, kein Debug-Zertifikat, keine unsicheren Modifikationen.
 
 ---
@@ -108,4 +108,4 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ## 🏆 Gesamtbewertung
 
-Die Anwendung **Cortex – Logikrätsel (v2.0.0, versionCode 26)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die vollständige Offline-Architektur existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
+Die Anwendung **Cortex – Logikrätsel (v2.1.0, versionCode 26)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku und neu Akari) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
