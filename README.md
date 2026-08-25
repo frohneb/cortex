@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.2.2-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.2.3-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -65,6 +65,9 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.2.3 – 2026-08-25
+* **Persistente Zwischenstände & Wiederherstellung**: Automatisches Speichern des laufenden Spielstands (Zellen, Notizen, Timer, Modus und Einstellungen) bei jedem Zug, beim Minimieren oder Schließen der App für ein nahtloses Weiterspielen beim Neustart.
 
 ### v2.2.2 – 2026-08-25
 * **Kanten- & Rahmenartefakte in Nonogramm behoben**: Bereinigung der Zellkantenlinien, Trennlinien und Eckübergänge für eine gestochen scharfe Gitterdarstellung.

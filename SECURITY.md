@@ -1,9 +1,9 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 25.08.2026 (Release-Audit v2.2.2)  
+**Audit Datum:** 25.08.2026 (Release-Audit v2.2.3)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
-**Version:** 2.2.2 (versionCode 31)  
-**APK SHA-256:** `731a38bc3239cffd72cd9da2641d3627fd7f9be3c7c9e2667bfa03bc854d78bd`  
+**Version:** 2.2.3 (versionCode 32)  
+**APK SHA-256:** `536568feb6603f7fec3f1be42b845b75c05a4d956c67734a08bd6d115eabadb7`  
 **Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---

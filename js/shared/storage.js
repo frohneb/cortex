@@ -29,6 +29,9 @@ export const StorageKeys = {
     // Globales Tagesrätsel-Tracking
     DAILY_HISTORY: `${PREFIX}daily_history`,
 
+    // Aktiver Zwischenstand / Laufendes Spiel
+    ACTIVE_SESSION: `${PREFIX}active_session`,
+
     // Puzzle-spezifische Key-Factory
     puzzleKey: (puzzleId, key) => `${PREFIX}p_${puzzleId}_${key}`
 };
@@ -143,6 +146,10 @@ export class StorageManager {
             localStorage.removeItem(StorageKeys.puzzleKey(puzzleId, 'campaign_completed'));
             localStorage.removeItem(StorageKeys.puzzleKey(puzzleId, 'campaign_stars'));
             localStorage.removeItem(StorageKeys.puzzleKey(puzzleId, 'stats'));
+            const activeSession = StorageManager.getJSON(StorageKeys.ACTIVE_SESSION, null);
+            if (activeSession && activeSession.pluginId === puzzleId) {
+                localStorage.removeItem(StorageKeys.ACTIVE_SESSION);
+            }
             // Für Tango auch Legacy Keys bereinigen
             if (puzzleId === 'tango') {
                 localStorage.removeItem('tango_campaign_completed');

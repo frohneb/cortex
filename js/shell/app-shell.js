@@ -59,6 +59,7 @@ export class CortexApp {
         this.solutionRevealed = false;
         this.isGameActive = false;
         this.ignoreClickUntil = 0;
+        this.currentPuzzleData = null;
 
         // Einstellungen
         this.autoCheck = StorageManager.getItem(StorageKeys.AUTO_CHECK, 'true') === 'true';
@@ -109,14 +110,18 @@ export class CortexApp {
         this.checkDailySystemNotification();
         this.notifCheckInterval = setInterval(() => this.checkDailySystemNotification(), 30000);
 
-        // Starte Spielstand im Hintergrund vorbereitet
-        const completed = this.getCompletedLevels();
-        this.prepareCampaignLevel(completed.length < 120 ? completed.length : 0);
+        // Prüfe auf wiederherstellbaren Zwischenstand
+        const restored = this.restoreActiveGameState();
+        if (!restored) {
+            // Starte Spielstand im Hintergrund vorbereitet
+            const completed = this.getCompletedLevels();
+            this.prepareCampaignLevel(completed.length < 120 ? completed.length : 0);
 
-        // Beim Start sofort die "Alle Rätsel" Übersicht als Startseite öffnen
-        this.openPuzzleSelectModal();
-        this.timer.stop();
-        this.isGameActive = false;
+            // Beim Start sofort die "Alle Rätsel" Übersicht als Startseite öffnen
+            this.openPuzzleSelectModal();
+            this.timer.stop();
+            this.isGameActive = false;
+        }
     }
 
     getState() {
@@ -610,6 +615,7 @@ export class CortexApp {
             });
             if (confirmed) {
                 StorageManager.resetPuzzleData(this.activePlugin.id);
+                this.clearActiveGameState();
                 this.toggleModal('settingsModal', false);
                 this.toggleModal('menuModal', false);
                 audio.playClear();
@@ -633,6 +639,15 @@ export class CortexApp {
         };
         document.getElementById('btnResetStats')?.addEventListener('click', handleResetStats);
         document.getElementById('btnResetStatsModal')?.addEventListener('click', handleResetStats);
+
+        // Lifecycle: Zwischenstand beim Verlassen, Schließen oder Minimieren sichern
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                this.saveActiveGameState();
+            }
+        });
+        window.addEventListener('beforeunload', () => this.saveActiveGameState());
+        window.addEventListener('pagehide', () => this.saveActiveGameState());
     }
 
     applyTheme(theme) {
@@ -784,6 +799,7 @@ export class CortexApp {
 
         this.renderGrid();
         this.checkCompletion();
+        this.saveActiveGameState();
     }
 
     handleCellLongPress(r, c) {
@@ -821,6 +837,7 @@ export class CortexApp {
 
         this.renderGrid();
         this.checkCompletion();
+        this.saveActiveGameState();
     }
 
     applyKeypadInput(val) {
@@ -866,12 +883,14 @@ export class CortexApp {
 
         this.renderGrid();
         this.checkCompletion();
+        this.saveActiveGameState();
     }
 
     prepareCampaignLevel(levelIndex) {
         this.currentMode = 'campaign';
         this.campaignLevelIndex = levelIndex;
         const level = this.activePlugin.getCampaignLevel(levelIndex);
+        this.currentPuzzleData = level;
 
         this.engine = this.activePlugin.createEngine(level.size);
         this.engine.loadPuzzle(level);
@@ -901,6 +920,7 @@ export class CortexApp {
         this.prepareCampaignLevel(levelIndex);
         this.isGameActive = true;
         this.timer.start();
+        this.saveActiveGameState();
     }
 
     startTutorial(stepIndex = 0) {
@@ -914,6 +934,7 @@ export class CortexApp {
             this.startCampaignLevel(0);
             return;
         }
+        this.currentPuzzleData = step;
 
         this.engine = this.activePlugin.createEngine(step.size);
         this.engine.loadPuzzle(step);
@@ -941,6 +962,7 @@ export class CortexApp {
         document.getElementById('levelTitle').textContent = `${this.activePlugin.name} Grundlagen ${stepIndex + 1}`;
 
         this.renderGrid();
+        this.saveActiveGameState();
     }
 
     startTutorialPro(stepIndex = 0) {
@@ -955,6 +977,7 @@ export class CortexApp {
             this.startCampaignLevel(0);
             return;
         }
+        this.currentPuzzleData = step;
 
         this.engine = this.activePlugin.createEngine(step.size);
         this.engine.loadPuzzle(step);
@@ -985,6 +1008,7 @@ export class CortexApp {
         document.getElementById('levelTitle').textContent = `${this.activePlugin.name} ${sec.name} ${stepIndex + 1}`;
 
         this.renderGrid();
+        this.saveActiveGameState();
     }
 
     startTutorialPatterns(stepIndex = 0) {
@@ -999,6 +1023,7 @@ export class CortexApp {
             this.startCampaignLevel(0);
             return;
         }
+        this.currentPuzzleData = step;
 
         this.engine = this.activePlugin.createEngine(step.size);
         this.engine.loadPuzzle(step);
@@ -1029,6 +1054,7 @@ export class CortexApp {
         document.getElementById('levelTitle').textContent = `${this.activePlugin.name} Muster ${stepIndex + 1}`;
 
         this.renderGrid();
+        this.saveActiveGameState();
     }
 
     async requestStartDailyPuzzle() {
@@ -1050,6 +1076,7 @@ export class CortexApp {
     startDailyPuzzle() {
         this.currentMode = 'daily';
         const today = new Date().toISOString().slice(0, 10);
+        this.dailyDate = today;
 
         // Rotiere deterministisch zwischen allen registrierten Puzzles
         const dailyPlugin = puzzleRegistry.getRandomForDaily(today);
@@ -1058,6 +1085,7 @@ export class CortexApp {
         }
 
         const puzzle = this.activePlugin.getDailyConfig(today);
+        this.currentPuzzleData = puzzle;
         this.engine = this.activePlugin.createEngine(puzzle.size);
         this.engine.loadPuzzle(puzzle);
 
@@ -1075,11 +1103,15 @@ export class CortexApp {
 
         document.getElementById('levelTitle').textContent = `${t('nav_daily')}: ${this.activePlugin.name} (${today})`;
         this.renderGrid();
+        this.saveActiveGameState();
     }
 
     startFreePlay(size, difficulty) {
         this.currentMode = 'free';
+        this.freePlaySize = size;
+        this.freePlayDiff = difficulty;
         const generated = this.activePlugin.generatePuzzle({ size, difficulty });
+        this.currentPuzzleData = generated;
 
         this.engine = this.activePlugin.createEngine(size);
         this.engine.loadPuzzle(generated);
@@ -1098,6 +1130,7 @@ export class CortexApp {
 
         document.getElementById('levelTitle').textContent = `${this.activePlugin.name} ${t('nav_free')} ${size}×${size}`;
         this.renderGrid();
+        this.saveActiveGameState();
     }
 
     restartCurrentPuzzle() {
@@ -1126,6 +1159,7 @@ export class CortexApp {
         this.timer.start();
         this.renderGrid();
         audio.playClear();
+        this.saveActiveGameState();
     }
 
     handleUndo() {
@@ -1134,6 +1168,7 @@ export class CortexApp {
         if (res) {
             audio.playClear();
             this.renderGrid();
+            this.saveActiveGameState();
         }
     }
 
@@ -1143,6 +1178,7 @@ export class CortexApp {
         if (res) {
             audio.playClear();
             this.renderGrid();
+            this.saveActiveGameState();
         }
     }
 
@@ -1280,6 +1316,7 @@ export class CortexApp {
     onLevelVictory(customExplanation = null) {
         this.isGameActive = false;
         this.timer.stop();
+        this.clearActiveGameState();
         audio.playVictory();
         animations.launchConfetti();
 
@@ -1308,6 +1345,185 @@ export class CortexApp {
         setTimeout(() => {
             this.toggleModal('victoryModal', true);
         }, 400);
+    }
+
+    clearActiveGameState() {
+        StorageManager.removeItem(StorageKeys.ACTIVE_SESSION);
+    }
+
+    getEnginePuzzleData() {
+        if (!this.engine) return null;
+        if (this.activePlugin.id === 'tango') {
+            return {
+                size: this.engine.size,
+                initialGrid: this.engine.initialGrid,
+                hEdges: this.engine.hEdges,
+                vEdges: this.engine.vEdges,
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'sudoku') {
+            return {
+                size: this.engine.size,
+                initialGrid: this.engine.initialGrid,
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'akari') {
+            return {
+                size: this.engine.size,
+                walls: this.engine.initialWalls || this.engine.walls,
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'nonogram') {
+            return {
+                size: this.engine.size,
+                rowClues: this.engine.rowClues || this.engine.initialRowClues,
+                colClues: this.engine.colClues || this.engine.initialColClues,
+                target: this.engine.target || this.engine.initialTarget,
+                initialGrid: this.engine.initialGrid,
+                solution: this.engine.solution
+            };
+        }
+        return null;
+    }
+
+    saveActiveGameState() {
+        if (!this.engine || !this.isGameActive) return;
+
+        const puzzleData = this.currentPuzzleData || this.getEnginePuzzleData();
+        if (!puzzleData) return;
+
+        const session = {
+            pluginId: this.activePlugin.id,
+            currentMode: this.currentMode,
+            campaignLevelIndex: this.campaignLevelIndex,
+            dailyDate: this.dailyDate || new Date().toISOString().slice(0, 10),
+            tutorialSectionId: this.tutorialSectionId,
+            tutorialStepIndex: this.tutorialStepIndex,
+            freePlaySize: this.freePlaySize,
+            freePlayDiff: this.freePlayDiff,
+            puzzleData: puzzleData,
+            engineState: {
+                grid: this.engine.grid ? this.engine.grid.map(row => [...row]) : null,
+                notes: this.engine.notes ? this.engine.notes.map(row => row.map(set => Array.from(set || []))) : null,
+                undoStack: this.engine.undoStack ? this.engine.undoStack.map(action => ({ ...action })) : [],
+                redoStack: this.engine.redoStack ? this.engine.redoStack.map(action => ({ ...action })) : []
+            },
+            secondsElapsed: this.secondsElapsed || (this.timer ? this.timer.secondsElapsed : 0),
+            movesCount: this.movesCount || 0,
+            hintsUsed: this.hintsUsed || 0,
+            isNoteMode: !!this.isNoteMode,
+            selectedCell: this.selectedCell ? { ...this.selectedCell } : null,
+            solutionRevealed: !!this.solutionRevealed,
+            isGameActive: this.isGameActive,
+            savedAt: Date.now()
+        };
+
+        StorageManager.setJSON(StorageKeys.ACTIVE_SESSION, session);
+    }
+
+    restoreActiveGameState() {
+        const session = StorageManager.getJSON(StorageKeys.ACTIVE_SESSION, null);
+        if (!session || !session.pluginId || !session.puzzleData) return false;
+
+        const plugin = puzzleRegistry.get(session.pluginId);
+        if (!plugin) return false;
+
+        this.activePlugin = puzzleRegistry.activate(session.pluginId);
+        this.currentMode = session.currentMode || 'campaign';
+        this.campaignLevelIndex = session.campaignLevelIndex ?? 0;
+        this.dailyDate = session.dailyDate || new Date().toISOString().slice(0, 10);
+        this.tutorialSectionId = session.tutorialSectionId || 'basics';
+        this.tutorialStepIndex = session.tutorialStepIndex ?? 0;
+        this.freePlaySize = session.freePlaySize || 6;
+        this.freePlayDiff = session.freePlayDiff || 'medium';
+        this.currentPuzzleData = session.puzzleData;
+
+        // Engine erstellen und Puzzle laden
+        const puzzleSize = session.puzzleData.size || session.puzzleData.walls?.length || 6;
+        this.engine = this.activePlugin.createEngine(puzzleSize);
+        this.engine.loadPuzzle(session.puzzleData);
+
+        // Spielerstand (Gitter, Notizen, Undo/Redo) wiederherstellen
+        if (session.engineState?.grid && Array.isArray(session.engineState.grid)) {
+            this.engine.grid = session.engineState.grid.map(row => [...row]);
+        }
+        if (session.engineState?.notes && Array.isArray(session.engineState.notes)) {
+            this.engine.notes = session.engineState.notes.map(row => row.map(arr => new Set(arr || [])));
+        }
+        if (Array.isArray(session.engineState?.undoStack)) {
+            this.engine.undoStack = session.engineState.undoStack;
+        }
+        if (Array.isArray(session.engineState?.redoStack)) {
+            this.engine.redoStack = session.engineState.redoStack;
+        }
+
+        this.secondsElapsed = session.secondsElapsed || 0;
+        this.movesCount = session.movesCount || 0;
+        this.hintsUsed = session.hintsUsed || 0;
+        this.isNoteMode = !!session.isNoteMode;
+        this.selectedCell = session.selectedCell || null;
+        this.solutionRevealed = !!session.solutionRevealed;
+        this.isGameActive = session.isGameActive !== false;
+
+        // Timer fortsetzen falls aktiv
+        if (this.isGameActive) {
+            this.timer.start(this.secondsElapsed);
+        } else {
+            this.timer.stop();
+            this.timer.secondsElapsed = this.secondsElapsed;
+        }
+
+        // UI-Elemente aktualisieren
+        this.updateHeader();
+        this.updateMenuPlayTab();
+        this.updateRulesContent();
+
+        const tutHeader = document.getElementById('tutorialBanner');
+        if (this.currentMode.startsWith('tutorial')) {
+            const tutSteps = this.activePlugin.getTutorialSteps ? this.activePlugin.getTutorialSteps() : null;
+            const sec = tutSteps?.sections?.find(s => s.id === this.tutorialSectionId) || tutSteps?.sections?.[0];
+            const step = sec?.steps?.[this.tutorialStepIndex];
+            if (tutHeader && step) {
+                tutHeader.style.display = 'block';
+                document.getElementById('tutTitle').textContent = step.title;
+                document.getElementById('tutSubtitle').textContent = step.subtitle;
+                const mathBadge = document.getElementById('tutMathPrinciple');
+                if (mathBadge) {
+                    mathBadge.style.display = step.mathPrinciple ? 'block' : 'none';
+                    mathBadge.textContent = step.mathPrinciple || '';
+                }
+                document.getElementById('tutDesc').innerHTML = step.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            }
+            const lvlTitleEl = document.getElementById('levelTitle');
+            if (lvlTitleEl) {
+                lvlTitleEl.textContent = `${this.activePlugin.name} ${sec?.name || 'Grundlagen'} ${this.tutorialStepIndex + 1}`;
+            }
+        } else if (this.currentMode === 'daily') {
+            if (tutHeader) tutHeader.style.display = 'none';
+            const lvlTitleEl = document.getElementById('levelTitle');
+            if (lvlTitleEl) {
+                lvlTitleEl.textContent = `${t('nav_daily')}: ${this.activePlugin.name} (${this.dailyDate})`;
+            }
+        } else if (this.currentMode === 'free') {
+            if (tutHeader) tutHeader.style.display = 'none';
+            const lvlTitleEl = document.getElementById('levelTitle');
+            if (lvlTitleEl) {
+                lvlTitleEl.textContent = `${this.activePlugin.name} ${t('nav_free')} ${this.engine.size}×${this.engine.size}`;
+            }
+        } else {
+            // Campaign
+            if (tutHeader) tutHeader.style.display = 'none';
+            const lvlTitleEl = document.getElementById('levelTitle');
+            if (lvlTitleEl) {
+                lvlTitleEl.textContent = `${this.activePlugin.name} ${t('status_level')} ${this.campaignLevelIndex + 1}`;
+            }
+        }
+
+        const noteBtn = document.getElementById('btnNotes');
+        if (noteBtn) noteBtn.classList.toggle('active', this.isNoteMode);
+
+        this.renderGrid();
+        return true;
     }
 
     getCompletedLevels() {
