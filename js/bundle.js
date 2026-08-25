@@ -70,6 +70,8 @@ const StorageKeys = {
     VIBRATION: `${PREFIX}vibration`,
     VIBRATION_STRENGTH: `${PREFIX}vibration_strength`,
     AUTO_CHECK: `${PREFIX}auto_check`,
+    CELL_ZOOM: `${PREFIX}cell_zoom`,
+    CELL_ZOOM_LEVEL: `${PREFIX}cell_zoom_level`,
     INPUT_MODE: `${PREFIX}input_mode`,
     LANGUAGE: `${PREFIX}language`,
     ACTIVE_PUZZLE: `${PREFIX}active_puzzle`,
@@ -950,6 +952,7 @@ const baseTranslations = {
         btn_hint: "Hinweis",
         btn_restart: "Neustart",
         btn_notes: "Notizen",
+        btn_zoom: "Zoom",
         btn_check: "Prüfen",
         btn_next_level: "Nächstes Level",
         btn_back_menu: "Hauptmenü",
@@ -1021,6 +1024,12 @@ const baseTranslations = {
         setting_vib_medium: "Standard",
         setting_vib_soft: "Sanft",
         setting_auto_check: "Fehler sofort hervorheben",
+        setting_cell_zoom: "Zellen-Zoom bei Auswahl",
+        setting_cell_zoom_level: "Zoom-Stufe",
+        setting_zoom_125: "1,25× (Dezent)",
+        setting_zoom_150: "1,50× (Standard)",
+        setting_zoom_175: "1,75× (Stark)",
+        setting_zoom_200: "2,00× (Maximal)",
         setting_daily_reminder: "System-Benachrichtigung",
         setting_input_mode: "Eingabemodus",
         setting_input_cycle: "Direkt durchtippen",
@@ -1135,6 +1144,7 @@ const baseTranslations = {
         btn_hint: "Hint",
         btn_restart: "Restart",
         btn_notes: "Notes",
+        btn_zoom: "Zoom",
         btn_check: "Check",
         btn_next_level: "Next Level",
         btn_back_menu: "Main Menu",
@@ -1206,6 +1216,12 @@ const baseTranslations = {
         setting_vib_medium: "Standard",
         setting_vib_soft: "Soft",
         setting_auto_check: "Highlight Mistakes Immediately",
+        setting_cell_zoom: "Cell Zoom on Selection",
+        setting_cell_zoom_level: "Zoom Level",
+        setting_zoom_125: "1.25× (Subtle)",
+        setting_zoom_150: "1.50× (Standard)",
+        setting_zoom_175: "1.75× (Strong)",
+        setting_zoom_200: "2.00× (Maximum)",
         setting_daily_reminder: "System Notification",
         setting_input_mode: "Input Mode",
         setting_input_cycle: "Direct Tap Cycle",
@@ -3333,7 +3349,6 @@ const AkariPlugin = {
     name: 'Akari',
     icon: '💡',
     description: 'Lichtstrahlen & Glühbirnen auf Wänden',
-    badge: 'Neu',
     cssPath: './css/puzzles/akari.css',
 
     getSizes: () => [
@@ -3389,6 +3404,1529 @@ const AkariPlugin = {
     }),
 
     getI18nStrings: (lang) => AKARI_I18N[lang] || {}
+};
+
+// === Source: js\puzzles\nonogram\engine.js ===
+/**
+ * Nonogram (Picross / Griddlers) Engine
+ * Verwaltet Gitterzustände (0=Leer, 1=Gefüllt, 2=Kreuz), Zeilen- & Spaltenhinweise,
+ * Undo/Redo, Live-Validierung und Fortschrittsüberprüfung.
+ */
+
+const NONO_EMPTY = 0;
+const NONO_FILLED = 1;
+const NONO_CROSS = 2;
+
+class NonogramEngine {
+    constructor(size = 10, height = null) {
+        this.width = size;
+        this.height = height || size;
+        this.size = size;
+
+        this.grid = Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+        this.target = Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+        this.locked = Array.from({ length: this.height }, () => Array(this.width).fill(false));
+        this.notes = Array.from({ length: this.height }, () => Array.from({ length: this.width }, () => new Set()));
+
+        this.rowClues = Array.from({ length: this.height }, () => [0]);
+        this.colClues = Array.from({ length: this.width }, () => [0]);
+
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Berechnet die Clues für eine gegebene 1D-Reihe von Werten (0 oder 1)
+     */
+    static calculateLineClues(line) {
+        const clues = [];
+        let currentCount = 0;
+        for (const val of line) {
+            if (val === NONO_FILLED) {
+                currentCount++;
+            } else if (currentCount > 0) {
+                clues.push(currentCount);
+                currentCount = 0;
+            }
+        }
+        if (currentCount > 0) {
+            clues.push(currentCount);
+        }
+        return clues.length > 0 ? clues : [0];
+    }
+
+    /**
+     * Lädt ein Puzzle (aus Kampagne, Tagesrätsel, Generator oder Tutorial)
+     */
+    loadPuzzle(puzzleData) {
+        if (!puzzleData) return;
+        const size = puzzleData.size || (puzzleData.rowClues ? puzzleData.rowClues.length : (puzzleData.target ? puzzleData.target.length : (puzzleData.initialGrid ? puzzleData.initialGrid.length : 10)));
+        this.width = size;
+        this.height = size;
+        this.size = size;
+
+        this.grid = Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+        this.target = Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+        this.locked = Array.from({ length: this.height }, () => Array(this.width).fill(false));
+        this.notes = Array.from({ length: this.height }, () => Array.from({ length: this.width }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+
+        if (puzzleData.target) {
+            this.initFromTarget(puzzleData.target, puzzleData.locked || null);
+        } else if (puzzleData.rowClues && puzzleData.colClues) {
+            this.initFromClues(puzzleData.rowClues, puzzleData.colClues, puzzleData.solution || null);
+        } else if (puzzleData.initialGrid) {
+            this.initFromTarget(puzzleData.initialGrid, puzzleData.locked || null);
+        }
+
+        if (puzzleData.grid) {
+            this.grid = puzzleData.grid.map(row => [...row]);
+        }
+
+        this.initialGrid = JSON.parse(JSON.stringify(this.grid));
+        this.solution = this.target ? JSON.parse(JSON.stringify(this.target)) : null;
+    }
+
+    /**
+     * Initialisiert das Rätsel anhand eines Lösungs-Bitmaps
+     */
+    initFromTarget(targetGrid, lockedGrid = null) {
+        this.height = targetGrid.length;
+        this.width = targetGrid[0].length;
+        this.size = Math.max(this.width, this.height);
+
+        this.target = targetGrid.map(row => [...row]);
+        this.grid = Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+        this.locked = lockedGrid ? lockedGrid.map(row => [...row]) : Array.from({ length: this.height }, () => Array(this.width).fill(false));
+
+        // Clues aus dem Target-Grid berechnen
+        this.rowClues = [];
+        for (let r = 0; r < this.height; r++) {
+            this.rowClues.push(NonogramEngine.calculateLineClues(this.target[r]));
+        }
+
+        this.colClues = [];
+        for (let c = 0; c < this.width; c++) {
+            const col = [];
+            for (let r = 0; r < this.height; r++) {
+                col.push(this.target[r][c]);
+            }
+            this.colClues.push(NonogramEngine.calculateLineClues(col));
+        }
+
+        // Falls Zellen gesperrt sind, übernehmen
+        for (let r = 0; r < this.height; r++) {
+            for (let c = 0; c < this.width; c++) {
+                if (this.locked[r][c]) {
+                    this.grid[r][c] = this.target[r][c];
+                }
+            }
+        }
+    }
+
+    /**
+     * Initialisiert das Rätsel direkt aus Clues
+     */
+    initFromClues(rowClues, colClues, targetGrid = null) {
+        this.height = rowClues.length;
+        this.width = colClues.length;
+        this.size = Math.max(this.width, this.height);
+
+        this.rowClues = rowClues.map(c => (c.length === 0 ? [0] : [...c]));
+        this.colClues = colClues.map(c => (c.length === 0 ? [0] : [...c]));
+
+        this.grid = Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+        this.locked = Array.from({ length: this.height }, () => Array(this.width).fill(false));
+        this.target = targetGrid ? targetGrid.map(row => [...row]) : Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+    }
+
+    setCellValue(r, c, val, isNote = false) {
+        if (r < 0 || r >= this.height || c < 0 || c >= this.width) return false;
+        if (this.locked[r][c]) return false;
+
+        const oldVal = this.grid[r][c];
+        if (oldVal === val) return false;
+
+        this.undoStack.push({ r, c, oldVal, newVal: val });
+        this.redoStack = [];
+        this.grid[r][c] = val;
+        return true;
+    }
+
+    cycleCellValue(r, c, reverse = false) {
+        if (r < 0 || r >= this.height || c < 0 || c >= this.width) return 0;
+        if (this.locked[r][c]) return this.grid[r][c];
+
+        const current = this.grid[r][c];
+        let next;
+        if (!reverse) {
+            // 0 -> 1 -> 2 -> 0
+            next = current === NONO_EMPTY ? NONO_FILLED : (current === NONO_FILLED ? NONO_CROSS : NONO_EMPTY);
+        } else {
+            // 0 -> 2 -> 1 -> 0
+            next = current === NONO_EMPTY ? NONO_CROSS : (current === NONO_CROSS ? NONO_FILLED : NONO_EMPTY);
+        }
+
+        this.undoStack.push({ r, c, oldVal: current, newVal: next });
+        this.redoStack = [];
+        this.grid[r][c] = next;
+        return next;
+    }
+
+    cycleNoteValue(r, c) {
+        return this.cycleCellValue(r, c, true);
+    }
+
+    undo() {
+        if (this.undoStack.length === 0) return false;
+        const action = this.undoStack.pop();
+        this.grid[action.r][action.c] = action.oldVal;
+        this.redoStack.push(action);
+        return true;
+    }
+
+    redo() {
+        if (this.redoStack.length === 0) return false;
+        const action = this.redoStack.pop();
+        this.grid[action.r][action.c] = action.newVal;
+        this.undoStack.push(action);
+        return true;
+    }
+
+    canUndo() {
+        return this.undoStack.length > 0;
+    }
+
+    canRedo() {
+        return this.redoStack.length > 0;
+    }
+
+    clear() {
+        for (let r = 0; r < this.height; r++) {
+            for (let c = 0; c < this.width; c++) {
+                if (!this.locked[r][c]) {
+                    this.grid[r][c] = NONO_EMPTY;
+                }
+            }
+        }
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Prüft, ob eine Zeile exakt die geforderten Hinweise erfüllt
+     */
+    isRowSatisfied(r) {
+        if (r < 0 || r >= this.height) return false;
+        const currentClues = NonogramEngine.calculateLineClues(this.grid[r]);
+        const targetClues = this.rowClues[r];
+        if (currentClues.length !== targetClues.length) return false;
+        for (let i = 0; i < currentClues.length; i++) {
+            if (currentClues[i] !== targetClues[i]) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Prüft, ob eine Spalte exakt die geforderten Hinweise erfüllt
+     */
+    isColSatisfied(c) {
+        if (c < 0 || c >= this.width) return false;
+        const col = [];
+        for (let r = 0; r < this.height; r++) {
+            col.push(this.grid[r][c]);
+        }
+        const currentClues = NonogramEngine.calculateLineClues(col);
+        const targetClues = this.colClues[c];
+        if (currentClues.length !== targetClues.length) return false;
+        for (let i = 0; i < currentClues.length; i++) {
+            if (currentClues[i] !== targetClues[i]) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Prüft, ob das gesamte Nonogramm vollständig und fehlerfrei gelöst ist
+     */
+    isSolved() {
+        // Alle Zeilen und Spalten müssen exakt übereinstimmen
+        for (let r = 0; r < this.height; r++) {
+            if (!this.isRowSatisfied(r)) return false;
+        }
+        for (let c = 0; c < this.width; c++) {
+            if (!this.isColSatisfied(c)) return false;
+        }
+        return true;
+    }
+
+    isCompleted() {
+        return this.isSolved();
+    }
+
+    findMistakes() {
+        const mistakes = [];
+        if (this.target && this.target.length > 0) {
+            for (let r = 0; r < this.height; r++) {
+                for (let c = 0; c < this.width; c++) {
+                    if (this.grid[r][c] === NONO_FILLED && this.target[r][c] !== NONO_FILLED) {
+                        mistakes.push({ r, c, currentVal: NONO_FILLED, expectedVal: NONO_CROSS });
+                    }
+                }
+            }
+        }
+        return mistakes;
+    }
+
+    /**
+     * Prüft Fehler und Konflikte für AutoCheck
+     */
+    validateRules() {
+        const conflictCells = new Set();
+        const satisfiedRows = new Set();
+        const satisfiedCols = new Set();
+
+        for (let r = 0; r < this.height; r++) {
+            if (this.isRowSatisfied(r)) {
+                satisfiedRows.add(r);
+            }
+        }
+
+        for (let c = 0; c < this.width; c++) {
+            if (this.isColSatisfied(c)) {
+                satisfiedCols.add(c);
+            }
+        }
+
+        // Falls Target-Grid vorhanden, falsche gefüllte Kacheln markieren
+        if (this.target && this.target.length > 0) {
+            for (let r = 0; r < this.height; r++) {
+                for (let c = 0; c < this.width; c++) {
+                    if (this.grid[r][c] === NONO_FILLED && this.target[r][c] !== NONO_FILLED) {
+                        conflictCells.add(`${r},${c}`);
+                    }
+                }
+            }
+        }
+
+        return { conflictCells, satisfiedRows, satisfiedCols, isValid: conflictCells.size === 0 };
+    }
+
+    getSolution() {
+        return this.target.map(row => [...row]);
+    }
+
+    clone() {
+        const cloned = new NonogramEngine(this.width, this.height);
+        cloned.grid = this.grid.map(row => [...row]);
+        cloned.target = this.target.map(row => [...row]);
+        cloned.locked = this.locked.map(row => [...row]);
+        cloned.rowClues = this.rowClues.map(c => [...c]);
+        cloned.colClues = this.colClues.map(c => [...c]);
+        cloned.undoStack = [...this.undoStack];
+        cloned.redoStack = [...this.redoStack];
+        return cloned;
+    }
+}
+
+// === Source: js\puzzles\nonogram\solver.js ===
+/**
+ * Nonogram (Picross / Griddlers) Solver
+ * Implementiert einen hochperformanten Line-Solver für logische Deduktionen,
+ * Eindeutigkeitsprüfungen und interaktive Hinweise.
+ */
+
+
+
+class NonogramSolver {
+    /**
+     * Generiert alle gültigen Belegungen einer Zeile/Spalte passend zu den Clues und dem aktuellen Zustand.
+     */
+    static getValidLinePossibilities(length, clues, currentLine = null) {
+        if (clues.length === 0 || (clues.length === 1 && clues[0] === 0)) {
+            // Komplett leere Zeile (nur Kreuze / Nullen)
+            if (currentLine && currentLine.some(v => v === NONO_FILLED)) {
+                return [];
+            }
+            return [Array(length).fill(0)];
+        }
+
+        const results = [];
+        const numBlocks = clues.length;
+
+        function placeBlock(blockIdx, startPos, currentAssignment) {
+            if (blockIdx === numBlocks) {
+                // Rest mit 0 auffüllen
+                const fullLine = [...currentAssignment, ...Array(length - currentAssignment.length).fill(0)];
+                
+                // Prüfen ob kompatibel mit currentLine
+                if (currentLine) {
+                    for (let i = 0; i < length; i++) {
+                        if (currentLine[i] === NONO_FILLED && fullLine[i] !== 1) return;
+                        if (currentLine[i] === NONO_CROSS && fullLine[i] !== 0) return;
+                    }
+                }
+                results.push(fullLine);
+                return;
+            }
+
+            const blockSize = clues[blockIdx];
+            // Verbleibender Platz für nachfolgende Blöcke berechnen
+            let remainingSpace = 0;
+            for (let i = blockIdx + 1; i < numBlocks; i++) {
+                remainingSpace += clues[i] + 1; // Blockgröße + mind. 1 Lücke
+            }
+
+            const maxStart = length - remainingSpace - blockSize;
+
+            for (let pos = startPos; pos <= maxStart; pos++) {
+                // Prüfen ob die Lücken vor dem Block gültig sind
+                let valid = true;
+                const zeroesCount = pos - currentAssignment.length;
+                if (currentLine) {
+                    for (let i = 0; i < zeroesCount; i++) {
+                        const idx = currentAssignment.length + i;
+                        if (currentLine[idx] === NONO_FILLED) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+                if (!valid) continue;
+
+                // Prüfen ob der Block selbst gültig ist
+                if (currentLine) {
+                    for (let i = 0; i < blockSize; i++) {
+                        const idx = pos + i;
+                        if (currentLine[idx] === NONO_CROSS) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+                if (!valid) continue;
+
+                // Block platzieren
+                const nextAssignment = [
+                    ...currentAssignment,
+                    ...Array(pos - currentAssignment.length).fill(0),
+                    ...Array(blockSize).fill(1)
+                ];
+
+                // Wenn nicht der letzte Block, muss mind. 1 Lücke (0) folgen
+                if (blockIdx < numBlocks - 1) {
+                    const separatorIdx = nextAssignment.length;
+                    if (currentLine && currentLine[separatorIdx] === NONO_FILLED) {
+                        continue;
+                    }
+                    nextAssignment.push(0);
+                }
+
+                placeBlock(blockIdx + 1, nextAssignment.length, nextAssignment);
+            }
+        }
+
+        placeBlock(0, 0, []);
+        return results;
+    }
+
+    /**
+     * Führt eine logische Schnittmengen-Reduktion auf einer einzelnen Zeile aus
+     */
+    static deduceLine(length, clues, currentLine) {
+        const possibilities = NonogramSolver.getValidLinePossibilities(length, clues, currentLine);
+        if (possibilities.length === 0) {
+            return { error: true, deductions: [] };
+        }
+
+        const mustFill = [];
+        const mustCross = [];
+
+        for (let i = 0; i < length; i++) {
+            if (currentLine[i] !== NONO_EMPTY) continue;
+
+            const allOnes = possibilities.every(p => p[i] === 1);
+            const allZeroes = possibilities.every(p => p[i] === 0);
+
+            if (allOnes) {
+                mustFill.push(i);
+            } else if (allZeroes) {
+                mustCross.push(i);
+            }
+        }
+
+        return { error: false, mustFill, mustCross, count: possibilities.length };
+    }
+
+    /**
+     * Findet einen logischen Hinweis (Hint) für den Spieler
+     */
+    static findLogicalHint(engine) {
+        // 0. Zuerst Fehler erkennen
+        const mistakes = engine.findMistakes ? engine.findMistakes() : [];
+        if (mistakes.length > 0) {
+            const m = mistakes[0];
+            return {
+                type: 'solution_mismatch',
+                strategy: 'Fehlerhafte Markierung',
+                title: 'Fehler korrigieren',
+                r: m.r,
+                c: m.c,
+                val: m.expectedVal,
+                value: m.expectedVal,
+                expectedVal: m.expectedVal,
+                message: `Das Feld (${m.r + 1}, ${m.c + 1}) ist fälschlicherweise gefüllt. Es sollte geleert oder mit einem Kreuz markiert werden.`,
+                description: `Das Feld (${m.r + 1}, ${m.c + 1}) ist fälschlicherweise gefüllt. Es sollte geleert oder mit einem Kreuz markiert werden.`,
+                explanation: `Das Feld (${m.r + 1}, ${m.c + 1}) ist fälschlicherweise gefüllt.`
+            };
+        }
+
+        // 1. Zeilen durchsuchen
+        for (let r = 0; r < engine.height; r++) {
+            const line = engine.grid[r];
+            const clues = engine.rowClues[r];
+            const res = NonogramSolver.deduceLine(engine.width, clues, line);
+
+            if (!res.error && res.mustFill.length > 0) {
+                const c = res.mustFill[0];
+                return {
+                    r,
+                    c,
+                    val: NONO_FILLED,
+                    value: NONO_FILLED,
+                    expectedVal: NONO_FILLED,
+                    type: 'fill',
+                    strategy: 'Logische Zeilen-Deduktion',
+                    title: 'Zeilen-Deduktion',
+                    message: `In Zeile ${r + 1} muss Feld (${r + 1}, ${c + 1}) sicher gefüllt werden (Hinweis: ${clues.join(' ')}).`,
+                    description: `In Zeile ${r + 1} muss Feld (${r + 1}, ${c + 1}) sicher gefüllt werden (Hinweis: ${clues.join(' ')}).`,
+                    explanation: `In Zeile ${r + 1} muss Feld (${r + 1}, ${c + 1}) sicher gefüllt werden (Hinweis: ${clues.join(' ')}).`
+                };
+            }
+            if (!res.error && res.mustCross.length > 0) {
+                const c = res.mustCross[0];
+                return {
+                    r,
+                    c,
+                    val: NONO_CROSS,
+                    value: NONO_CROSS,
+                    expectedVal: NONO_CROSS,
+                    type: 'cross',
+                    strategy: 'Logischer Zeilen-Ausschluss',
+                    title: 'Zeilen-Ausschluss',
+                    message: `In Zeile ${r + 1} kann Feld (${r + 1}, ${c + 1}) kein Pixel sein. Setze ein Kreuz (✕).`,
+                    description: `In Zeile ${r + 1} kann Feld (${r + 1}, ${c + 1}) kein Pixel sein. Setze ein Kreuz (✕).`,
+                    explanation: `In Zeile ${r + 1} kann Feld (${r + 1}, ${c + 1}) kein Pixel sein. Setze ein Kreuz (✕).`
+                };
+            }
+        }
+
+        // 2. Spalten durchsuchen
+        for (let c = 0; c < engine.width; c++) {
+            const col = [];
+            for (let r = 0; r < engine.height; r++) {
+                col.push(engine.grid[r][c]);
+            }
+            const clues = engine.colClues[c];
+            const res = NonogramSolver.deduceLine(engine.height, clues, col);
+
+            if (!res.error && res.mustFill.length > 0) {
+                const r = res.mustFill[0];
+                return {
+                    r,
+                    c,
+                    val: NONO_FILLED,
+                    value: NONO_FILLED,
+                    expectedVal: NONO_FILLED,
+                    type: 'fill',
+                    strategy: 'Logische Spalten-Deduktion',
+                    title: 'Spalten-Deduktion',
+                    message: `In Spalte ${c + 1} muss Feld (${r + 1}, ${c + 1}) sicher gefüllt werden (Hinweis: ${clues.join(' ')}).`,
+                    description: `In Spalte ${c + 1} muss Feld (${r + 1}, ${c + 1}) sicher gefüllt werden (Hinweis: ${clues.join(' ')}).`,
+                    explanation: `In Spalte ${c + 1} muss Feld (${r + 1}, ${c + 1}) sicher gefüllt werden (Hinweis: ${clues.join(' ')}).`
+                };
+            }
+            if (!res.error && res.mustCross.length > 0) {
+                const r = res.mustCross[0];
+                return {
+                    r,
+                    c,
+                    val: NONO_CROSS,
+                    value: NONO_CROSS,
+                    expectedVal: NONO_CROSS,
+                    type: 'cross',
+                    strategy: 'Logischer Spalten-Ausschluss',
+                    title: 'Spalten-Ausschluss',
+                    message: `In Spalte ${c + 1} kann Feld (${r + 1}, ${c + 1}) kein Pixel sein. Setze ein Kreuz (✕).`,
+                    description: `In Spalte ${c + 1} kann Feld (${r + 1}, ${c + 1}) kein Pixel sein. Setze ein Kreuz (✕).`,
+                    explanation: `In Spalte ${c + 1} kann Feld (${r + 1}, ${c + 1}) kein Pixel sein. Setze ein Kreuz (✕).`
+                };
+            }
+        }
+
+        // 3. Fallback auf Target
+        if (engine.target && engine.target.length > 0) {
+            for (let r = 0; r < engine.height; r++) {
+                for (let c = 0; c < engine.width; c++) {
+                    if (engine.grid[r][c] === NONO_EMPTY) {
+                        const targetVal = engine.target[r][c] === 1 ? NONO_FILLED : NONO_CROSS;
+                        return {
+                            r,
+                            c,
+                            val: targetVal,
+                            value: targetVal,
+                            expectedVal: targetVal,
+                            type: targetVal === NONO_FILLED ? 'fill' : 'cross',
+                            strategy: 'Nächster Schritt',
+                            title: 'Nächster Schritt',
+                            message: `Setze Feld (${r + 1}, ${c + 1}) auf ${targetVal === NONO_FILLED ? 'Gefüllt (⬛)' : 'Kreuz (✕)'}.`,
+                            description: `Setze Feld (${r + 1}, ${c + 1}) auf ${targetVal === NONO_FILLED ? 'Gefüllt (⬛)' : 'Kreuz (✕)'}.`,
+                            explanation: `Setze Feld (${r + 1}, ${c + 1}) auf ${targetVal === NONO_FILLED ? 'Gefüllt (⬛)' : 'Kreuz (✕)'}.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Löst das Nonogramm rein durch logische Deduktion (ohne Raten)
+     * Gibt true zurück, wenn rein logisch vollständig lösbar.
+     */
+    static solveLogical(engine) {
+        const testGrid = Array.from({ length: engine.height }, () => Array(engine.width).fill(NONO_EMPTY));
+        let changed = true;
+
+        while (changed) {
+            changed = false;
+
+            // Zeilen
+            for (let r = 0; r < engine.height; r++) {
+                const res = NonogramSolver.deduceLine(engine.width, engine.rowClues[r], testGrid[r]);
+                if (res.error) return { solvable: false, grid: testGrid };
+
+                for (const c of res.mustFill) {
+                    testGrid[r][c] = NONO_FILLED;
+                    changed = true;
+                }
+                for (const c of res.mustCross) {
+                    testGrid[r][c] = NONO_CROSS;
+                    changed = true;
+                }
+            }
+
+            // Spalten
+            for (let c = 0; c < engine.width; c++) {
+                const col = [];
+                for (let r = 0; r < engine.height; r++) {
+                    col.push(testGrid[r][c]);
+                }
+                const res = NonogramSolver.deduceLine(engine.height, engine.colClues[c], col);
+                if (res.error) return { solvable: false, grid: testGrid };
+
+                for (const r of res.mustFill) {
+                    testGrid[r][c] = NONO_FILLED;
+                    changed = true;
+                }
+                for (const r of res.mustCross) {
+                    testGrid[r][c] = NONO_CROSS;
+                    changed = true;
+                }
+            }
+        }
+
+        // Prüfen ob alle Felder bestimmt sind
+        const isComplete = testGrid.every(row => row.every(val => val !== NONO_EMPTY));
+        return { solvable: isComplete, grid: testGrid };
+    }
+
+    /**
+     * Findet alle Lösungen (zur Eindeutigkeitsprüfung)
+     */
+    static solve(engine, maxSolutions = 2) {
+        const logicalRes = NonogramSolver.solveLogical(engine);
+        if (logicalRes.solvable) {
+            return [logicalRes.grid.map(row => row.map(v => (v === NONO_FILLED ? 1 : 0)))];
+        }
+
+        const solutions = [];
+
+        function backtrack(r, c, currentGrid) {
+            if (solutions.length >= maxSolutions) return;
+
+            if (r === engine.height) {
+                // Prüfen ob alle Spalten gültig sind
+                for (let colIdx = 0; colIdx < engine.width; colIdx++) {
+                    const col = currentGrid.map(row => row[colIdx]);
+                    const clues = NonogramEngine.calculateLineClues(col);
+                    const targetClues = engine.colClues[colIdx];
+                    if (clues.length !== targetClues.length || clues.some((v, i) => v !== targetClues[i])) {
+                        return;
+                    }
+                }
+                solutions.push(currentGrid.map(row => [...row]));
+                return;
+            }
+
+            const nextR = c + 1 === engine.width ? r + 1 : r;
+            const nextC = c + 1 === engine.width ? 0 : c + 1;
+
+            if (c === 0) {
+                // Belegungen für die ganze Zeile ermitteln
+                const possibilities = NonogramSolver.getValidLinePossibilities(engine.width, engine.rowClues[r]);
+                for (const poss of possibilities) {
+                    currentGrid[r] = poss;
+                    backtrack(r + 1, 0, currentGrid);
+                    if (solutions.length >= maxSolutions) return;
+                }
+            }
+        }
+
+        backtrack(0, 0, Array.from({ length: engine.height }, () => Array(engine.width).fill(0)));
+        return solutions;
+    }
+}
+
+// === Source: js\puzzles\nonogram\generator.js ===
+/**
+ * Nonogram Generator
+ * Erzeugt eindeutig lösbare Pixel- und Logik-Rätsel deterministisch über Seeds
+ * oder aus vordefinierten Pixel-Art Vorlagen.
+ */
+
+
+
+
+class NonogramGenerator {
+    /**
+     * Einfacher deterministischer Pseudo-Zufallsgenerator (Mulberry32)
+     */
+    static createRng(seed) {
+        let s = seed >>> 0;
+        return function() {
+            s |= 0;
+            s = (s + 0x6D2B79F5) | 0;
+            let t = Math.imul(s ^ (s >>> 15), 1 | s);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    /**
+     * Erzeugt ein Nonogramm-Rätsel
+     */
+    static generatePuzzle(options = {}) {
+        const size = options.size || 10;
+        const difficulty = options.difficulty || 'medium';
+        const seed = options.seed !== undefined ? options.seed : Math.floor(Math.random() * 1000000);
+        const rng = NonogramGenerator.createRng(seed);
+
+        const targetDensity = difficulty === 'easy' ? 0.60 : (difficulty === 'medium' ? 0.50 : 0.42);
+
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const target = Array.from({ length: size }, () => Array(size).fill(0));
+            const isSymmetric = rng() > 0.4;
+
+            for (let r = 0; r < size; r++) {
+                const maxC = isSymmetric ? Math.ceil(size / 2) : size;
+                for (let c = 0; c < maxC; c++) {
+                    const prob = targetDensity + (rng() - 0.5) * 0.2;
+                    const val = rng() < prob ? 1 : 0;
+                    target[r][c] = val;
+                    if (isSymmetric) {
+                        target[r][size - 1 - c] = val;
+                    }
+                }
+            }
+
+            // Sicherstellen dass keine Zeile/Spalte komplett leer ist
+            for (let r = 0; r < size; r++) {
+                if (target[r].every(v => v === 0)) {
+                    target[r][Math.floor(rng() * size)] = 1;
+                }
+            }
+            for (let c = 0; c < size; c++) {
+                if (target.every(row => row[c] === 0)) {
+                    target[Math.floor(rng() * size)][c] = 1;
+                }
+            }
+
+            const engine = new NonogramEngine(size);
+            engine.initFromTarget(target);
+
+            // Logische Lösbarkeit prüfen
+            const solveRes = NonogramSolver.solveLogical(engine);
+            if (solveRes.solvable) {
+                return {
+                    size,
+                    difficulty,
+                    seed,
+                    target,
+                    rowClues: engine.rowClues,
+                    colClues: engine.colClues,
+                    grid: Array.from({ length: size }, () => Array(size).fill(0)),
+                    locked: Array.from({ length: size }, () => Array(size).fill(false))
+                };
+            }
+        }
+
+        // Robuster Fallback: Strukturierte geometrische Vorlage
+        const fallbackTarget = Array.from({ length: size }, (_, r) =>
+            Array.from({ length: size }, (_, c) => ((r + c) % 2 === 0 || r === c || r === size - 1 - c ? 1 : 0))
+        );
+        const engine = new NonogramEngine(size);
+        engine.initFromTarget(fallbackTarget);
+
+        return {
+            size,
+            difficulty,
+            seed,
+            target: fallbackTarget,
+            rowClues: engine.rowClues,
+            colClues: engine.colClues,
+            grid: Array.from({ length: size }, () => Array(size).fill(0)),
+            locked: Array.from({ length: size }, () => Array(size).fill(false))
+        };
+    }
+}
+
+// === Source: js\puzzles\nonogram\renderer.js ===
+/**
+ * Nonogram Visual Renderer
+ * Zeichnet das Spielfeld mit Zeilen- und Spaltenhinweisen, 5×5-Block-Trennlinien,
+ * Auto-Cross-Out, dynamischer Mehrzeilen-Skalierung und Zoom-Unterstützung.
+ */
+
+
+
+
+class NonogramRenderer {
+    static getSymbolSvg(val, extraClass = '') {
+        if (val === NONO_FILLED) {
+            return `<span class="nono-symbol nono-filled ${extraClass}">⬛</span>`;
+        } else if (val === NONO_CROSS) {
+            return `<span class="nono-symbol nono-cross ${extraClass}">✕</span>`;
+        }
+        return '';
+    }
+
+    static renderBoard(container, engine, state, onCellInteraction) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        container.classList.add('has-nonogram');
+
+        const width = engine.width;
+        const height = engine.height;
+
+        const maxColClues = Math.max(1, ...engine.colClues.map(c => (c && c.length) ? c.length : 1));
+        const maxRowClues = Math.max(1, ...engine.rowClues.map(c => (c && c.length) ? c.length : 1));
+
+        const boardWrapper = document.createElement('div');
+        boardWrapper.className = `nonogram-board size-${width}`;
+        boardWrapper.style.setProperty('--grid-w', width);
+        boardWrapper.style.setProperty('--grid-h', height);
+        boardWrapper.style.setProperty('--max-col-clues', maxColClues);
+        boardWrapper.style.setProperty('--max-row-clues', maxRowClues);
+
+        // 1. Oben-Links: Leere Ecke
+        const cornerEl = document.createElement('div');
+        cornerEl.className = 'nonogram-corner';
+        boardWrapper.appendChild(cornerEl);
+
+        // 2. Oben: Spalten-Hinweise (Col Clues)
+        const colCluesContainer = document.createElement('div');
+        colCluesContainer.className = 'nonogram-col-clues';
+        colCluesContainer.style.gridTemplateColumns = `repeat(${width}, minmax(0, 1fr))`;
+
+        for (let c = 0; c < width; c++) {
+            const clueBox = document.createElement('div');
+            clueBox.className = 'col-clue-box';
+            if ((c + 1) % 5 === 0 && c < width - 1) clueBox.classList.add('major-edge-right');
+
+            const isSatisfied = engine.isColSatisfied(c);
+            if (isSatisfied) clueBox.classList.add('clue-satisfied');
+
+            const clues = engine.colClues[c] || [0];
+            for (const num of clues) {
+                const numEl = document.createElement('span');
+                numEl.className = 'clue-num';
+                numEl.textContent = num;
+                clueBox.appendChild(numEl);
+            }
+            colCluesContainer.appendChild(clueBox);
+        }
+        boardWrapper.appendChild(colCluesContainer);
+
+        // 3. Links: Zeilen-Hinweise (Row Clues)
+        const rowCluesContainer = document.createElement('div');
+        rowCluesContainer.className = 'nonogram-row-clues';
+        rowCluesContainer.style.gridTemplateRows = `repeat(${height}, minmax(0, 1fr))`;
+
+        for (let r = 0; r < height; r++) {
+            const clueBox = document.createElement('div');
+            clueBox.className = 'row-clue-box';
+            if ((r + 1) % 5 === 0 && r < height - 1) clueBox.classList.add('major-edge-bottom');
+
+            const isSatisfied = engine.isRowSatisfied(r);
+            if (isSatisfied) clueBox.classList.add('clue-satisfied');
+
+            const clues = engine.rowClues[r] || [0];
+            for (const num of clues) {
+                const numEl = document.createElement('span');
+                numEl.className = 'clue-num';
+                numEl.textContent = num;
+                clueBox.appendChild(numEl);
+            }
+            rowCluesContainer.appendChild(clueBox);
+        }
+        boardWrapper.appendChild(rowCluesContainer);
+
+        // 4. Haupt-Gitter (Cells)
+        const gridEl = document.createElement('div');
+        gridEl.className = `nonogram-grid size-${width}`;
+        gridEl.style.gridTemplateColumns = `repeat(${width}, minmax(0, 1fr))`;
+        gridEl.style.gridTemplateRows = `repeat(${height}, minmax(0, 1fr))`;
+
+        const validation = state.autoCheck ? engine.validateRules() : { conflictCells: new Set() };
+        const solution = state.solutionRevealed ? engine.getSolution() : null;
+
+        for (let r = 0; r < height; r++) {
+            for (let c = 0; c < width; c++) {
+                const cellEl = document.createElement('div');
+                cellEl.className = 'nonogram-cell';
+                cellEl.dataset.r = r;
+                cellEl.dataset.c = c;
+
+                const val = engine.grid[r][c];
+                const isConflict = !state.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
+                const isSelected = !state.solutionRevealed && state.selectedCell && state.selectedCell.r === r && state.selectedCell.c === c;
+                const isHintShimmer = !state.solutionRevealed && state.hintPlacedCell && state.hintPlacedCell.r === r && state.hintPlacedCell.c === c;
+
+                // 5er-Blocktrenner
+                if ((c + 1) % 5 === 0 && c < width - 1) cellEl.classList.add('major-edge-right');
+                if ((r + 1) % 5 === 0 && r < height - 1) cellEl.classList.add('major-edge-bottom');
+
+                if (isConflict) cellEl.classList.add('conflict');
+                if (isSelected) {
+                    cellEl.classList.add('selected');
+                    if (state.cellZoom) {
+                        cellEl.classList.add('cell-zoom');
+                        cellEl.style.setProperty('--zoom-factor', state.cellZoomLevel || '1.5');
+                    }
+                }
+                if (isHintShimmer) cellEl.classList.add('hint-shimmer');
+
+                if (state.solutionRevealed && solution) {
+                    const solVal = solution[r][c];
+                    if (solVal === 1) {
+                        cellEl.classList.add('revealed-filled');
+                    } else if (val === NONO_FILLED) {
+                        cellEl.classList.add('revealed-error');
+                        cellEl.textContent = '✕';
+                    }
+                } else if (val === NONO_FILLED) {
+                    cellEl.classList.add('cell-filled');
+                } else if (val === NONO_CROSS) {
+                    cellEl.classList.add('cell-cross');
+                    cellEl.textContent = '✕';
+                } else {
+                    // Tutorial Target
+                    let tutStep = null;
+                    if (state.currentMode === 'tutorial') {
+                        tutStep = NONOGRAM_TUTORIAL_STEPS[state.tutorialStepIndex];
+                    }
+                    const targetCellInfo = (tutStep && tutStep.targetCells) ? tutStep.targetCells.find(t => t.r === r && t.c === c) : null;
+                    if (targetCellInfo) {
+                        cellEl.classList.add('tutorial-target');
+                        if (targetCellInfo.val === NONO_FILLED) {
+                            cellEl.classList.add('target-ghost-fill');
+                        } else if (targetCellInfo.val === NONO_CROSS) {
+                            cellEl.classList.add('target-ghost-cross');
+                            cellEl.textContent = '✕';
+                        }
+                    }
+                }
+
+                if (typeof onCellInteraction === 'function') {
+                    onCellInteraction(cellEl, r, c);
+                }
+
+                gridEl.appendChild(cellEl);
+            }
+        }
+
+        boardWrapper.appendChild(gridEl);
+        container.appendChild(boardWrapper);
+    }
+
+    static renderKeypad(container, engine, state, onKeyInput) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        container.className = 'game-keypad nonogram-keypad';
+
+        // 1. Button: Füllen ⬛
+        const btnFill = document.createElement('button');
+        btnFill.className = 'keypad-btn nono-key-btn key-fill';
+        btnFill.innerHTML = '<span class="key-icon">⬛</span><span class="key-label">Füllen</span>';
+        btnFill.addEventListener('click', () => onKeyInput && onKeyInput(NONO_FILLED));
+        container.appendChild(btnFill);
+
+        // 2. Button: Kreuz ❌
+        const btnCross = document.createElement('button');
+        btnCross.className = 'keypad-btn nono-key-btn key-cross';
+        btnCross.innerHTML = '<span class="key-icon">✕</span><span class="key-label">Kreuz</span>';
+        btnCross.addEventListener('click', () => onKeyInput && onKeyInput(NONO_CROSS));
+        container.appendChild(btnCross);
+
+        // 3. Button: Löschen / Leeren
+        const btnClear = document.createElement('button');
+        btnClear.className = 'keypad-btn nono-key-btn key-clear';
+        btnClear.innerHTML = '<span class="key-icon">↺</span><span class="key-label">Leeren</span>';
+        btnClear.addEventListener('click', () => onKeyInput && onKeyInput(NONO_EMPTY));
+        container.appendChild(btnClear);
+    }
+
+    static getRulesHtml(lang = 'de') {
+        if (lang === 'en') {
+            return `
+                <div class="rules-container">
+                    <div class="rule-box">
+                        <div class="rule-badge">1</div>
+                        <div class="rule-content">
+                            <strong>Numbers describe filled blocks</strong>
+                            <p>The numbers beside each row and above each column indicate groups of consecutive filled squares.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">2</div>
+                        <div class="rule-content">
+                            <strong>Order &amp; Sequence</strong>
+                            <p>Blocks appear in the exact order shown. For example, "2 3" means a block of 2, followed later by a block of 3.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">3</div>
+                        <div class="rule-content">
+                            <strong>At least 1 empty space</strong>
+                            <p>Between any two filled blocks in the same line, there must be at least one empty square (marked with ✕).</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">4</div>
+                        <div class="rule-content">
+                            <strong>Pure Deduction</strong>
+                            <p>Every puzzle has a unique picture solution that can be found purely by logical reasoning without guessing!</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="rules-container">
+                <div class="rule-box">
+                    <div class="rule-badge">1</div>
+                    <div class="rule-content">
+                        <strong>Zahlen beschreiben gefüllte Blöcke</strong>
+                        <p>Die Zahlen am Rand geben an, wie viele zusammenhängende Kästchen in der jeweiligen Zeile oder Spalte gefüllt werden müssen.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">2</div>
+                    <div class="rule-content">
+                        <strong>Reihenfolge einhalten</strong>
+                        <p>Die Blöcke treten exakt in der Reihenfolge der Zahlen auf. Ein Hinweis „2 3“ bedeutet: Erst ein 2er-Block, später ein 3er-Block.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">3</div>
+                    <div class="rule-content">
+                        <strong>Mindestens 1 Lücke</strong>
+                        <p>Zwischen zwei separaten gefüllten Blöcken muss immer mindestens ein freies Feld liegen (mit ✕ markierbar).</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">4</div>
+                    <div class="rule-content">
+                        <strong>Eindeutiges Pixel-Bild</strong>
+                        <p>Jedes Rätsel besitzt genau eine eindeutige Lösung und enthüllt bei Erfolg eine schöne Pixel-Art-Illustration.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// === Source: js\puzzles\nonogram\data\i18n.js ===
+/**
+ * Nonogram-spezifische Übersetzungen (DE & EN)
+ */
+
+const NONOGRAM_I18N = {
+    de: {
+        nonogram_title: "Nonogramm",
+        nonogram_desc: "Pixel-Rätsel mit Zahlenhinweisen",
+        nonogram_btn_fill: "Füllen",
+        nonogram_btn_cross: "Kreuz",
+        nonogram_btn_clear: "Leeren",
+        nonogram_rules_title: "Nonogramm Regeln",
+        nonogram_chapter_1: "Einsteiger (5×5)",
+        nonogram_chapter_2: "Galerie I (10×10)",
+        nonogram_chapter_3: "Komplexe Kunst (10×10 & 15×15)",
+        nonogram_chapter_4: "Meister-Galerie (15×15)",
+        nonogram_tut_basics: "Grundlagen",
+        nonogram_tut_advanced: "Fortgeschritten"
+    },
+    en: {
+        nonogram_title: "Nonogram",
+        nonogram_desc: "Pixel puzzle with number clues",
+        nonogram_btn_fill: "Fill",
+        nonogram_btn_cross: "Cross",
+        nonogram_btn_clear: "Clear",
+        nonogram_rules_title: "Nonogram Rules",
+        nonogram_chapter_1: "Beginner (5×5)",
+        nonogram_chapter_2: "Gallery I (10×10)",
+        nonogram_chapter_3: "Complex Art (10×10 & 15×15)",
+        nonogram_chapter_4: "Master Gallery (15×15)",
+        nonogram_tut_basics: "Basics",
+        nonogram_tut_advanced: "Advanced"
+    }
+};
+
+// === Source: js\puzzles\nonogram\data\levels.js ===
+/**
+ * Nonogram Level & Tagesrätsel-Generierung
+ * 120 handgefertigte & prozedurale Kampagnen-Level in 4 Kapiteln (5×5, 10×10, 15×15)
+ * und synchrones tägliches Rätsel (Werktags 10×10, Wochenende 15×15 Meister).
+ */
+
+
+
+// Vordefinierte ikonische 5x5 Pixel-Motive für Kapitel 1
+const PREDEFINED_5X5 = [
+    // 1: Herz ❤️
+    [
+        [0, 1, 0, 1, 0],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [0, 0, 1, 0, 0]
+    ],
+    // 2: Haus 🏠
+    [
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [1, 0, 1, 0, 1],
+        [1, 1, 1, 1, 1]
+    ],
+    // 3: Pfeil ➔
+    [
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 1, 0],
+        [0, 0, 1, 0, 0]
+    ],
+    // 4: Smiley 🙂
+    [
+        [0, 1, 0, 1, 0],
+        [0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0]
+    ],
+    // 5: Stern ⭐
+    [
+        [0, 0, 1, 0, 0],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [0, 1, 0, 1, 0]
+    ],
+    // 6: Tasse ☕
+    [
+        [0, 0, 0, 0, 0],
+        [1, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [0, 1, 1, 1, 0]
+    ],
+    // 7: Pilz 🍄
+    [
+        [0, 1, 1, 1, 0],
+        [1, 0, 1, 0, 1],
+        [1, 1, 1, 1, 1],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0]
+    ],
+    // 8: Diamant 💎
+    [
+        [0, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [0, 1, 1, 1, 0],
+        [0, 0, 1, 0, 0]
+    ]
+];
+
+function getNonogramCampaignLevel(levelIndex) {
+    // 120 Level in 4 Kapiteln:
+    // Kapitel 1 (0–29): Einsteiger 5×5 (Level 1–30)
+    // Kapitel 2 (30–59): Galerie I 10×10 (Level 31–60)
+    // Kapitel 3 (60–89): Komplexe Kunst (Level 61–75: 10×10, Level 76–90: 15×15)
+    // Kapitel 4 (90–119): Meister-Galerie 15×15 (Level 91–120)
+
+    let size, difficulty;
+
+    if (levelIndex < 30) {
+        size = 5;
+        difficulty = levelIndex < 15 ? 'easy' : (levelIndex < 25 ? 'medium' : 'hard');
+        
+        // Vordefinierte Handcraft-Level für die ersten Level
+        if (levelIndex < PREDEFINED_5X5.length) {
+            const target = PREDEFINED_5X5[levelIndex];
+            const generated = NonogramGenerator.generatePuzzle({ size: 5, difficulty: 'easy', seed: 1000 + levelIndex });
+            generated.target = target;
+            generated.rowClues = [];
+            for (let r = 0; r < 5; r++) {
+                const clues = [];
+                let cnt = 0;
+                for (let c = 0; c < 5; c++) {
+                    if (target[r][c] === 1) cnt++;
+                    else if (cnt > 0) { clues.push(cnt); cnt = 0; }
+                }
+                if (cnt > 0) clues.push(cnt);
+                generated.rowClues.push(clues.length > 0 ? clues : [0]);
+            }
+            generated.colClues = [];
+            for (let c = 0; c < 5; c++) {
+                const clues = [];
+                let cnt = 0;
+                for (let r = 0; r < 5; r++) {
+                    if (target[r][c] === 1) cnt++;
+                    else if (cnt > 0) { clues.push(cnt); cnt = 0; }
+                }
+                if (cnt > 0) clues.push(cnt);
+                generated.colClues.push(clues.length > 0 ? clues : [0]);
+            }
+            return {
+                id: levelIndex + 1,
+                tier: difficulty,
+                name: `Level ${levelIndex + 1} (5×5)`,
+                ...generated
+            };
+        }
+    } else if (levelIndex < 60) {
+        size = 10;
+        difficulty = levelIndex < 45 ? 'easy' : 'medium';
+    } else if (levelIndex < 75) {
+        size = 10;
+        difficulty = 'hard';
+    } else if (levelIndex < 90) {
+        size = 15;
+        difficulty = 'medium';
+    } else {
+        size = 15;
+        difficulty = levelIndex < 105 ? 'medium' : 'hard';
+    }
+
+    const seed = 50000 + (levelIndex + 1) * 739;
+    const generated = NonogramGenerator.generatePuzzle({ size, difficulty, seed });
+
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1} (${size}×${size})`,
+        ...generated
+    };
+}
+
+/**
+ * Erzeugt das synchrone Nonogramm-Tagesrätsel basierend auf dem Datum
+ */
+function getNonogramDailyPuzzle(dateStr) {
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10) + 888;
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+
+    // Werktags 10x10, Wochenende 15x15 Meister
+    const size = isWeekend ? 15 : 10;
+    const difficulty = isWeekend ? 'hard' : 'medium';
+
+    const generated = NonogramGenerator.generatePuzzle({ size, difficulty, seed });
+
+    return {
+        id: `daily_${dateStr}`,
+        date: dateStr,
+        size,
+        tier: difficulty,
+        name: `Tagesrätsel (${size}×${size})`,
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\nonogram\data\tutorial.js ===
+/**
+ * Nonogramm Grundlagen-Tutorial (5 Lektionen)
+ * Führt schrittweise in Zahlenhinweise, Vollzeilen, Überlappungen und Kreuze ein.
+ */
+
+const NONOGRAM_TUTORIAL_STEPS = [
+    {
+        id: 1,
+        title: "1. Vollständige Zeilen (Vollblock)",
+        subtitle: "Maximale Blockgröße",
+        size: 5,
+        rowClues: [[5], [0], [0], [0], [0]],
+        colClues: [[1], [1], [1], [1], [1]],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 0, c: 0, val: 1 },
+            { r: 0, c: 1, val: 1 },
+            { r: 0, c: 2, val: 1 },
+            { r: 0, c: 3, val: 1 },
+            { r: 0, c: 4, val: 1 }
+        ],
+        solution: [
+            [1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Wenn ein Zahlenhinweis genau der Zeilenlänge entspricht (hier **5** in einem 5×5 Gitter), müssen **alle Felder dieser Zeile gefüllt werden**.\n\nFülle alle 5 Felder der obersten Zeile.",
+        explanation: "Perfekt! Die oberste Zeile ist komplett gefüllt und erfüllt ihren Hinweis 5."
+    },
+    {
+        id: 2,
+        title: "2. Leere Zeilen (Die Null 0)",
+        subtitle: "Ausschließen mit Kreuzen",
+        size: 5,
+        rowClues: [[5], [0], [0], [0], [0]],
+        colClues: [[1], [1], [1], [1], [1]],
+        initialGrid: [
+            [1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 1, c: 0, val: 2 },
+            { r: 1, c: 1, val: 2 },
+            { r: 1, c: 2, val: 2 },
+            { r: 1, c: 3, val: 2 },
+            { r: 1, c: 4, val: 2 }
+        ],
+        solution: [
+            [1, 1, 1, 1, 1],
+            [2, 2, 2, 2, 2],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Ein Hinweis von **0** bedeutet, dass in dieser Zeile kein einziges Feld gefüllt sein darf. Markiere alle Felder mit einem Kreuz (❌), um sie als sicher leer auszuschließen.\n\nSetze in Zeile 2 überall Kreuze.",
+        explanation: "Ausgezeichnet! Kreuze helfen dir, unberührte Bereiche sicher abzugrenzen."
+    },
+    {
+        id: 3,
+        title: "3. Die Überlappungs-Regel (Overlap)",
+        subtitle: "Schnittmengen finden",
+        size: 5,
+        rowClues: [[5], [2, 2], [4], [0], [0]],
+        colClues: [[1], [1], [1], [1], [1]],
+        initialGrid: [
+            [1, 1, 1, 1, 1],
+            [2, 2, 2, 2, 2],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 2, c: 1, val: 1 },
+            { r: 2, c: 2, val: 1 },
+            { r: 2, c: 3, val: 1 }
+        ],
+        solution: [
+            [1, 1, 1, 1, 1],
+            [2, 2, 2, 2, 2],
+            [0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Ein 4er-Block in einer 5er-Zeile kann ganz links (Feld 1–4) oder ganz rechts (Feld 2–5) liegen. Die mittleren 3 Felder (Spalten 2, 3, 4) sind **in beiden Fällen sicher gefüllt**!\n\nFülle die 3 mittleren Felder in Zeile 3.",
+        explanation: "Klasse! Die Schnittmenge ist eine der wichtigsten Techniken beim Lösen von Nonogrammen."
+    },
+    {
+        id: 4,
+        title: "4. Mehrere Blöcke & Lücken",
+        subtitle: "Mindestabstand von 1 Feld",
+        size: 5,
+        rowClues: [[5], [2, 2], [4], [0], [0]],
+        colClues: [[1], [1], [1], [1], [1]],
+        initialGrid: [
+            [1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 0],
+            [0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 1, c: 0, val: 1 },
+            { r: 1, c: 1, val: 1 },
+            { r: 1, c: 2, val: 2 },
+            { r: 1, c: 3, val: 1 },
+            { r: 1, c: 4, val: 1 }
+        ],
+        solution: [
+            [1, 1, 1, 1, 1],
+            [1, 1, 2, 1, 1],
+            [0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        description: "Der Hinweis **2 2** benötigt 2 + 1 (Lücke) + 2 = 5 Felder. Die Platzierung ist exakt vorgegeben: 2 gefüllt, Mitte frei (❌), 2 gefüllt.\n\nFülle Zeile 2 entsprechend aus.",
+        explanation: "Hervorragend! Zwischen zwei separaten Blöcken muss immer mindestens 1 leeres Feld liegen."
+    },
+    {
+        id: 5,
+        title: "5. Erstes komplettes Motiv: Das Herz",
+        subtitle: "Zusammenspiel von Zeilen & Spalten",
+        size: 5,
+        rowClues: [
+            [1, 1],
+            [5],
+            [5],
+            [3],
+            [1]
+        ],
+        colClues: [
+            [3],
+            [4],
+            [4],
+            [4],
+            [3]
+        ],
+        initialGrid: [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ],
+        targetCells: [
+            { r: 0, c: 1, val: 1 },
+            { r: 0, c: 3, val: 1 },
+            { r: 1, c: 0, val: 1 },
+            { r: 1, c: 1, val: 1 },
+            { r: 1, c: 2, val: 1 },
+            { r: 1, c: 3, val: 1 },
+            { r: 1, c: 4, val: 1 },
+            { r: 2, c: 0, val: 1 },
+            { r: 2, c: 1, val: 1 },
+            { r: 2, c: 2, val: 1 },
+            { r: 2, c: 3, val: 1 },
+            { r: 2, c: 4, val: 1 },
+            { r: 3, c: 1, val: 1 },
+            { r: 3, c: 2, val: 1 },
+            { r: 3, c: 3, val: 1 },
+            { r: 4, c: 2, val: 1 }
+        ],
+        solution: [
+            [0, 1, 0, 1, 0],
+            [1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1],
+            [0, 1, 1, 1, 0],
+            [0, 0, 1, 0, 0]
+        ],
+        description: "Kombiniere Zeilen- und Spaltenhinweise, um das Pixel-Herz ❤️ zu vollenden.\n\nFülle die richtigen Felder aus!",
+        explanation: "Fantastisch! Du hast dein erstes Nonogramm gelöst und das Herz enthüllt!"
+    }
+];
+
+// === Source: js\puzzles\nonogram\index.js ===
+/**
+ * Nonogram (Picross / Griddlers) Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für Nonogramm (5×5, 10×10, 15×15).
+ */
+
+
+
+
+
+
+
+
+
+const NonogramPlugin = {
+    id: 'nonogram',
+    name: 'Nonogramm',
+    icon: '🖼️',
+    description: 'Pixel-Rätsel mit Zahlenhinweisen',
+    cssPath: './css/puzzles/nonogram.css',
+
+    getSizes: () => [
+        { id: 5, label: '5 × 5 (Mini)', gridSize: 5 },
+        { id: 10, label: '10 × 10 (Klassisch)', gridSize: 10 },
+        { id: 15, label: '15 × 15 (Meister)', gridSize: 15 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [NONO_EMPTY, NONO_FILLED, NONO_CROSS],
+
+    getInputConfig: () => ({
+        type: 'cycle',
+        allowKeypad: true,
+        keys: [NONO_FILLED, NONO_CROSS, NONO_EMPTY]
+    }),
+
+    createEngine: (size = 10) => new NonogramEngine(size),
+    generatePuzzle: (opts) => NonogramGenerator.generatePuzzle(opts),
+    solvePuzzle: (engine, max = 1) => NonogramSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => NonogramRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => NonogramRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass, size) => NonogramRenderer.getSymbolSvg(val, extraClass, size),
+
+    getHint: (engine, options) => NonogramSolver.findLogicalHint(engine, options),
+    getRules: (lang) => NonogramRenderer.getRulesHtml(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 120,
+        chapters: [
+            { id: 0, name: 'Einsteiger (5×5)', levelRange: [0, 29], desc: '5×5 Mini-Formate & Grundlagen' },
+            { id: 1, name: 'Galerie I (10×10)', levelRange: [30, 59], desc: '10×10 Klassische Pixel-Art' },
+            { id: 2, name: 'Komplexe Kunst', levelRange: [60, 89], desc: '10×10 & 15×15 Meistermotive' },
+            { id: 3, name: 'Meister-Galerie', levelRange: [90, 119], desc: '15×15 Großformate & Meisterwerke' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getNonogramCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getNonogramDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: NONOGRAM_TUTORIAL_STEPS, badge: '5 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => NONOGRAM_I18N[lang] || {}
 };
 
 // === Source: js\puzzles\sudoku\engine.js ===
@@ -4193,8 +5731,8 @@ class SudokuRenderer {
         // Nahtloses einheitliches Gitter (Zero-Gap CSS Grid)
         const gridEl = document.createElement('div');
         gridEl.className = `sudoku-grid size-${size}`;
-        gridEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
-        gridEl.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+        gridEl.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
+        gridEl.style.gridTemplateRows = `repeat(${size}, minmax(0, 1fr))`;
         gridEl.style.setProperty('--grid-size', size);
         gridEl.style.setProperty('--box-w', engine.boxW);
         gridEl.style.setProperty('--box-h', engine.boxH);
@@ -4227,7 +5765,13 @@ class SudokuRenderer {
 
                 if (isLocked) cellEl.classList.add('locked');
                 if (isConflict) cellEl.classList.add('conflict');
-                if (isSelected) cellEl.classList.add('selected');
+                if (isSelected) {
+                    cellEl.classList.add('selected');
+                    if (state.cellZoom !== false) {
+                        cellEl.classList.add('cell-zoom');
+                        cellEl.style.setProperty('--zoom-factor', state.cellZoomLevel || '1.5');
+                    }
+                }
                 if (isPeer && !isSelected) cellEl.classList.add('peer-highlight');
                 if (isSameValue && !isSelected) cellEl.classList.add('same-value-highlight');
                 if (isHintShimmer) cellEl.classList.add('hint-shimmer');
@@ -4983,7 +6527,6 @@ const SudokuPlugin = {
     name: 'Sudoku',
     icon: '🔢',
     description: 'Zahlen- & Hex-Logik mit Zeilen, Spalten & Blöcken',
-    badge: 'Neu',
     cssPath: './css/puzzles/sudoku.css',
 
     getSizes: () => [
@@ -7870,7 +9413,6 @@ const TangoPlugin = {
     name: 'Tango',
     icon: '☀️🌙',
     description: 'Binärrätsel mit Sonne & Mond',
-    badge: 'Klassiker',
     cssPath: './css/puzzles/tango.css',
 
     getSizes: () => [
@@ -8044,15 +9586,17 @@ const puzzleRegistry = new PuzzleRegistry();
 
 
 
+
 class CortexApp {
     constructor() {
         // Storage Migration
         StorageManager.checkAndMigrate();
 
         // Plugins registrieren
-        puzzleRegistry.register(TangoPlugin);
-        puzzleRegistry.register(SudokuPlugin);
         puzzleRegistry.register(AkariPlugin);
+        puzzleRegistry.register(NonogramPlugin);
+        puzzleRegistry.register(SudokuPlugin);
+        puzzleRegistry.register(TangoPlugin);
 
         // Aktives Plugin laden
         const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
@@ -8084,6 +9628,8 @@ class CortexApp {
 
         // Einstellungen
         this.autoCheck = StorageManager.getItem(StorageKeys.AUTO_CHECK, 'true') === 'true';
+        this.cellZoom = StorageManager.getItem(StorageKeys.CELL_ZOOM, 'true') === 'true';
+        this.cellZoomLevel = StorageManager.getItem(StorageKeys.CELL_ZOOM_LEVEL, '1.5');
         this.inputMode = StorageManager.getItem(StorageKeys.INPUT_MODE, 'cycle');
         this.currentTheme = ThemeManager.getCurrentTheme();
         this.reminderEnabled = StorageManager.getItem(StorageKeys.REMINDER_ENABLED, 'false') === 'true';
@@ -8148,6 +9694,8 @@ class CortexApp {
             hintPlacedCell: this.hintPlacedCell,
             isNoteMode: this.isNoteMode,
             autoCheck: this.autoCheck,
+            cellZoom: this.cellZoom,
+            cellZoomLevel: this.cellZoomLevel,
             solutionRevealed: this.solutionRevealed,
             inputMode: this.inputMode
         };
@@ -8163,6 +9711,8 @@ class CortexApp {
         if (sizes && sizes.length > 0) {
             if (pluginId === 'sudoku') {
                 this.freePlaySize = 9;
+            } else if (pluginId === 'nonogram') {
+                this.freePlaySize = 10;
             } else if (pluginId === 'tango') {
                 this.freePlaySize = 6;
             } else {
@@ -8213,7 +9763,7 @@ class CortexApp {
         if (!grid) return;
         grid.innerHTML = '';
 
-        const all = puzzleRegistry.getAll();
+        const all = puzzleRegistry.getAll().slice().sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
         for (const p of all) {
             const card = document.createElement('div');
             card.className = `puzzle-select-card ${p.id === this.activePlugin.id ? 'active' : ''}`;
@@ -8387,6 +9937,7 @@ class CortexApp {
         document.getElementById('btnHint')?.addEventListener('click', () => this.handleHint());
         document.getElementById('btnRestart')?.addEventListener('click', () => this.restartCurrentPuzzle());
         document.getElementById('btnNotes')?.addEventListener('click', () => this.toggleNoteMode());
+        document.getElementById('btnZoom')?.addEventListener('click', () => this.toggleCellZoom());
 
         // Dialog-Aktionen (Victory / Next)
         document.getElementById('btnVictoryNext')?.addEventListener('click', () => {
@@ -8523,6 +10074,25 @@ class CortexApp {
             });
         });
 
+        document.getElementById('btnCellZoomLevelPicker')?.addEventListener('click', () => {
+            this.openCustomSelectModal({
+                title: t('setting_cell_zoom_level'),
+                options: [
+                    { value: '1.25', label: t('setting_zoom_125'), subtitle: 'Dezente Vergrößerung' },
+                    { value: '1.5', label: t('setting_zoom_150'), subtitle: 'Standard-Vergrößerung' },
+                    { value: '1.75', label: t('setting_zoom_175'), subtitle: 'Starke Vergrößerung' },
+                    { value: '2.0', label: t('setting_zoom_200'), subtitle: 'Maximale Vergrößerung' }
+                ],
+                currentValue: this.cellZoomLevel,
+                onSelect: (val) => {
+                    this.cellZoomLevel = val;
+                    StorageManager.setItem(StorageKeys.CELL_ZOOM_LEVEL, val);
+                    this.updateMenuSettings();
+                    this.renderGrid();
+                }
+            });
+        });
+
         document.getElementById('btnTimePicker')?.addEventListener('click', () => {
             this.openCustomTimePickerModal(this.reminderTime, (newTime) => {
                 this.setReminderTime(newTime);
@@ -8575,6 +10145,13 @@ class CortexApp {
             this.autoCheck = e.target.checked;
             StorageManager.setItem(StorageKeys.AUTO_CHECK, this.autoCheck);
             StorageManager.setItem('tango_auto_check', this.autoCheck);
+            this.renderGrid();
+        });
+        document.getElementById('settingCellZoomToggle')?.addEventListener('change', (e) => {
+            this.cellZoom = e.target.checked;
+            StorageManager.setItem(StorageKeys.CELL_ZOOM, this.cellZoom);
+            this.updateMenuSettings();
+            this.updateZoomButton();
             this.renderGrid();
         });
         document.getElementById('settingReminderToggle')?.addEventListener('change', (e) => {
@@ -8700,7 +10277,7 @@ class CortexApp {
         cellEl.addEventListener('pointerleave', () => cancelHold());
 
         cellEl.addEventListener('click', (e) => {
-            if (didLongPress) {
+            if (didLongPress || (this.ignoreClickUntil && Date.now() < this.ignoreClickUntil)) {
                 didLongPress = false;
                 e.preventDefault();
                 e.stopPropagation();
@@ -8711,6 +10288,7 @@ class CortexApp {
     }
 
     handleCellClick(r, c) {
+        if (this.ignoreClickUntil && Date.now() < this.ignoreClickUntil) return;
         if (!this.isGameActive || this.engine.locked[r][c]) {
             if (this.engine.locked[r][c]) {
                 this.selectedCell = { r, c };
@@ -8748,7 +10326,7 @@ class CortexApp {
             return;
         }
 
-        // Direktes Durchschalten (Cycle-Modus für Tango & Akari)
+        // Direktes Durchschalten (Cycle-Modus für Tango, Akari & Nonogram)
         if (this.isNoteMode) {
             this.engine.cycleNoteValue(r, c);
             audio.vibrate(25);
@@ -8757,6 +10335,10 @@ class CortexApp {
             this.movesCount++;
             if (this.activePlugin.id === 'akari') {
                 if (nextVal === 1) audio.playBulb();
+                else if (nextVal === 2) audio.vibrate(25);
+                else audio.playClear();
+            } else if (this.activePlugin.id === 'nonogram') {
+                if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.vibrate(25);
                 else audio.playClear();
             } else {
@@ -8773,7 +10355,7 @@ class CortexApp {
     handleCellLongPress(r, c) {
         if (!this.isGameActive || this.engine.locked[r][c]) return;
 
-        this.ignoreClickUntil = Date.now() + 500;
+        this.ignoreClickUntil = Date.now() + 600;
         this.selectedCell = { r, c };
         this.hintPlacedCell = null;
 
@@ -8786,6 +10368,14 @@ class CortexApp {
                 audio.playMoon();
             }
         } else if (this.activePlugin.id === 'akari') {
+            if (this.isNoteMode) {
+                this.engine.setCellValue(r, c, 2, true);
+            } else {
+                this.engine.setCellValue(r, c, 2);
+                this.movesCount++;
+                audio.vibrate(30);
+            }
+        } else if (this.activePlugin.id === 'nonogram') {
             if (this.isNoteMode) {
                 this.engine.setCellValue(r, c, 2, true);
             } else {
@@ -9646,11 +11236,34 @@ class CortexApp {
         const chkToggle = document.getElementById('settingAutoCheckToggle');
         if (chkToggle) chkToggle.checked = this.autoCheck;
 
+        const zoomToggle = document.getElementById('settingCellZoomToggle');
+        if (zoomToggle) zoomToggle.checked = this.cellZoom;
+
+        const zoomRow = document.getElementById('settingCellZoomLevelRow');
+        if (zoomRow) zoomRow.style.display = this.cellZoom ? 'flex' : 'none';
+
+        const lblZoomLevel = document.getElementById('lblCellZoomLevelValue');
+        if (lblZoomLevel) {
+            const zoomLabels = {
+                '1.25': t('setting_zoom_125'),
+                '1.5': t('setting_zoom_150'),
+                '1.75': t('setting_zoom_175'),
+                '2.0': t('setting_zoom_200')
+            };
+            lblZoomLevel.textContent = zoomLabels[this.cellZoomLevel] || `${this.cellZoomLevel}×`;
+        }
+
         const remToggle = document.getElementById('settingReminderToggle');
         if (remToggle) remToggle.checked = this.reminderEnabled;
 
         const remTimeRow = document.getElementById('settingReminderTimeRow');
         if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';
+
+        this.updateZoomButton();
+    }
+
+    updateSettingsTab() {
+        this.updateMenuSettings();
     }
 
     setReminderEnabled(enabled) {
@@ -9736,6 +11349,20 @@ class CortexApp {
         const btn = document.getElementById('btnNotes');
         if (btn) btn.classList.toggle('active', this.isNoteMode);
         audio.vibrate(30);
+    }
+
+    toggleCellZoom() {
+        this.cellZoom = !this.cellZoom;
+        StorageManager.setItem(StorageKeys.CELL_ZOOM, this.cellZoom);
+        this.updateZoomButton();
+        this.updateMenuSettings();
+        this.renderGrid();
+        audio.vibrate(25);
+    }
+
+    updateZoomButton() {
+        const btn = document.getElementById('btnZoom');
+        if (btn) btn.classList.toggle('active', !!this.cellZoom);
     }
 
     scrollToTop() {
@@ -9844,6 +11471,10 @@ if (typeof window !== 'undefined') {
   if (typeof AkariSolver !== 'undefined') window.AkariSolver = AkariSolver;
   if (typeof AkariGenerator !== 'undefined') window.AkariGenerator = AkariGenerator;
   if (typeof AkariPlugin !== 'undefined') window.AkariPlugin = AkariPlugin;
+  if (typeof NonogramEngine !== 'undefined') window.NonogramEngine = NonogramEngine;
+  if (typeof NonogramSolver !== 'undefined') window.NonogramSolver = NonogramSolver;
+  if (typeof NonogramGenerator !== 'undefined') window.NonogramGenerator = NonogramGenerator;
+  if (typeof NonogramPlugin !== 'undefined') window.NonogramPlugin = NonogramPlugin;
   if (typeof puzzleRegistry !== 'undefined') window.puzzleRegistry = puzzleRegistry;
 }
 

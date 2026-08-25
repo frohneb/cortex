@@ -16,6 +16,7 @@ import { puzzleRegistry } from './puzzle-registry.js';
 import { TangoPlugin } from '../puzzles/tango/index.js';
 import { SudokuPlugin } from '../puzzles/sudoku/index.js';
 import { AkariPlugin } from '../puzzles/akari/index.js';
+import { NonogramPlugin } from '../puzzles/nonogram/index.js';
 import { getSunSvg, getMoonSvg } from '../puzzles/tango/renderer.js';
 
 export { formatTime, calculateStreaks, getSunSvg, getMoonSvg };
@@ -26,9 +27,10 @@ export class CortexApp {
         StorageManager.checkAndMigrate();
 
         // Plugins registrieren
-        puzzleRegistry.register(TangoPlugin);
-        puzzleRegistry.register(SudokuPlugin);
         puzzleRegistry.register(AkariPlugin);
+        puzzleRegistry.register(NonogramPlugin);
+        puzzleRegistry.register(SudokuPlugin);
+        puzzleRegistry.register(TangoPlugin);
 
         // Aktives Plugin laden
         const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
@@ -60,6 +62,8 @@ export class CortexApp {
 
         // Einstellungen
         this.autoCheck = StorageManager.getItem(StorageKeys.AUTO_CHECK, 'true') === 'true';
+        this.cellZoom = StorageManager.getItem(StorageKeys.CELL_ZOOM, 'true') === 'true';
+        this.cellZoomLevel = StorageManager.getItem(StorageKeys.CELL_ZOOM_LEVEL, '1.5');
         this.inputMode = StorageManager.getItem(StorageKeys.INPUT_MODE, 'cycle');
         this.currentTheme = ThemeManager.getCurrentTheme();
         this.reminderEnabled = StorageManager.getItem(StorageKeys.REMINDER_ENABLED, 'false') === 'true';
@@ -124,6 +128,8 @@ export class CortexApp {
             hintPlacedCell: this.hintPlacedCell,
             isNoteMode: this.isNoteMode,
             autoCheck: this.autoCheck,
+            cellZoom: this.cellZoom,
+            cellZoomLevel: this.cellZoomLevel,
             solutionRevealed: this.solutionRevealed,
             inputMode: this.inputMode
         };
@@ -139,6 +145,8 @@ export class CortexApp {
         if (sizes && sizes.length > 0) {
             if (pluginId === 'sudoku') {
                 this.freePlaySize = 9;
+            } else if (pluginId === 'nonogram') {
+                this.freePlaySize = 10;
             } else if (pluginId === 'tango') {
                 this.freePlaySize = 6;
             } else {
@@ -189,7 +197,7 @@ export class CortexApp {
         if (!grid) return;
         grid.innerHTML = '';
 
-        const all = puzzleRegistry.getAll();
+        const all = puzzleRegistry.getAll().slice().sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
         for (const p of all) {
             const card = document.createElement('div');
             card.className = `puzzle-select-card ${p.id === this.activePlugin.id ? 'active' : ''}`;
@@ -363,6 +371,7 @@ export class CortexApp {
         document.getElementById('btnHint')?.addEventListener('click', () => this.handleHint());
         document.getElementById('btnRestart')?.addEventListener('click', () => this.restartCurrentPuzzle());
         document.getElementById('btnNotes')?.addEventListener('click', () => this.toggleNoteMode());
+        document.getElementById('btnZoom')?.addEventListener('click', () => this.toggleCellZoom());
 
         // Dialog-Aktionen (Victory / Next)
         document.getElementById('btnVictoryNext')?.addEventListener('click', () => {
@@ -499,6 +508,25 @@ export class CortexApp {
             });
         });
 
+        document.getElementById('btnCellZoomLevelPicker')?.addEventListener('click', () => {
+            this.openCustomSelectModal({
+                title: t('setting_cell_zoom_level'),
+                options: [
+                    { value: '1.25', label: t('setting_zoom_125'), subtitle: 'Dezente Vergrößerung' },
+                    { value: '1.5', label: t('setting_zoom_150'), subtitle: 'Standard-Vergrößerung' },
+                    { value: '1.75', label: t('setting_zoom_175'), subtitle: 'Starke Vergrößerung' },
+                    { value: '2.0', label: t('setting_zoom_200'), subtitle: 'Maximale Vergrößerung' }
+                ],
+                currentValue: this.cellZoomLevel,
+                onSelect: (val) => {
+                    this.cellZoomLevel = val;
+                    StorageManager.setItem(StorageKeys.CELL_ZOOM_LEVEL, val);
+                    this.updateMenuSettings();
+                    this.renderGrid();
+                }
+            });
+        });
+
         document.getElementById('btnTimePicker')?.addEventListener('click', () => {
             this.openCustomTimePickerModal(this.reminderTime, (newTime) => {
                 this.setReminderTime(newTime);
@@ -551,6 +579,13 @@ export class CortexApp {
             this.autoCheck = e.target.checked;
             StorageManager.setItem(StorageKeys.AUTO_CHECK, this.autoCheck);
             StorageManager.setItem('tango_auto_check', this.autoCheck);
+            this.renderGrid();
+        });
+        document.getElementById('settingCellZoomToggle')?.addEventListener('change', (e) => {
+            this.cellZoom = e.target.checked;
+            StorageManager.setItem(StorageKeys.CELL_ZOOM, this.cellZoom);
+            this.updateMenuSettings();
+            this.updateZoomButton();
             this.renderGrid();
         });
         document.getElementById('settingReminderToggle')?.addEventListener('change', (e) => {
@@ -676,7 +711,7 @@ export class CortexApp {
         cellEl.addEventListener('pointerleave', () => cancelHold());
 
         cellEl.addEventListener('click', (e) => {
-            if (didLongPress) {
+            if (didLongPress || (this.ignoreClickUntil && Date.now() < this.ignoreClickUntil)) {
                 didLongPress = false;
                 e.preventDefault();
                 e.stopPropagation();
@@ -687,6 +722,7 @@ export class CortexApp {
     }
 
     handleCellClick(r, c) {
+        if (this.ignoreClickUntil && Date.now() < this.ignoreClickUntil) return;
         if (!this.isGameActive || this.engine.locked[r][c]) {
             if (this.engine.locked[r][c]) {
                 this.selectedCell = { r, c };
@@ -724,7 +760,7 @@ export class CortexApp {
             return;
         }
 
-        // Direktes Durchschalten (Cycle-Modus für Tango & Akari)
+        // Direktes Durchschalten (Cycle-Modus für Tango, Akari & Nonogram)
         if (this.isNoteMode) {
             this.engine.cycleNoteValue(r, c);
             audio.vibrate(25);
@@ -733,6 +769,10 @@ export class CortexApp {
             this.movesCount++;
             if (this.activePlugin.id === 'akari') {
                 if (nextVal === 1) audio.playBulb();
+                else if (nextVal === 2) audio.vibrate(25);
+                else audio.playClear();
+            } else if (this.activePlugin.id === 'nonogram') {
+                if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.vibrate(25);
                 else audio.playClear();
             } else {
@@ -749,7 +789,7 @@ export class CortexApp {
     handleCellLongPress(r, c) {
         if (!this.isGameActive || this.engine.locked[r][c]) return;
 
-        this.ignoreClickUntil = Date.now() + 500;
+        this.ignoreClickUntil = Date.now() + 600;
         this.selectedCell = { r, c };
         this.hintPlacedCell = null;
 
@@ -762,6 +802,14 @@ export class CortexApp {
                 audio.playMoon();
             }
         } else if (this.activePlugin.id === 'akari') {
+            if (this.isNoteMode) {
+                this.engine.setCellValue(r, c, 2, true);
+            } else {
+                this.engine.setCellValue(r, c, 2);
+                this.movesCount++;
+                audio.vibrate(30);
+            }
+        } else if (this.activePlugin.id === 'nonogram') {
             if (this.isNoteMode) {
                 this.engine.setCellValue(r, c, 2, true);
             } else {
@@ -1622,11 +1670,34 @@ export class CortexApp {
         const chkToggle = document.getElementById('settingAutoCheckToggle');
         if (chkToggle) chkToggle.checked = this.autoCheck;
 
+        const zoomToggle = document.getElementById('settingCellZoomToggle');
+        if (zoomToggle) zoomToggle.checked = this.cellZoom;
+
+        const zoomRow = document.getElementById('settingCellZoomLevelRow');
+        if (zoomRow) zoomRow.style.display = this.cellZoom ? 'flex' : 'none';
+
+        const lblZoomLevel = document.getElementById('lblCellZoomLevelValue');
+        if (lblZoomLevel) {
+            const zoomLabels = {
+                '1.25': t('setting_zoom_125'),
+                '1.5': t('setting_zoom_150'),
+                '1.75': t('setting_zoom_175'),
+                '2.0': t('setting_zoom_200')
+            };
+            lblZoomLevel.textContent = zoomLabels[this.cellZoomLevel] || `${this.cellZoomLevel}×`;
+        }
+
         const remToggle = document.getElementById('settingReminderToggle');
         if (remToggle) remToggle.checked = this.reminderEnabled;
 
         const remTimeRow = document.getElementById('settingReminderTimeRow');
         if (remTimeRow) remTimeRow.style.display = this.reminderEnabled ? 'flex' : 'none';
+
+        this.updateZoomButton();
+    }
+
+    updateSettingsTab() {
+        this.updateMenuSettings();
     }
 
     setReminderEnabled(enabled) {
@@ -1712,6 +1783,20 @@ export class CortexApp {
         const btn = document.getElementById('btnNotes');
         if (btn) btn.classList.toggle('active', this.isNoteMode);
         audio.vibrate(30);
+    }
+
+    toggleCellZoom() {
+        this.cellZoom = !this.cellZoom;
+        StorageManager.setItem(StorageKeys.CELL_ZOOM, this.cellZoom);
+        this.updateZoomButton();
+        this.updateMenuSettings();
+        this.renderGrid();
+        audio.vibrate(25);
+    }
+
+    updateZoomButton() {
+        const btn = document.getElementById('btnZoom');
+        if (btn) btn.classList.toggle('active', !!this.cellZoom);
     }
 
     scrollToTop() {

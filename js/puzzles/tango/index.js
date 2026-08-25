@@ -17,7 +17,6 @@ export const TangoPlugin = {
     name: 'Tango',
     icon: '☀️🌙',
     description: 'Binärrätsel mit Sonne & Mond',
-    badge: 'Klassiker',
     cssPath: './css/puzzles/tango.css',
 
     getSizes: () => [

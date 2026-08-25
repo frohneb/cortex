@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="./css/puzzles/tango.css">
     <link rel="stylesheet" href="./css/puzzles/sudoku.css">
     <link rel="stylesheet" href="./css/puzzles/akari.css">
+    <link rel="stylesheet" href="./css/puzzles/nonogram.css">
 </head>
 <body class="theme-dark">
     <!-- On-screen Error Banner for Diagnostics -->
@@ -105,6 +106,10 @@
             <button id="btnNotes" class="action-btn">
                 <span class="btn-icon">✏️</span>
                 <span data-i18n="btn_notes">Notizen</span>
+            </button>
+            <button id="btnZoom" class="action-btn" aria-label="Zoom">
+                <span class="btn-icon">🔍</span>
+                <span data-i18n="btn_zoom">Zoom</span>
             </button>
             <button id="btnHint" class="action-btn">
                 <span class="btn-icon">💡</span>
@@ -249,9 +254,10 @@
                 <div id="menuSecStats" class="menu-hub-sec" style="display: none;">
                     <div class="stats-filter-tabs">
                         <button type="button" class="stats-filter-btn active" data-stats-tab="all" data-i18n="stats_tab_all">Gesamt</button>
-                        <button type="button" class="stats-filter-btn" data-stats-tab="tango">☀️🌙 Tango</button>
-                        <button type="button" class="stats-filter-btn" data-stats-tab="sudoku">🔢 Sudoku</button>
                         <button type="button" class="stats-filter-btn" data-stats-tab="akari">💡 Akari</button>
+                        <button type="button" class="stats-filter-btn" data-stats-tab="nonogram">🖼️ Nonogramm</button>
+                        <button type="button" class="stats-filter-btn" data-stats-tab="sudoku">🔢 Sudoku</button>
+                        <button type="button" class="stats-filter-btn" data-stats-tab="tango">☀️🌙 Tango</button>
                     </div>
 
                     <div class="stats-grid">
@@ -340,6 +346,20 @@
                         </label>
                     </div>
                     <div class="setting-row">
+                        <span class="setting-label" data-i18n="setting_cell_zoom">Zellen-Zoom bei Auswahl</span>
+                        <label class="switch">
+                            <input type="checkbox" id="settingCellZoomToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-row" id="settingCellZoomLevelRow">
+                        <span class="setting-label" data-i18n="setting_cell_zoom_level">Zoom-Stufe</span>
+                        <button type="button" id="btnCellZoomLevelPicker" class="custom-select-btn">
+                            <span id="lblCellZoomLevelValue" class="select-btn-label">1,50× (Standard)</span>
+                            <span class="select-btn-chevron">▾</span>
+                        </button>
+                    </div>
+                    <div class="setting-row">
                         <span class="setting-label" data-i18n="setting_daily_reminder">System-Benachrichtigung</span>
                         <label class="switch">
                             <input type="checkbox" id="settingReminderToggle">
@@ -364,7 +384,7 @@
                         <button id="btnResetProgress" class="danger-btn" data-i18n="setting_reset_data">Fortschritt zurücksetzen</button>
                     </div>
                     <div class="settings-version-info" style="text-align:center; margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); font-size:11px; opacity:0.65;">
-                        Cortex App <span id="appVersionBadge">v2.1.1</span> • 100% Offline &amp; Werbefrei
+                        Cortex App <span id="appVersionBadge">v2.2.1</span> • 100% Offline &amp; Werbefrei
                     </div>
                 </div>
             </div>

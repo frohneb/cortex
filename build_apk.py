@@ -84,6 +84,7 @@ def build_apk():
             'css/puzzles/tango.css',
             'css/puzzles/sudoku.css',
             'css/puzzles/akari.css',
+            'css/puzzles/nonogram.css',
             'js/bundle.js',
             'assets/favicon.svg',
             'assets/favicon.png',

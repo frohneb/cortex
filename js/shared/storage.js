@@ -15,6 +15,8 @@ export const StorageKeys = {
     VIBRATION: `${PREFIX}vibration`,
     VIBRATION_STRENGTH: `${PREFIX}vibration_strength`,
     AUTO_CHECK: `${PREFIX}auto_check`,
+    CELL_ZOOM: `${PREFIX}cell_zoom`,
+    CELL_ZOOM_LEVEL: `${PREFIX}cell_zoom_level`,
     INPUT_MODE: `${PREFIX}input_mode`,
     LANGUAGE: `${PREFIX}language`,
     ACTIVE_PUZZLE: `${PREFIX}active_puzzle`,

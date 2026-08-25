@@ -35,8 +35,8 @@ export class SudokuRenderer {
         // Nahtloses einheitliches Gitter (Zero-Gap CSS Grid)
         const gridEl = document.createElement('div');
         gridEl.className = `sudoku-grid size-${size}`;
-        gridEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
-        gridEl.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+        gridEl.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
+        gridEl.style.gridTemplateRows = `repeat(${size}, minmax(0, 1fr))`;
         gridEl.style.setProperty('--grid-size', size);
         gridEl.style.setProperty('--box-w', engine.boxW);
         gridEl.style.setProperty('--box-h', engine.boxH);
@@ -69,7 +69,13 @@ export class SudokuRenderer {
 
                 if (isLocked) cellEl.classList.add('locked');
                 if (isConflict) cellEl.classList.add('conflict');
-                if (isSelected) cellEl.classList.add('selected');
+                if (isSelected) {
+                    cellEl.classList.add('selected');
+                    if (state.cellZoom !== false) {
+                        cellEl.classList.add('cell-zoom');
+                        cellEl.style.setProperty('--zoom-factor', state.cellZoomLevel || '1.5');
+                    }
+                }
                 if (isPeer && !isSelected) cellEl.classList.add('peer-highlight');
                 if (isSameValue && !isSelected) cellEl.classList.add('same-value-highlight');
                 if (isHintShimmer) cellEl.classList.add('hint-shimmer');

@@ -16,7 +16,8 @@
     background-color: var(--cell-bg);
     border: 2.5px solid var(--accent-sun) !important;
     border-radius: var(--radius-md) !important;
-    overflow: hidden;
+    overflow: visible !important;
+    position: relative;
     box-shadow: 0 10px 30px var(--shadow-color);
     box-sizing: border-box;
 }
@@ -49,6 +50,10 @@ body.theme-minimal .sudoku-grid {
     transition: background-color 0.15s ease, color 0.15s ease;
     user-select: none;
     -webkit-user-select: none;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden;
+    aspect-ratio: 1 / 1;
 }
 
 body.theme-light .sudoku-cell {
@@ -79,6 +84,32 @@ body.theme-cyberpunk .sudoku-cell {
 .sudoku-grid.size-9 .sudoku-cell[data-r="8"],
 .sudoku-grid.size-16 .sudoku-cell[data-r="15"] {
     border-bottom: none !important;
+}
+
+/* Perfektes Einpassen der 4 äußersten Eckzellen an die abgerundete Spielfeldumrandung */
+.sudoku-grid .sudoku-cell[data-r="0"][data-c="0"] {
+    border-top-left-radius: calc(var(--radius-md) - 2px) !important;
+}
+
+.sudoku-grid.size-4 .sudoku-cell[data-r="0"][data-c="3"],
+.sudoku-grid.size-6 .sudoku-cell[data-r="0"][data-c="5"],
+.sudoku-grid.size-9 .sudoku-cell[data-r="0"][data-c="8"],
+.sudoku-grid.size-16 .sudoku-cell[data-r="0"][data-c="15"] {
+    border-top-right-radius: calc(var(--radius-md) - 2px) !important;
+}
+
+.sudoku-grid.size-4 .sudoku-cell[data-r="3"][data-c="0"],
+.sudoku-grid.size-6 .sudoku-cell[data-r="5"][data-c="0"],
+.sudoku-grid.size-9 .sudoku-cell[data-r="8"][data-c="0"],
+.sudoku-grid.size-16 .sudoku-cell[data-r="15"][data-c="0"] {
+    border-bottom-left-radius: calc(var(--radius-md) - 2px) !important;
+}
+
+.sudoku-grid.size-4 .sudoku-cell[data-r="3"][data-c="3"],
+.sudoku-grid.size-6 .sudoku-cell[data-r="5"][data-c="5"],
+.sudoku-grid.size-9 .sudoku-cell[data-r="8"][data-c="8"],
+.sudoku-grid.size-16 .sudoku-cell[data-r="15"][data-c="15"] {
+    border-bottom-right-radius: calc(var(--radius-md) - 2px) !important;
 }
 
 /* Ausschließlich die Kammer-Blocktrenner (2x2, 3x3, 4x4) sind auffällige Linien */
@@ -152,9 +183,37 @@ body.theme-light .sudoku-grid .sudoku-cell.peer-highlight {
     z-index: 2;
 }
 
+/* Blende die Zellenumrandung der vergrößerten Zelle komplett aus */
+.sudoku-grid .sudoku-cell.cell-zoom {
+    border: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+}
+
+.sudoku-grid .sudoku-cell.selected.cell-zoom {
+    transform: scale(var(--zoom-factor, 1.5)) !important;
+    z-index: 20 !important;
+    border: none !important;
+    outline: 2.5px solid var(--accent-sun) !important;
+    outline-offset: -1px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 14px rgba(251, 191, 36, 0.45) !important;
+    border-radius: var(--radius-sm) !important;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
 body.theme-cyberpunk .sudoku-grid .sudoku-cell.selected {
     background-color: rgba(0, 240, 255, 0.25) !important;
     box-shadow: inset 0 0 0 2px #00f0ff !important;
+}
+
+body.theme-cyberpunk .sudoku-grid .sudoku-cell.selected.cell-zoom {
+    outline-color: #00f0ff !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(0, 240, 255, 0.6) !important;
+}
+
+body.theme-minimal .sudoku-grid .sudoku-cell.selected.cell-zoom {
+    outline-color: var(--text-primary) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
 }
 
 .sudoku-grid .sudoku-cell.conflict {
@@ -168,40 +227,56 @@ body.theme-cyberpunk .sudoku-grid .sudoku-cell.selected {
 /* Notizen-Gitter in Zellen */
 .sudoku-note-grid {
     display: grid;
-    width: 92%;
-    height: 92%;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     pointer-events: none;
     align-items: center;
     justify-items: center;
     gap: 1px;
+    padding: 2px;
+    box-sizing: border-box;
 }
 
 .sudoku-note-grid.grid-4 {
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
 .sudoku-note-grid.grid-9 {
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
 }
 
 .sudoku-note-grid.grid-16 {
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
 }
 
 .note-digit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     font-size: 0.62rem;
     font-weight: 600;
     color: var(--text-secondary);
     line-height: 1;
     font-family: monospace;
+    user-select: none;
 }
 
-.sudoku-grid.size-4 .note-digit { font-size: 0.95rem; }
-.sudoku-grid.size-9 .note-digit { font-size: 0.65rem; }
-.sudoku-grid.size-16 .note-digit { font-size: 0.42rem; }
+.sudoku-grid.size-4 .note-digit { font-size: clamp(0.6rem, 2.2vw, 0.95rem); }
+.sudoku-grid.size-9 .note-digit { font-size: clamp(0.4rem, 1.4vw, 0.65rem); }
+.sudoku-grid.size-16 .note-digit { font-size: clamp(0.25rem, 0.9vw, 0.42rem); }
 
 /* Sudoku Zahlenpad */
 .sudoku-keypad {

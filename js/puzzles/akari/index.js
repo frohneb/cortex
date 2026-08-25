@@ -17,7 +17,6 @@ export const AkariPlugin = {
     name: 'Akari',
     icon: '💡',
     description: 'Lichtstrahlen & Glühbirnen auf Wänden',
-    badge: 'Neu',
     cssPath: './css/puzzles/akari.css',
 
     getSizes: () => [

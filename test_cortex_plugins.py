@@ -23,6 +23,7 @@ class TestCortexPlugins(unittest.TestCase):
         self.assertIn('puzzleRegistry.register(TangoPlugin)', bundle)
         self.assertIn('puzzleRegistry.register(SudokuPlugin)', bundle)
         self.assertIn('puzzleRegistry.register(AkariPlugin)', bundle)
+        self.assertIn('puzzleRegistry.register(NonogramPlugin)', bundle)
 
     def test_storage_namespacing_and_migration(self):
         """Überprüft, dass die Storage-Namensräume und Migration im Bundle vorhanden sind"""
@@ -49,9 +50,10 @@ class TestCortexPlugins(unittest.TestCase):
         html = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         self.assertIn('class="stats-filter-tabs"', html)
         self.assertIn('data-stats-tab="all"', html)
-        self.assertIn('data-stats-tab="tango"', html)
-        self.assertIn('data-stats-tab="sudoku"', html)
         self.assertIn('data-stats-tab="akari"', html)
+        self.assertIn('data-stats-tab="nonogram"', html)
+        self.assertIn('data-stats-tab="sudoku"', html)
+        self.assertIn('data-stats-tab="tango"', html)
 
     def test_themes_and_timer_classes_in_bundle(self):
         """Überprüft, dass ThemeManager und GameTimer sauber im Bundle existieren"""

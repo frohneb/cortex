@@ -17,7 +17,6 @@ export const SudokuPlugin = {
     name: 'Sudoku',
     icon: '🔢',
     description: 'Zahlen- & Hex-Logik mit Zeilen, Spalten & Blöcken',
-    badge: 'Neu',
     cssPath: './css/puzzles/sudoku.css',
 
     getSizes: () => [
