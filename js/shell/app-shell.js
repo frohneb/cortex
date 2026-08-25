@@ -1101,14 +1101,21 @@ export class CortexApp {
     }
 
     restartCurrentPuzzle() {
-        this.engine.loadPuzzle({
-            size: this.engine.size,
-            initialGrid: this.engine.initialGrid,
-            walls: this.engine.initialWalls || this.engine.walls,
-            hEdges: this.engine.hEdges,
-            vEdges: this.engine.vEdges,
-            solution: this.engine.solution
-        });
+        if (typeof this.engine.restart === 'function') {
+            this.engine.restart();
+        } else {
+            this.engine.loadPuzzle({
+                size: this.engine.size,
+                target: this.engine.target || this.engine.initialTarget,
+                rowClues: this.engine.rowClues || this.engine.initialRowClues,
+                colClues: this.engine.colClues || this.engine.initialColClues,
+                initialGrid: this.engine.initialGrid,
+                walls: this.engine.initialWalls || this.engine.walls,
+                hEdges: this.engine.hEdges,
+                vEdges: this.engine.vEdges,
+                solution: this.engine.solution
+            });
+        }
         this.selectedCell = null;
         this.hintPlacedCell = null;
         this.movesCount = 0;

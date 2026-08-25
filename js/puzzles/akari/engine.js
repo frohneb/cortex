@@ -226,6 +226,16 @@ export class AkariEngine {
     }
 
     /**
+     * Setzt das Spielfeld auf die Ausgangsbelegung zurück
+     */
+    restart() {
+        this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(AKARI_EMPTY));
+        this.notes = Array.from({ length: this.rows }, () => Array.from({ length: this.cols }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
      * Lädt ein Puzzle
      * @param {Object} puzzleData - { size, walls: Array<Array<number|null>>, grid?: Array<Array<number>>, solution?: Array<Array<number>> }
      */

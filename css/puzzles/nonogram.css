@@ -1,7 +1,7 @@
 /* ==========================================================================
    Nonogram (Picross / Griddlers) Stylesheet
    Bildschirmfüllendes, harmonisches Spielfeld mit Zeilen- & Spalten-Hinweisen,
-   5er-Block-Trennern, voller Theme-Unterstützung und Zoom-Integration.
+   5er-Block-Trennern, fehlerfreien Kantenlinien und voller Theme-Unterstützung.
    ========================================================================== */
 
 .nonogram-board {
@@ -20,11 +20,12 @@
     box-shadow: 0 10px 30px var(--shadow-color);
     box-sizing: border-box;
     position: relative;
-    overflow: visible;
+    overflow: hidden;
 }
 
 body.theme-cyberpunk .nonogram-board {
-    border-color: #00f0ff !important;
+    border-color: #ff007f !important;
+    box-shadow: 0 0 25px rgba(255, 0, 127, 0.25);
 }
 
 body.theme-minimal .nonogram-board {
@@ -40,8 +41,13 @@ body.theme-minimal .nonogram-board {
 }
 
 body.theme-cyberpunk .nonogram-corner {
-    border-right-color: #00f0ff;
-    border-bottom-color: #00f0ff;
+    border-right: 2px solid #ff007f !important;
+    border-bottom: 2px solid #ff007f !important;
+}
+
+body.theme-minimal .nonogram-corner {
+    border-right: 2px solid var(--border-color) !important;
+    border-bottom: 2px solid var(--border-color) !important;
 }
 
 /* Oben: Spalten-Hinweise */
@@ -55,7 +61,11 @@ body.theme-cyberpunk .nonogram-corner {
 }
 
 body.theme-cyberpunk .nonogram-col-clues {
-    border-bottom-color: #00f0ff;
+    border-bottom: 2px solid #ff007f !important;
+}
+
+body.theme-minimal .nonogram-col-clues {
+    border-bottom: 2px solid var(--border-color) !important;
 }
 
 .col-clue-box {
@@ -72,11 +82,19 @@ body.theme-cyberpunk .nonogram-col-clues {
 }
 
 .col-clue-box:last-child {
-    border-right: none;
+    border-right: none !important;
 }
 
 .col-clue-box.major-edge-right {
-    border-right: 2px solid rgba(255, 255, 255, 0.25);
+    border-right: 2px solid var(--accent-sun) !important;
+}
+
+body.theme-cyberpunk .col-clue-box.major-edge-right {
+    border-right: 2px solid #ff007f !important;
+}
+
+body.theme-minimal .col-clue-box.major-edge-right {
+    border-right: 2px solid var(--text-primary) !important;
 }
 
 /* Links: Zeilen-Hinweise */
@@ -90,7 +108,11 @@ body.theme-cyberpunk .nonogram-col-clues {
 }
 
 body.theme-cyberpunk .nonogram-row-clues {
-    border-right-color: #00f0ff;
+    border-right: 2px solid #ff007f !important;
+}
+
+body.theme-minimal .nonogram-row-clues {
+    border-right: 2px solid var(--border-color) !important;
 }
 
 .row-clue-box {
@@ -108,11 +130,19 @@ body.theme-cyberpunk .nonogram-row-clues {
 }
 
 .row-clue-box:last-child {
-    border-bottom: none;
+    border-bottom: none !important;
 }
 
 .row-clue-box.major-edge-bottom {
-    border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+    border-bottom: 2px solid var(--accent-sun) !important;
+}
+
+body.theme-cyberpunk .row-clue-box.major-edge-bottom {
+    border-bottom: 2px solid #ff007f !important;
+}
+
+body.theme-minimal .row-clue-box.major-edge-bottom {
+    border-bottom: 2px solid var(--text-primary) !important;
 }
 
 /* Clue-Nummern */
@@ -123,6 +153,10 @@ body.theme-cyberpunk .nonogram-row-clues {
     color: var(--text-primary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
     flex-shrink: 0;
+}
+
+body.theme-cyberpunk .clue-num {
+    color: #00f0ff;
 }
 
 .size-5 .clue-num {
@@ -163,8 +197,8 @@ body.theme-cyberpunk .nonogram-row-clues {
     align-items: center;
     justify-content: center;
     background-color: var(--cell-bg);
-    border-right: 1px solid rgba(255, 255, 255, 0.12);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
@@ -180,11 +214,29 @@ body.theme-cyberpunk .nonogram-row-clues {
 }
 
 body.theme-light .nonogram-cell {
-    border-right: 1px solid rgba(0, 0, 0, 0.1);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    border-right: 1px solid rgba(0, 0, 0, 0.1) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
-/* 5er-Block-Trennlinien */
+body.theme-cyberpunk .nonogram-cell {
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Letzte Spalte & letzte Zeile: Kein doppelter Rand gegen den Außenrahmen */
+.nonogram-board.size-5 .nonogram-cell[data-c="4"],
+.nonogram-board.size-10 .nonogram-cell[data-c="9"],
+.nonogram-board.size-15 .nonogram-cell[data-c="14"] {
+    border-right: none !important;
+}
+
+.nonogram-board.size-5 .nonogram-cell[data-r="4"],
+.nonogram-board.size-10 .nonogram-cell[data-r="9"],
+.nonogram-board.size-15 .nonogram-cell[data-r="14"] {
+    border-bottom: none !important;
+}
+
+/* 5er-Block-Trennlinien - Spezifisch nur die betroffene Kante anpassen */
 .nonogram-cell.major-edge-right {
     border-right: 2px solid var(--accent-sun) !important;
 }
@@ -193,9 +245,20 @@ body.theme-light .nonogram-cell {
     border-bottom: 2px solid var(--accent-sun) !important;
 }
 
-body.theme-cyberpunk .nonogram-cell.major-edge-right,
+body.theme-cyberpunk .nonogram-cell.major-edge-right {
+    border-right-color: #ff007f !important;
+}
+
 body.theme-cyberpunk .nonogram-cell.major-edge-bottom {
-    border-color: #00f0ff !important;
+    border-bottom-color: #ff007f !important;
+}
+
+body.theme-minimal .nonogram-cell.major-edge-right {
+    border-right-color: var(--text-primary) !important;
+}
+
+body.theme-minimal .nonogram-cell.major-edge-bottom {
+    border-bottom-color: var(--text-primary) !important;
 }
 
 /* Gefüllte Kachel (Pixel) */

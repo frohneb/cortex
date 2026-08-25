@@ -47,5 +47,18 @@ class TestNonogram(unittest.TestCase):
         self.assertTrue((plugin_dir / "data" / "i18n.js").exists())
         self.assertTrue((BASE_DIR / "css" / "puzzles" / "nonogram.css").exists())
 
+    def test_nonogram_css_cyberpunk_and_borders(self):
+        """Überprüft, dass nonogram.css im Cyberpunk-Theme einheitlich pinke Umrandung hat und keine Kantenartefakte erzeugt"""
+        css = (BASE_DIR / "css" / "puzzles" / "nonogram.css").read_text(encoding='utf-8')
+        self.assertIn('body.theme-cyberpunk .nonogram-board', css)
+        self.assertIn('border-color: #ff007f !important;', css)
+        self.assertIn('border-right-color: #ff007f !important;', css)
+        self.assertIn('border-bottom-color: #ff007f !important;', css)
+
+    def test_engine_has_restart_method(self):
+        """Überprüft, dass die NonogramEngine eine dedizierte restart()-Methode besitzt"""
+        engine_code = (BASE_DIR / "js" / "puzzles" / "nonogram" / "engine.js").read_text(encoding='utf-8')
+        self.assertIn('restart() {', engine_code)
+
 if __name__ == '__main__':
     unittest.main()

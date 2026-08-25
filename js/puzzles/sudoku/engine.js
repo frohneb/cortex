@@ -43,6 +43,16 @@ export class SudokuEngine {
         this.solution = null;
     }
 
+    /**
+     * Setzt das Spielfeld auf die Ausgangsbelegung zurück
+     */
+    restart() {
+        this.grid = this.initialGrid.map(row => [...row]);
+        this.notes = Array(this.size).fill(0).map(() => Array(this.size).fill(0).map(() => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
     loadPuzzle({ size = 9, initialGrid, solution = null }) {
         this.size = size;
         this.maxValue = size;

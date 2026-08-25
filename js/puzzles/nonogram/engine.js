@@ -47,6 +47,16 @@ export class NonogramEngine {
     }
 
     /**
+     * Setzt den Spielzustand auf den Anfangszustand zurück (leert das Spielfeld, behält Vorgaben)
+     */
+    restart() {
+        this.grid = Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+        this.notes = Array.from({ length: this.height }, () => Array.from({ length: this.width }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
      * Lädt ein Puzzle (aus Kampagne, Tagesrätsel, Generator oder Tutorial)
      */
     loadPuzzle(puzzleData) {
@@ -67,7 +77,9 @@ export class NonogramEngine {
             this.initFromTarget(puzzleData.target, puzzleData.locked || null);
         } else if (puzzleData.rowClues && puzzleData.colClues) {
             this.initFromClues(puzzleData.rowClues, puzzleData.colClues, puzzleData.solution || null);
-        } else if (puzzleData.initialGrid) {
+        } else if (puzzleData.solution) {
+            this.initFromTarget(puzzleData.solution, puzzleData.locked || null);
+        } else if (puzzleData.initialGrid && puzzleData.initialGrid.some(r => r.some(v => v > 0))) {
             this.initFromTarget(puzzleData.initialGrid, puzzleData.locked || null);
         }
 
@@ -76,6 +88,9 @@ export class NonogramEngine {
         }
 
         this.initialGrid = JSON.parse(JSON.stringify(this.grid));
+        this.initialTarget = this.target ? JSON.parse(JSON.stringify(this.target)) : null;
+        this.initialRowClues = this.rowClues ? JSON.parse(JSON.stringify(this.rowClues)) : null;
+        this.initialColClues = this.colClues ? JSON.parse(JSON.stringify(this.colClues)) : null;
         this.solution = this.target ? JSON.parse(JSON.stringify(this.target)) : null;
     }
 

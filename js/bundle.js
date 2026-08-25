@@ -1558,6 +1558,16 @@ class AkariEngine {
     }
 
     /**
+     * Setzt das Spielfeld auf die Ausgangsbelegung zurück
+     */
+    restart() {
+        this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(AKARI_EMPTY));
+        this.notes = Array.from({ length: this.rows }, () => Array.from({ length: this.cols }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
      * Lädt ein Puzzle
      * @param {Object} puzzleData - { size, walls: Array<Array<number|null>>, grid?: Array<Array<number>>, solution?: Array<Array<number>> }
      */
@@ -3456,6 +3466,16 @@ class NonogramEngine {
     }
 
     /**
+     * Setzt den Spielzustand auf den Anfangszustand zurück (leert das Spielfeld, behält Vorgaben)
+     */
+    restart() {
+        this.grid = Array.from({ length: this.height }, () => Array(this.width).fill(NONO_EMPTY));
+        this.notes = Array.from({ length: this.height }, () => Array.from({ length: this.width }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
      * Lädt ein Puzzle (aus Kampagne, Tagesrätsel, Generator oder Tutorial)
      */
     loadPuzzle(puzzleData) {
@@ -3476,7 +3496,9 @@ class NonogramEngine {
             this.initFromTarget(puzzleData.target, puzzleData.locked || null);
         } else if (puzzleData.rowClues && puzzleData.colClues) {
             this.initFromClues(puzzleData.rowClues, puzzleData.colClues, puzzleData.solution || null);
-        } else if (puzzleData.initialGrid) {
+        } else if (puzzleData.solution) {
+            this.initFromTarget(puzzleData.solution, puzzleData.locked || null);
+        } else if (puzzleData.initialGrid && puzzleData.initialGrid.some(r => r.some(v => v > 0))) {
             this.initFromTarget(puzzleData.initialGrid, puzzleData.locked || null);
         }
 
@@ -3485,6 +3507,9 @@ class NonogramEngine {
         }
 
         this.initialGrid = JSON.parse(JSON.stringify(this.grid));
+        this.initialTarget = this.target ? JSON.parse(JSON.stringify(this.target)) : null;
+        this.initialRowClues = this.rowClues ? JSON.parse(JSON.stringify(this.rowClues)) : null;
+        this.initialColClues = this.colClues ? JSON.parse(JSON.stringify(this.colClues)) : null;
         this.solution = this.target ? JSON.parse(JSON.stringify(this.target)) : null;
     }
 
@@ -4973,6 +4998,16 @@ class SudokuEngine {
         this.undoStack = [];
         this.redoStack = [];
         this.solution = null;
+    }
+
+    /**
+     * Setzt das Spielfeld auf die Ausgangsbelegung zurück
+     */
+    restart() {
+        this.grid = this.initialGrid.map(row => [...row]);
+        this.notes = Array(this.size).fill(0).map(() => Array(this.size).fill(0).map(() => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
     }
 
     loadPuzzle({ size = 9, initialGrid, solution = null }) {
@@ -6613,6 +6648,16 @@ class TangoEngine {
         this.notes = Array(size).fill(0).map(() => Array(size).fill(0).map(() => new Set()));
 
         // History für Undo / Redo
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Setzt das Spielfeld auf die Ausgangsbelegung zurück
+     */
+    restart() {
+        this.grid = this.initialGrid.map(row => [...row]);
+        this.notes = Array(this.size).fill(0).map(() => Array(this.size).fill(0).map(() => new Set()));
         this.undoStack = [];
         this.redoStack = [];
     }
@@ -10667,14 +10712,21 @@ class CortexApp {
     }
 
     restartCurrentPuzzle() {
-        this.engine.loadPuzzle({
-            size: this.engine.size,
-            initialGrid: this.engine.initialGrid,
-            walls: this.engine.initialWalls || this.engine.walls,
-            hEdges: this.engine.hEdges,
-            vEdges: this.engine.vEdges,
-            solution: this.engine.solution
-        });
+        if (typeof this.engine.restart === 'function') {
+            this.engine.restart();
+        } else {
+            this.engine.loadPuzzle({
+                size: this.engine.size,
+                target: this.engine.target || this.engine.initialTarget,
+                rowClues: this.engine.rowClues || this.engine.initialRowClues,
+                colClues: this.engine.colClues || this.engine.initialColClues,
+                initialGrid: this.engine.initialGrid,
+                walls: this.engine.initialWalls || this.engine.walls,
+                hEdges: this.engine.hEdges,
+                vEdges: this.engine.vEdges,
+                solution: this.engine.solution
+            });
+        }
         this.selectedCell = null;
         this.hintPlacedCell = null;
         this.movesCount = 0;

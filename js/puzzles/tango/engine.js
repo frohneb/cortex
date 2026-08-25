@@ -32,6 +32,16 @@ export class TangoEngine {
     }
 
     /**
+     * Setzt das Spielfeld auf die Ausgangsbelegung zurück
+     */
+    restart() {
+        this.grid = this.initialGrid.map(row => [...row]);
+        this.notes = Array(this.size).fill(0).map(() => Array(this.size).fill(0).map(() => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
      * Lädt ein Level mit vorgegebenen Zellen und Kanten
      */
     loadPuzzle({ size, initialGrid, hEdges, vEdges, solution }) {

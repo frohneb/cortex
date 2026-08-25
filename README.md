@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.2.1-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.2.2-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -65,6 +65,11 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.2.2 – 2026-08-25
+* **Kanten- & Rahmenartefakte in Nonogramm behoben**: Bereinigung der Zellkantenlinien, Trennlinien und Eckübergänge für eine gestochen scharfe Gitterdarstellung.
+* **Einheitlich pinke Umrandung im Cyberpunk-Theme**: Spielfeldumrandung, Blocktrenner und Hinweisbegrenzungen in einheitlichem Neon-Pink (`#ff007f`) abgestimmt auf Tango, Sudoku und Akari.
+* **Zuverlässiges Zurücksetzen im Tagesrätsel**: Trennung von Spielerinteraktion und Aufgabenstellung via `engine.restart()`, sodass beim Neustart alle Zahlenhinweise, Wände und Startsymbole unberührt bleiben.
 
 ### v2.2.1 – 2026-08-25
 * **Vollbild- & Responsive-Skalierung für Nonogramm**: Spielfeld passt sich nun wie Tango, Sudoku und Akari optimal bildschirmfüllend an alle Displaygrößen an.
