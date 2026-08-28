@@ -38,6 +38,12 @@ import {{ TangoEngine, SUN, MOON, EMPTY }} from './js/core/engine.js';
 import {{ TangoSolver }} from './js/core/solver.js';
 import {{ getCampaignLevel }} from './js/data/levels.js';
 import {{ TangoApp }} from './js/ui/app.js';
+import {{ puzzleRegistry }} from './js/shell/puzzle-registry.js';
+import {{ TangoPlugin }} from './js/puzzles/tango/index.js';
+import {{ SudokuPlugin }} from './js/puzzles/sudoku/index.js';
+import {{ AkariPlugin }} from './js/puzzles/akari/index.js';
+import {{ NonogramPlugin }} from './js/puzzles/nonogram/index.js';
+import {{ SlitherlinkPlugin }} from './js/puzzles/slitherlink/index.js';
 
 try {{
     {js_code}
@@ -239,7 +245,37 @@ try {{
         self.assertTrue(result['isShimmeringBeforeMove'], "Zelle muss nach Hinweis-Platzierung schimmern")
         self.assertFalse(result['isShimmeringAfterMove'], "Zelle darf nach Spielzug nicht mehr schimmern")
 
+    def test_all_plugins_handle_hint_without_script_error(self):
+        """Testet, dass handleHint und getHint auf allen Puzzle-Plugins ohne Fehler durchlaufen"""
+        js_code = """
+        puzzleRegistry.register(TangoPlugin);
+        puzzleRegistry.register(SudokuPlugin);
+        puzzleRegistry.register(AkariPlugin);
+        puzzleRegistry.register(NonogramPlugin);
+        puzzleRegistry.register(SlitherlinkPlugin);
+
+        const results = {};
+        for (const p of puzzleRegistry.getAll()) {
+            const size = p.id === 'sudoku' ? 9 : (p.id === 'nonogram' ? 10 : (p.id === 'tango' ? 6 : 5));
+            const engine = p.createEngine(size);
+            const lvl = p.getCampaignLevel(0);
+            engine.loadPuzzle(lvl);
+            const hint = p.getHint(engine, {});
+            results[p.id] = {
+                hasHint: hint !== null,
+                strategy: hint ? (hint.strategy || hint.title) : null
+            };
+        }
+
+        document.getElementById('output').textContent = JSON.stringify(results);
+        """
+        result = self.run_browser_eval(js_code)
+        for pid in ['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink']:
+            self.assertIn(pid, result, f"Plugin {pid} muss im Hint-Ergebnis enthalten sein")
+            self.assertTrue(result[pid]['hasHint'], f"Plugin {pid} muss einen gültigen Hinweis liefern")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -277,6 +277,8 @@ export class NonogramEngine {
                 for (let c = 0; c < this.width; c++) {
                     if (this.grid[r][c] === NONO_FILLED && this.target[r][c] !== NONO_FILLED) {
                         mistakes.push({ r, c, currentVal: NONO_FILLED, expectedVal: NONO_CROSS });
+                    } else if (this.grid[r][c] === NONO_CROSS && this.target[r][c] === NONO_FILLED) {
+                        mistakes.push({ r, c, currentVal: NONO_CROSS, expectedVal: NONO_FILLED });
                     }
                 }
             }

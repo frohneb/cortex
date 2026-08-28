@@ -320,8 +320,11 @@ export class SudokuEngine {
 
             return {
                 type: 'rule_violation',
+                strategy: 'Regelverstoß korrigieren',
+                title: 'Regelverstoß korrigieren',
                 r, c,
                 currentVal: this.grid[r][c],
+                value: expectedVal,
                 expectedVal,
                 highlightCells: conflictArr.length > 0 ? conflictArr : [{ r, c }],
                 message: `Regelverstoß: ${firstErr.message}. Bitte korrigiere oder entferne das Symbol an Position (${r + 1},${c + 1}).`
@@ -335,8 +338,11 @@ export class SudokuEngine {
                     if (current !== SUDOKU_EMPTY && !this.locked[r][c] && current !== sol[r][c]) {
                         return {
                             type: 'solution_mismatch',
+                            strategy: 'Fehlerhafte Zahl korrigieren',
+                            title: 'Fehlerhafte Zahl korrigieren',
                             r, c,
                             currentVal: current,
+                            value: sol[r][c],
                             expectedVal: sol[r][c],
                             highlightCells: [{ r, c }],
                             message: `Fehler im Lösungsweg: An Position (${r + 1},${c + 1}) wurde ${this.formatValue(current)} gesetzt. Laut der Logik und Abhängigkeiten gehört dort ${this.formatValue(sol[r][c])} hin.`

@@ -1,0 +1,176 @@
+/* ==========================================================================
+   Slitherlink Puzzle Specific Stylesheet
+   Gitterpunkte, Linien, Kreuzmarkierungen, Glow-Effekte und Theme-Integration
+   ========================================================================== */
+
+.slitherlink-board-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    max-width: 440px;
+    max-height: 440px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    padding: 10px;
+    background-color: var(--bg-secondary);
+    border: 2.5px solid var(--accent-sun);
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 30px var(--shadow-color);
+    box-sizing: border-box;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body.theme-cyberpunk .slitherlink-board-wrapper {
+    border-color: #ff007f !important;
+    box-shadow: 0 0 25px rgba(255, 0, 127, 0.25);
+}
+
+body.theme-minimal .slitherlink-board-wrapper {
+    border-color: var(--border-color) !important;
+}
+
+body.theme-amoled .slitherlink-board-wrapper {
+    background-color: #000000;
+    border-color: #333333;
+}
+
+.slitherlink-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: hidden;
+}
+
+/* 1. Zellen & Zahlenhinweise */
+.slitherlink-cell-bg {
+    fill: transparent;
+    transition: fill 0.2s ease;
+}
+
+.slitherlink-cell-group:hover .slitherlink-cell-bg {
+    fill: rgba(255, 255, 255, 0.03);
+}
+
+.slitherlink-clue-text {
+    font-size: 42px;
+    font-weight: 800;
+    font-family: inherit;
+    fill: var(--text-primary);
+    transition: fill 0.2s ease, opacity 0.2s ease;
+}
+
+.slitherlink-cell-group.satisfied .slitherlink-clue-text {
+    opacity: 0.35;
+}
+
+.slitherlink-cell-group.violated .slitherlink-clue-text {
+    fill: #ef4444 !important;
+    animation: slitherlink-pulse 0.8s infinite alternate;
+}
+
+/* 2. Kanten & Hitboxen */
+.slitherlink-hitzone {
+    cursor: pointer;
+    pointer-events: stroke;
+}
+
+.slitherlink-edge-guide {
+    stroke: rgba(255, 255, 255, 0.08);
+    stroke-dasharray: 4, 6;
+    stroke-linecap: round;
+    transition: stroke 0.15s ease;
+}
+
+body.theme-light .slitherlink-edge-guide {
+    stroke: rgba(0, 0, 0, 0.08);
+}
+
+.slitherlink-edge-group:hover .slitherlink-edge-guide {
+    stroke: rgba(255, 255, 255, 0.25);
+}
+
+.slitherlink-edge-line {
+    stroke: var(--accent-sun);
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 4px var(--accent-sun));
+    transition: stroke 0.15s ease;
+}
+
+body.theme-cyberpunk .slitherlink-edge-line {
+    stroke: #00f0ff !important;
+    filter: drop-shadow(0 0 6px #00f0ff);
+}
+
+body.theme-amoled .slitherlink-edge-line {
+    stroke: #10b981 !important;
+    filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.6));
+}
+
+body.theme-light .slitherlink-edge-line {
+    stroke: #1e3a8a !important;
+    filter: none;
+}
+
+body.theme-wood .slitherlink-edge-line {
+    stroke: #d97706 !important;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+/* Kreuze (✕) */
+.slitherlink-edge-cross line {
+    stroke: #f87171;
+    stroke-width: 3.5;
+    stroke-linecap: round;
+}
+
+.slitherlink-edge-cross.is-note line {
+    stroke: rgba(248, 113, 113, 0.5);
+    stroke-dasharray: 3, 3;
+}
+
+body.theme-cyberpunk .slitherlink-edge-cross line {
+    stroke: #ff007f !important;
+}
+
+/* 3. Gitterpunkte (Vertices) */
+.slitherlink-dot {
+    fill: #64748b;
+    transition: fill 0.2s ease, r 0.2s ease;
+}
+
+.slitherlink-dot.deg-2 {
+    fill: var(--accent-sun);
+}
+
+body.theme-cyberpunk .slitherlink-dot {
+    fill: #ff007f;
+}
+
+body.theme-cyberpunk .slitherlink-dot.deg-2 {
+    fill: #00f0ff;
+}
+
+body.theme-amoled .slitherlink-dot.deg-2 {
+    fill: #10b981;
+}
+
+.slitherlink-cells-layer,
+.slitherlink-dots-layer {
+    pointer-events: none;
+}
+
+.slitherlink-dot.dot-error {
+    fill: #ef4444 !important;
+    animation: slitherlink-pulse 0.6s infinite alternate;
+}
+
+@keyframes slitherlink-pulse {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.15); opacity: 0.7; }
+}

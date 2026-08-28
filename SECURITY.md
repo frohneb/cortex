@@ -1,9 +1,9 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 25.08.2026 (Release-Audit v2.2.3)  
+**Audit Datum:** 28.08.2026 (Release-Audit v2.3.1)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
-**Version:** 2.2.3 (versionCode 32)  
-**APK SHA-256:** `536568feb6603f7fec3f1be42b845b75c05a4d956c67734a08bd6d115eabadb7`  
+**Version:** 2.3.1 (versionCode 34)  
+**APK SHA-256:** `ce102aa63e57fcf16bc21fdc00df0c465376ddcee27f2ae3f7baa81a244c45e9`  
 **Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---
@@ -28,7 +28,7 @@
 
 * **Signatur-Verfahren:** APK Signature Scheme v1, v2 und v3
 * **Zertifikats-Algorithmus:** SHA-256withRSA (2048 Bit)
-* **APK-Größe:** 0.56 MB (661 KB Assets)
+* **APK-Größe:** 0.60 MB (1201 KB Assets)
 * **Integritätsprüfung:** Vollständig intakt, kein Debug-Zertifikat, keine unsicheren Modifikationen.
 * **Reproduzierbarkeit:** Automatisierter deterministischer Build via `build_apk.py`.
 
@@ -57,7 +57,7 @@ Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip (Minimalprinzip
 * **`android:allowBackup="false"`**: Verhindert unberechtigtes Auslesen von Spieldaten über ADB-Backups.
 * **`android:usesCleartextTraffic="false"`**: Unverschlüsselter Netzwerkverkehr ist systemseitig deaktiviert.
 * **`android:debuggable="false"`**: Keine Debug-Flags im Produktions-Build.
-* **`versionCode="29"` & `versionName="2.2.0"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
+* **`versionCode="34"` & `versionName="2.3.1"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
 
 ---
 

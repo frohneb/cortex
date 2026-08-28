@@ -134,6 +134,7 @@ export class NonogramSolver {
         const mistakes = engine.findMistakes ? engine.findMistakes() : [];
         if (mistakes.length > 0) {
             const m = mistakes[0];
+            const isWrongFill = m.currentVal === NONO_FILLED;
             return {
                 type: 'solution_mismatch',
                 strategy: 'Fehlerhafte Markierung',
@@ -143,9 +144,13 @@ export class NonogramSolver {
                 val: m.expectedVal,
                 value: m.expectedVal,
                 expectedVal: m.expectedVal,
-                message: `Das Feld (${m.r + 1}, ${m.c + 1}) ist fälschlicherweise gefüllt. Es sollte geleert oder mit einem Kreuz markiert werden.`,
-                description: `Das Feld (${m.r + 1}, ${m.c + 1}) ist fälschlicherweise gefüllt. Es sollte geleert oder mit einem Kreuz markiert werden.`,
-                explanation: `Das Feld (${m.r + 1}, ${m.c + 1}) ist fälschlicherweise gefüllt.`
+                message: isWrongFill 
+                    ? `Das Feld (${m.r + 1}, ${m.c + 1}) ist fälschlicherweise gefüllt. Es sollte mit einem Kreuz (✕) markiert werden.`
+                    : `Auf Feld (${m.r + 1}, ${m.c + 1}) wurde fälschlicherweise ein Kreuz gesetzt, obwohl es gefüllt (⬛) werden muss.`,
+                description: isWrongFill 
+                    ? `Das Feld (${m.r + 1}, ${m.c + 1}) ist fälschlicherweise gefüllt. Es sollte mit einem Kreuz (✕) markiert werden.`
+                    : `Auf Feld (${m.r + 1}, ${m.c + 1}) wurde fälschlicherweise ein Kreuz gesetzt, obwohl es gefüllt (⬛) werden muss.`,
+                explanation: isWrongFill ? `Falsch gefülltes Feld (${m.r + 1}, ${m.c + 1})` : `Falsch durchkreuztes Feld (${m.r + 1}, ${m.c + 1})`
             };
         }
 

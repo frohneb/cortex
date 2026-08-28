@@ -119,8 +119,11 @@ export class TangoEngine {
 
             return {
                 type: 'rule_violation',
+                strategy: 'Regelverstoß korrigieren',
+                title: 'Regelverstoß korrigieren',
                 r, c,
                 currentVal: this.grid[r][c],
+                value: expectedVal,
                 expectedVal,
                 highlightCells: conflictArr.length > 0 ? conflictArr : [{ r, c }],
                 message: `Regelverstoß: ${firstErr.message}. Bitte korrigiere oder entferne das Symbol an Position (${r + 1},${c + 1}).`
@@ -137,8 +140,11 @@ export class TangoEngine {
                         const correctName = sol[r][c] === SUN ? 'Sonne' : 'Mond';
                         return {
                             type: 'solution_mismatch',
+                            strategy: 'Fehlerhaftes Symbol korrigieren',
+                            title: 'Fehlerhaftes Symbol korrigieren',
                             r, c,
                             currentVal: current,
+                            value: sol[r][c],
                             expectedVal: sol[r][c],
                             highlightCells: [{ r, c }],
                             message: `Fehler im Lösungsweg: An Position (${r + 1},${c + 1}) wurde fälschlicherweise ein ${wrongName} gesetzt. Laut der Logik und Abhängigkeiten gehört dort ein ${correctName} hin.`

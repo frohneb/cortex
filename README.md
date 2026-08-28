@@ -1,12 +1,12 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.2.3-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.3.1-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
 [![Security](https://img.shields.io/badge/Security-10.0%2F10%20Perfekt-brightgreen.svg)](SECURITY.md)
 
-Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up** und **Nonogramm / Picross**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones und Web-Browser.
+Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross** und **Slitherlink**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones und Web-Browser.
 
 ---
 
@@ -18,8 +18,9 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Sudoku**: Klassisches 9×9 sowie 4×4 (Mini) und 16×16 (Monster-Sudoku) mit passgenauen Blockkammern (2×2, 3×3, 4×4).
   - **Akari (Light Up / Glühbirnen)**: Größen von 6×6 bis 14×14 mit Lichtstrahlen-Glow, Wand-Nachbarschaftszahlen ($0 \dots 4$) und SVG-Glühbirnen (💡).
   - **Nonogramm (Picross / Griddlers)**: Größen von 5×5 bis 15×15 mit Zeilen- & Spalten-Zahlenhinweisen, 5er-Block-Trennern und Pixel-Art-Illustrationen (🖼️).
+  - **Slitherlink (Rundweg / Fences / Takegaki)**: Größen von 4×4 bis 10×10 mit Zahlen ($0 \dots 3$), Punktgitter und flüssiger **Wischsteuerung (Drag-to-Draw)** zum Zeichnen der Schleife (➿).
 - 🏆 **Umfangreiche Kampagnen**:
-  - Jeweils 120 handgefertigte Kampagnen-Level pro Rätseltyp mit dynamischer Sterne- und Fortschrittsspeicherung (insgesamt 480 Level).
+  - Jeweils 120 handgefertigte Kampagnen-Level pro Rätseltyp mit dynamischer Sterne- und Fortschrittsspeicherung (insgesamt 600 Level).
 - 📅 **Tägliches Rätsel (Daily Puzzle)**:
   - Jeden Tag ein neues, synchrones Tagesrätsel mit automatischer Puzzle-Rotation und Streak-Zähler.
 - 🎲 **Freies Spiel (Endlos-Generator)**:
@@ -29,6 +30,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Sudoku**: Grundlagen (Reihen, Spalten, Blöcke) und Fortgeschrittene Lektionen (*Naked Pairs*, *Hidden Singles*, Block-Interferenzen).
   - **Akari**: Grundlagen (8 Lektionen) und Fortgeschrittene Lektionen (6 Meister-Muster & Wand-Interferenzen).
   - **Nonogramm**: Grundlagen (5 Lektionen: Vollblöcke, Nullzeilen, Überlappungen, Mindestabstände).
+  - **Slitherlink**: Grundlagen (6 Lektionen: 0er-Zellen, 3er-Ecken, Grad-2-Regel) und Fortgeschrittene Lektionen (3 Meistermuster & Sub-Loop-Ausschluss).
 - ✏️ **Notizen-Modus (Kandidaten & Entwürfe)**:
   - Ermöglicht das Festhalten von temporären Markierungen und Annahmen direkt auf dem Spielfeld.
 - 💡 **Intelligenter Hinweis-Assistent & Lösungsaufdeckung**:
@@ -62,9 +64,25 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 2. **Reihenfolge**: Blöcke müssen genau in der vorgegebenen Reihenfolge platziert werden.
 3. **Lücken**: Zwischen zwei gefüllten Blöcken muss immer mindestens eine leere Zelle (✕) liegen.
 
+### ➿ Slitherlink (Rundweg)
+1. **Eine geschlossene Schleife**: Verbinde Gitterpunkte zu einem einzigen, zusammenhängenden und nicht-selbstschneidenden Rundweg.
+2. **Zahlenhinweise ($0 \dots 3$)**: Eine Zahl gibt an, wie viele Kanten dieser Zelle zur Schleife gehören. Um eine 0 darf keine Linie verlaufen.
+3. **Punktgrad 2 oder 0**: An jedem Gitterpunkt treffen entweder genau 2 Linien zusammen oder 0. Keine Verzweigungen oder Sackgassen.
+
 ---
 
 ## 📜 Changelog
+
+### v2.3.1 – 2026-08-28
+* **Umfassender Hint-Engine Audit & Fehlerkorrektur**: Tiefgehende Überprüfung und Harmonisierung des Hinweissystems über alle 5 Puzzle-Plugins (**Tango**, **Sudoku**, **Akari**, **Nonogramm**, **Slitherlink**).
+* **Slitherlink Solver- & Generator-Stabilität**: Behebung von Script-Fehlern bei prozeduraler Rätselerstellung sowie Integration von dynamischem Lösungs-Fallback und Erkennung falsch gezogener Linien/Kreuze.
+* **Erweiterte Fehlererkennung & direkte Korrektur**: `findMistakes()` in allen Plugins synchronisiert; falsche Symbole, Ziffern, Lampen, Pixel und Kanten werden präzise identifiziert und können mit einem Klick auf den Hinweis-Button direkt korrigiert werden.
+* **Verbesserte Spielfeld-Visualisierung**: Aktive Hinweisfelder und Kanten werden nun sofort in allen Themes hervorgehoben.
+
+### v2.3.0 – 2026-08-25
+* **Neues Puzzle-Plugin: Slitherlink**: Vollständige Integration von Slitherlink (4×4 bis 10×10) mit 120 Kampagnen-Leveln, prozeduralem Generator, Tutorials und Eindeutigkeits-Solver.
+* **Intelligente Wischsteuerung (Drag-to-Draw)**: Flüssiges Zeichnen von Schleifenlinien durch kontinuierliches Wischen über Kanten, kombiniert mit Antippen und Long-Press für Kreuzmarkierungen (`✕`).
+* **Zwischenstandsspeicherung für Slitherlink**: Vollständige Persistierung aller horizontalen/vertikalen Kanten, Notizen und Timer.
 
 ### v2.2.3 – 2026-08-25
 * **Persistente Zwischenstände & Wiederherstellung**: Automatisches Speichern des laufenden Spielstands (Zellen, Notizen, Timer, Modus und Einstellungen) bei jedem Zug, beim Minimieren oder Schließen der App für ein nahtloses Weiterspielen beim Neustart.

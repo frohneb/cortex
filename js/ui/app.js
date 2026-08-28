@@ -20,6 +20,7 @@ export function initApp() {
         const app = new CortexApp();
         window.cortexApp = app;
         window.tangoApp = app;
+        window.app = app;
 
         if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
             navigator.serviceWorker.register('./sw.js').catch(err => {

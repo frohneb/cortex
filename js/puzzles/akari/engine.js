@@ -304,20 +304,31 @@ export class AkariEngine {
         }
         if (val.wallErrors.size > 0) {
             const first = Array.from(val.wallErrors)[0].split(',').map(Number);
-            const r = first[0];
-            const c = first[1];
-            const clue = this.walls[r][c];
+            const wr = first[0];
+            const wc = first[1];
+            const clue = this.walls[wr][wc];
+            const neighbors = this.getOrthogonalNeighbors(wr, wc);
+            const wrongNeighbor = neighbors.find(n => {
+                if (this.isWall(n.r, n.c)) return false;
+                const isBulb = this.grid[n.r][n.c] === AKARI_BULB;
+                const shouldBeBulb = this.solution ? this.solution[n.r][n.c] === 1 : false;
+                return isBulb && !shouldBeBulb;
+            }) || neighbors.find(n => !this.isWall(n.r, n.c) && this.grid[n.r][n.c] === AKARI_BULB) || neighbors[0];
+
+            const targetR = wrongNeighbor ? wrongNeighbor.r : wr;
+            const targetC = wrongNeighbor ? wrongNeighbor.c : wc;
+
             return {
                 type: 'error_wall_overflow',
-                strategy: 'Fehler: Wand-Bedingung verletzt',
-                title: 'Fehler: Wand-Bedingung verletzt',
-                r,
-                c,
+                strategy: 'Fehlerhafte Lampe entfernen',
+                title: 'Fehlerhafte Lampe entfernen',
+                r: targetR,
+                c: targetC,
                 value: AKARI_EMPTY,
                 expectedVal: AKARI_EMPTY,
-                highlightCells: [{ r, c }],
-                message: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} mit Zahl ${clue} hat zu viele oder unzulässige Lampen in ihrer Nachbarschaft.`,
-                description: `Die Wand bei Zeile ${r + 1}, Spalte ${c + 1} mit Zahl ${clue} hat zu viele oder unzulässige Lampen in ihrer Nachbarschaft.`
+                highlightCells: [{ r: wr, c: wc }, ...neighbors],
+                message: `Die Wand bei Zeile ${wr + 1}, Spalte ${wc + 1} mit Zahl ${clue} hat zu viele Lampen in ihrer Nachbarschaft. Entferne die überzählige Lampe bei (${targetR + 1}, ${targetC + 1}).`,
+                description: `Die Wand bei Zeile ${wr + 1}, Spalte ${wc + 1} mit Zahl ${clue} hat zu viele Lampen in ihrer Nachbarschaft. Entferne die überzählige Lampe bei (${targetR + 1}, ${targetC + 1}).`
             };
         }
         if (this.solution) {

@@ -162,7 +162,7 @@ export class StorageManager {
     /**
      * Setzt alle Statistiken zurück
      */
-    static resetAllStats(puzzleIds = ['tango', 'sudoku']) {
+    static resetAllStats(puzzleIds = ['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink']) {
         try {
             for (const pid of puzzleIds) {
                 localStorage.removeItem(StorageKeys.puzzleKey(pid, 'stats'));

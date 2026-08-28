@@ -312,19 +312,19 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('.tut-btn-icon', css_content, "main.css muss CSS für .tut-btn-icon definieren")
         self.assertIn('.tut-btn-text', css_content, "main.css muss CSS für .tut-btn-text definieren")
 
-    def test_version_number_consistency_v2_2_3(self):
-        """Überprüft, dass Version 2.2.3 (Code 32) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v2_3_1(self):
+        """Überprüft, dass Version 2.3.1 (Code 34) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('cortex-app-v2.2.3', sw_content, "sw.js muss Cache cortex-app-v2.2.3 enthalten")
-        self.assertIn('id="appVersionBadge">v2.2.3</span>', html_content, "index.html muss appVersionBadge v2.2.3 anzeigen")
-        self.assertTrue('versionName = "2.2.3"' in gradle_content, "build.gradle.kts muss versionName 2.2.3 enthalten")
-        self.assertTrue('versionCode = 32' in gradle_content, "build.gradle.kts muss versionCode 32 enthalten")
-        self.assertTrue('android:versionName="2.2.3"' in manifest_content, "AndroidManifest.xml muss versionName 2.2.3 enthalten")
-        self.assertTrue('android:versionCode="32"' in manifest_content, "AndroidManifest.xml muss versionCode 32 enthalten")
+        self.assertIn('cortex-app-v2.3.1', sw_content, "sw.js muss Cache cortex-app-v2.3.1 enthalten")
+        self.assertIn('id="appVersionBadge">v2.3.1</span>', html_content, "index.html muss appVersionBadge v2.3.1 anzeigen")
+        self.assertTrue('versionName = "2.3.1"' in gradle_content, "build.gradle.kts muss versionName 2.3.1 enthalten")
+        self.assertTrue('versionCode = 34' in gradle_content, "build.gradle.kts muss versionCode 34 enthalten")
+        self.assertTrue('android:versionName="2.3.1"' in manifest_content, "AndroidManifest.xml muss versionName 2.3.1 enthalten")
+        self.assertTrue('android:versionCode="34"' in manifest_content, "AndroidManifest.xml muss versionCode 34 enthalten")
 
     def test_locked_cells_darker_background_styling(self):
         """Überprüft, dass main.css spezifische dunklere Hintergründe für Start- und gesperrte Zellen definiert"""
@@ -343,6 +343,14 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('saveActiveGameState()', shell_content, "app-shell.js muss saveActiveGameState besitzen")
         self.assertIn('restoreActiveGameState()', shell_content, "app-shell.js muss restoreActiveGameState besitzen")
         self.assertIn('clearActiveGameState()', shell_content, "app-shell.js muss clearActiveGameState besitzen")
+
+    def test_slitherlink_plugin_integration(self):
+        """Überprüft, dass Slitherlink in app-shell.js registriert und index.html eingebunden ist"""
+        html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
+        shell_content = (BASE_DIR / "js" / "shell" / "app-shell.js").read_text(encoding='utf-8')
+
+        self.assertIn('slitherlink.css', html_content, "index.html muss slitherlink.css einbinden")
+        self.assertIn('SlitherlinkPlugin', shell_content, "app-shell.js muss SlitherlinkPlugin importieren und registrieren")
 
 
 if __name__ == "__main__":

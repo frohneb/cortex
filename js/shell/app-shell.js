@@ -17,6 +17,7 @@ import { TangoPlugin } from '../puzzles/tango/index.js';
 import { SudokuPlugin } from '../puzzles/sudoku/index.js';
 import { AkariPlugin } from '../puzzles/akari/index.js';
 import { NonogramPlugin } from '../puzzles/nonogram/index.js';
+import { SlitherlinkPlugin } from '../puzzles/slitherlink/index.js';
 import { getSunSvg, getMoonSvg } from '../puzzles/tango/renderer.js';
 
 export { formatTime, calculateStreaks, getSunSvg, getMoonSvg };
@@ -29,6 +30,7 @@ export class CortexApp {
         // Plugins registrieren
         puzzleRegistry.register(AkariPlugin);
         puzzleRegistry.register(NonogramPlugin);
+        puzzleRegistry.register(SlitherlinkPlugin);
         puzzleRegistry.register(SudokuPlugin);
         puzzleRegistry.register(TangoPlugin);
 
@@ -131,6 +133,7 @@ export class CortexApp {
             tutorialStepIndex: this.tutorialStepIndex,
             selectedCell: this.selectedCell,
             hintPlacedCell: this.hintPlacedCell,
+            currentHint: this.currentHint,
             isNoteMode: this.isNoteMode,
             autoCheck: this.autoCheck,
             cellZoom: this.cellZoom,
@@ -419,17 +422,6 @@ export class CortexApp {
             } else {
                 this.restoreSelectedPlugin();
                 this.openMenuTab('play');
-            }
-        });
-
-        document.getElementById('btnHintApply')?.addEventListener('click', () => {
-            if (this.currentHint && this.currentHint.value !== undefined) {
-                this.engine.setCellValue(this.currentHint.r, this.currentHint.c, this.currentHint.value);
-                this.hintPlacedCell = { r: this.currentHint.r, c: this.currentHint.c };
-                audio.playSun();
-                this.renderGrid();
-                this.toggleModal('hintModal', false);
-                this.checkCompletion();
             }
         });
 
@@ -1101,7 +1093,10 @@ export class CortexApp {
         const tutHeader = document.getElementById('tutorialBanner');
         if (tutHeader) tutHeader.style.display = 'none';
 
-        document.getElementById('levelTitle').textContent = `${t('nav_daily')}: ${this.activePlugin.name} (${today})`;
+        const dailyTitleEl = document.getElementById('levelTitle');
+        if (dailyTitleEl) {
+            dailyTitleEl.textContent = `${t('nav_daily')}: ${this.activePlugin.name} (${today})`;
+        }
         this.renderGrid();
         this.saveActiveGameState();
     }
@@ -1128,7 +1123,10 @@ export class CortexApp {
         const tutHeader = document.getElementById('tutorialBanner');
         if (tutHeader) tutHeader.style.display = 'none';
 
-        document.getElementById('levelTitle').textContent = `${this.activePlugin.name} ${t('nav_free')} ${size}×${size}`;
+        const freeTitleEl = document.getElementById('levelTitle');
+        if (freeTitleEl) {
+            freeTitleEl.textContent = `${this.activePlugin.name} ${t('nav_free')} ${size}×${size}`;
+        }
         this.renderGrid();
         this.saveActiveGameState();
     }
@@ -1214,35 +1212,50 @@ export class CortexApp {
             btnApply.onclick = () => {
                 audio.vibrate(25);
                 this.toggleModal('hintModal', false);
-                if (hint.r !== undefined && hint.c !== undefined && hint.value !== undefined) {
-                    this.selectedCell = { r: hint.r, c: hint.c };
-                    this.hintPlacedCell = { r: hint.r, c: hint.c };
-                    this.engine.setCellValue(hint.r, hint.c, hint.value);
+
+                const valToSet = hint.value !== undefined ? hint.value : hint.expectedVal;
+
+                if (hint.edgeType !== undefined && hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
+                    // Slitherlink Kanten-Hinweis
+                    if (typeof this.engine.setEdge === 'function') {
+                        this.engine.setEdge(hint.edgeType, hint.r, hint.c, valToSet, false);
+                    }
                     this.movesCount++;
-                    if (this.activePlugin.id === 'tango') {
-                        if (hint.value === 1) audio.playSun();
-                        else if (hint.value === 2) audio.playMoon();
-                    } else if (this.activePlugin.id === 'akari') {
-                        if (hint.value === 1) audio.playBulb();
-                        else audio.playClear();
+                    if (valToSet === 1) {
+                        audio.playSun ? audio.playSun() : audio.playClear();
                     } else {
-                        audio.playDigit(hint.value);
+                        audio.playClear();
                     }
                     this.renderGrid();
                     this.checkCompletion();
-                } else if (hint.type === 'rule_violation' || hint.type === 'solution_mismatch' || (hint.type && hint.type.startsWith('error_'))) {
-                    if (hint.r !== undefined && hint.c !== undefined) {
-                        this.selectedCell = { r: hint.r, c: hint.c };
-                        const valToSet = hint.expectedVal !== undefined ? hint.expectedVal : (hint.value !== undefined ? hint.value : 0);
+                    this.saveActiveGameState();
+                } else if (hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
+                    this.selectedCell = { r: hint.r, c: hint.c };
+                    this.hintPlacedCell = { r: hint.r, c: hint.c };
+                    if (typeof this.engine.setCellValue === 'function') {
                         this.engine.setCellValue(hint.r, hint.c, valToSet);
-                        audio.playClear();
-                        this.renderGrid();
-                        this.checkCompletion();
                     }
+                    this.movesCount++;
+                    if (this.activePlugin.id === 'tango') {
+                        if (valToSet === 1) audio.playSun();
+                        else if (valToSet === 2) audio.playMoon();
+                    } else if (this.activePlugin.id === 'akari') {
+                        if (valToSet === 1) audio.playBulb();
+                        else audio.playClear();
+                    } else if (this.activePlugin.id === 'nonogram') {
+                        if (valToSet === 1) audio.playBulb ? audio.playBulb() : audio.playSun();
+                        else audio.playClear();
+                    } else {
+                        audio.playDigit(valToSet);
+                    }
+                    this.renderGrid();
+                    this.checkCompletion();
+                    this.saveActiveGameState();
                 }
             };
         }
 
+        this.renderGrid();
         this.toggleModal('hintModal', true);
     }
 
@@ -1292,9 +1305,43 @@ export class CortexApp {
 
         if (activeTutStep) {
             let stepSuccess = true;
-            if (activeTutStep.targetCells) {
+            if (this.activePlugin.id === 'slitherlink') {
+                if (activeTutStep.solution) {
+                    let tutDone = true;
+                    if (activeTutStep.solution.hEdges) {
+                        for (let r = 0; r <= this.engine.rows; r++) {
+                            for (let c = 0; c < this.engine.cols; c++) {
+                                const req = activeTutStep.solution.hEdges[r][c];
+                                if (req > 0 && this.engine.hEdges[r][c] !== req) {
+                                    tutDone = false;
+                                    break;
+                                }
+                            }
+                            if (!tutDone) break;
+                        }
+                    }
+                    if (tutDone && activeTutStep.solution.vEdges) {
+                        for (let r = 0; r < this.engine.rows; r++) {
+                            for (let c = 0; c <= this.engine.cols; c++) {
+                                const req = activeTutStep.solution.vEdges[r][c];
+                                if (req > 0 && this.engine.vEdges[r][c] !== req) {
+                                    tutDone = false;
+                                    break;
+                                }
+                            }
+                            if (!tutDone) break;
+                        }
+                    }
+                    if (tutDone && (activeTutStep.requiresFullLoop || (this.currentMode === 'tutorial' && activeTutStep.id === 6))) {
+                        tutDone = this.engine.isCompleted();
+                    }
+                    stepSuccess = tutDone;
+                } else {
+                    stepSuccess = this.engine.isCompleted();
+                }
+            } else if (activeTutStep.targetCells) {
                 for (const target of activeTutStep.targetCells) {
-                    if (this.engine.grid[target.r][target.c] !== target.val) {
+                    if (this.engine.grid && this.engine.grid[target.r][target.c] !== target.val) {
                         stepSuccess = false;
                         break;
                     }
@@ -1382,6 +1429,16 @@ export class CortexApp {
                 initialGrid: this.engine.initialGrid,
                 solution: this.engine.solution
             };
+        } else if (this.activePlugin.id === 'slitherlink') {
+            return {
+                size: this.engine.size,
+                rows: this.engine.rows,
+                cols: this.engine.cols,
+                clues: this.engine.clues,
+                hEdges: this.engine.hEdges,
+                vEdges: this.engine.vEdges,
+                solution: this.engine.solution
+            };
         }
         return null;
     }
@@ -1405,6 +1462,10 @@ export class CortexApp {
             engineState: {
                 grid: this.engine.grid ? this.engine.grid.map(row => [...row]) : null,
                 notes: this.engine.notes ? this.engine.notes.map(row => row.map(set => Array.from(set || []))) : null,
+                hEdges: this.engine.hEdges ? this.engine.hEdges.map(row => [...row]) : null,
+                vEdges: this.engine.vEdges ? this.engine.vEdges.map(row => [...row]) : null,
+                hNotes: this.engine.hNotes ? this.engine.hNotes.map(row => row.map(set => Array.from(set || []))) : null,
+                vNotes: this.engine.vNotes ? this.engine.vNotes.map(row => row.map(set => Array.from(set || []))) : null,
                 undoStack: this.engine.undoStack ? this.engine.undoStack.map(action => ({ ...action })) : [],
                 redoStack: this.engine.redoStack ? this.engine.redoStack.map(action => ({ ...action })) : []
             },
@@ -1443,12 +1504,24 @@ export class CortexApp {
         this.engine = this.activePlugin.createEngine(puzzleSize);
         this.engine.loadPuzzle(session.puzzleData);
 
-        // Spielerstand (Gitter, Notizen, Undo/Redo) wiederherstellen
+        // Spielerstand (Gitter, Notizen, Kanten, Undo/Redo) wiederherstellen
         if (session.engineState?.grid && Array.isArray(session.engineState.grid)) {
             this.engine.grid = session.engineState.grid.map(row => [...row]);
         }
         if (session.engineState?.notes && Array.isArray(session.engineState.notes)) {
             this.engine.notes = session.engineState.notes.map(row => row.map(arr => new Set(arr || [])));
+        }
+        if (session.engineState?.hEdges && Array.isArray(session.engineState.hEdges)) {
+            this.engine.hEdges = session.engineState.hEdges.map(row => [...row]);
+        }
+        if (session.engineState?.vEdges && Array.isArray(session.engineState.vEdges)) {
+            this.engine.vEdges = session.engineState.vEdges.map(row => [...row]);
+        }
+        if (session.engineState?.hNotes && Array.isArray(session.engineState.hNotes)) {
+            this.engine.hNotes = session.engineState.hNotes.map(row => row.map(arr => new Set(arr || [])));
+        }
+        if (session.engineState?.vNotes && Array.isArray(session.engineState.vNotes)) {
+            this.engine.vNotes = session.engineState.vNotes.map(row => row.map(arr => new Set(arr || [])));
         }
         if (Array.isArray(session.engineState?.undoStack)) {
             this.engine.undoStack = session.engineState.undoStack;

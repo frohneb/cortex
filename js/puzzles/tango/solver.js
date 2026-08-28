@@ -17,6 +17,9 @@ export class TangoSolver {
      * @param {{r: number, c: number}|null} [options.focusCell=null]
      */
     static findLogicalHint(engine, options = {}) {
+        const mistakes = engine.findMistakes ? engine.findMistakes() : null;
+        if (mistakes) return mistakes;
+
         const size = engine.size;
         const maxPerLine = size / 2;
         const grid = engine.grid;
@@ -470,6 +473,22 @@ export class TangoSolver {
             const best = uniqueCandidates[0];
             delete best._score;
             delete best.deductionCount;
+            const typeTitles = {
+                'avoid_three': 'Dreierreihe verhindern',
+                'sandwich': 'Lücke füllen (Sandwich)',
+                'balance_fill': 'Reihen-Balance',
+                'line_balance': 'Reihen-Balance',
+                'edge_equal': 'Gleichheits-Kante (=)',
+                'edge_opposite': 'Gegenteils-Kante (×)',
+                'edge_direct': 'Kanten-Deduktion',
+                'edge_cascade': 'Kanten-Kaskade',
+                'row_uniqueness': 'Eindeutige Zeile',
+                'col_uniqueness': 'Eindeutige Spalte',
+                'proof_by_contradiction': 'Widerspruchs-Beweis',
+                'advanced_deduction': 'Logische Deduktion'
+            };
+            best.strategy = best.strategy || typeTitles[best.type] || 'Logischer Schritt';
+            best.title = best.title || best.strategy;
             return best;
         }
 
@@ -490,6 +509,8 @@ export class TangoSolver {
                             const wrongName = testVal === SUN ? 'Sonne' : 'Mond';
                             contradictionCandidates.push({
                                 type: 'proof_by_contradiction',
+                                strategy: 'Widerspruchs-Beweis',
+                                title: 'Widerspruchs-Beweis',
                                 r, c,
                                 value: correctVal,
                                 highlightCells: [{r, c}],
@@ -508,6 +529,8 @@ export class TangoSolver {
             contradictionCandidates.sort((a, b) => b._score - a._score);
             const best = contradictionCandidates[0];
             delete best._score;
+            best.strategy = best.strategy || 'Widerspruchs-Beweis';
+            best.title = best.title || best.strategy;
             return best;
         }
 
@@ -523,6 +546,8 @@ export class TangoSolver {
                         const name = val === SUN ? 'Sonne' : 'Mond';
                         fallbackCandidates.push({
                             type: 'advanced_deduction',
+                            strategy: 'Logische Schlussfolgerung',
+                            title: 'Logische Schlussfolgerung',
                             r, c,
                             value: val,
                             highlightCells: [{r, c}],
@@ -539,6 +564,8 @@ export class TangoSolver {
                 fallbackCandidates.sort((a, b) => b._score - a._score);
                 const best = fallbackCandidates[0];
                 delete best._score;
+                best.strategy = best.strategy || 'Logische Schlussfolgerung';
+                best.title = best.title || best.strategy;
                 return best;
             }
         }
