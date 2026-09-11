@@ -18,6 +18,7 @@ import { SudokuPlugin } from '../puzzles/sudoku/index.js';
 import { AkariPlugin } from '../puzzles/akari/index.js';
 import { NonogramPlugin } from '../puzzles/nonogram/index.js';
 import { SlitherlinkPlugin } from '../puzzles/slitherlink/index.js';
+import { MinesweeperPlugin } from '../puzzles/minesweeper/index.js';
 import { getSunSvg, getMoonSvg } from '../puzzles/tango/renderer.js';
 
 export { formatTime, calculateStreaks, getSunSvg, getMoonSvg };
@@ -33,6 +34,7 @@ export class CortexApp {
         puzzleRegistry.register(SlitherlinkPlugin);
         puzzleRegistry.register(SudokuPlugin);
         puzzleRegistry.register(TangoPlugin);
+        puzzleRegistry.register(MinesweeperPlugin);
 
         // Aktives Plugin laden
         const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
@@ -157,6 +159,8 @@ export class CortexApp {
                 this.freePlaySize = 10;
             } else if (pluginId === 'tango') {
                 this.freePlaySize = 6;
+            } else if (pluginId === 'minesweeper') {
+                this.freePlaySize = 8;
             } else {
                 this.freePlaySize = sizes[0].id;
             }
@@ -767,8 +771,33 @@ export class CortexApp {
             return;
         }
 
-        // Direktes Durchschalten (Cycle-Modus für Tango, Akari & Nonogram)
-        if (this.isNoteMode) {
+        // Direktes Durchschalten (Cycle-Modus für Tango, Akari & Nonogram, Tap-Aufdecken für Minesweeper)
+        if (this.activePlugin.id === 'minesweeper') {
+            if (this.isNoteMode) {
+                this.engine.toggleFlag(r, c);
+                audio.vibrate(30);
+                this.movesCount++;
+            } else {
+                const res = this.engine.reveal(r, c);
+                if (res) {
+                    this.movesCount++;
+                    if (res.result === 'defeat') {
+                        this.isGameActive = false;
+                        this.timer.stop();
+                        audio.playError();
+                        audio.vibrate(80);
+                        if (this.currentMode === 'campaign' || this.currentMode === 'free') {
+                            StatsManager.recordGame(this.activePlugin.id, this.engine.size, this.secondsElapsed, false);
+                        }
+                        this.renderGrid();
+                        this.clearActiveGameState();
+                        return;
+                    } else {
+                        audio.playClear();
+                    }
+                }
+            }
+        } else if (this.isNoteMode) {
             this.engine.cycleNoteValue(r, c);
             audio.vibrate(25);
         } else {
@@ -825,6 +854,10 @@ export class CortexApp {
                 this.movesCount++;
                 audio.vibrate(30);
             }
+        } else if (this.activePlugin.id === 'minesweeper') {
+            this.engine.toggleFlag(r, c);
+            this.movesCount++;
+            audio.vibrate(30);
         }
 
         this.renderGrid();
@@ -1245,6 +1278,9 @@ export class CortexApp {
                     } else if (this.activePlugin.id === 'nonogram') {
                         if (valToSet === 1) audio.playBulb ? audio.playBulb() : audio.playSun();
                         else audio.playClear();
+                    } else if (this.activePlugin.id === 'minesweeper') {
+                        if (valToSet === 1) audio.playClear();
+                        else audio.vibrate(30);
                     } else {
                         audio.playDigit(valToSet);
                     }
@@ -1439,6 +1475,16 @@ export class CortexApp {
                 vEdges: this.engine.vEdges,
                 solution: this.engine.solution
             };
+        } else if (this.activePlugin.id === 'minesweeper') {
+            return {
+                size: this.engine.size,
+                rows: this.engine.rows,
+                cols: this.engine.cols,
+                mineCount: this.engine.mineCount,
+                mines: this.engine.mines,
+                initialGrid: this.engine.initialGrid,
+                solution: this.engine.solution
+            };
         }
         return null;
     }
@@ -1528,6 +1574,9 @@ export class CortexApp {
         }
         if (Array.isArray(session.engineState?.redoStack)) {
             this.engine.redoStack = session.engineState.redoStack;
+        }
+        if (typeof this.engine.recalculateCounts === 'function') {
+            this.engine.recalculateCounts();
         }
 
         this.secondsElapsed = session.secondsElapsed || 0;
@@ -1846,10 +1895,13 @@ export class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
         const akariStats = StatsManager.getPuzzleStats('akari');
+        const nonogramStats = StatsManager.getPuzzleStats('nonogram');
+        const slitherlinkStats = StatsManager.getPuzzleStats('slitherlink');
+        const minesweeperStats = StatsManager.getPuzzleStats('minesweeper');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -1860,6 +1912,12 @@ export class CortexApp {
             displayStats = sudokuStats;
         } else if (currentTab === 'akari') {
             displayStats = akariStats;
+        } else if (currentTab === 'nonogram') {
+            displayStats = nonogramStats;
+        } else if (currentTab === 'slitherlink') {
+            displayStats = slitherlinkStats;
+        } else if (currentTab === 'minesweeper') {
+            displayStats = minesweeperStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -1903,6 +1961,13 @@ export class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 10, labelKey: 'stats_best_time_10' },
                     { id: 14, labelKey: 'stats_best_time_14' }
+                ];
+            } else if (currentTab === 'minesweeper') {
+                sizesToShow = [
+                    { id: 8, labelKey: 'stats_best_time_8' },
+                    { id: 12, labelKey: 'stats_best_time_12' },
+                    { id: 16, labelKey: 'stats_best_time_16' },
+                    { id: 30, labelKey: 'stats_best_time_30' }
                 ];
             } else {
                 // Gesamt-Tab

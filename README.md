@@ -1,12 +1,12 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.3.1-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.4.0-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
 [![Security](https://img.shields.io/badge/Security-10.0%2F10%20Perfekt-brightgreen.svg)](SECURITY.md)
 
-Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross** und **Slitherlink**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones und Web-Browser.
+Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink** und **Minesweeper**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones und Web-Browser.
 
 ---
 
@@ -19,8 +19,9 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Akari (Light Up / Glühbirnen)**: Größen von 6×6 bis 14×14 mit Lichtstrahlen-Glow, Wand-Nachbarschaftszahlen ($0 \dots 4$) und SVG-Glühbirnen (💡).
   - **Nonogramm (Picross / Griddlers)**: Größen von 5×5 bis 15×15 mit Zeilen- & Spalten-Zahlenhinweisen, 5er-Block-Trennern und Pixel-Art-Illustrationen (🖼️).
   - **Slitherlink (Rundweg / Fences / Takegaki)**: Größen von 4×4 bis 10×10 mit Zahlen ($0 \dots 3$), Punktgitter und flüssiger **Wischsteuerung (Drag-to-Draw)** zum Zeichnen der Schleife (➿).
+  - **Minesweeper (Minenfeld)**: Größen von 8×8 bis 16×30 mit Zahlen ($0 \dots 8$), kaskadierendem Flood-Fill bei 0-Feldern und Flaggen-Markierung (🚩).
 - 🏆 **Umfangreiche Kampagnen**:
-  - Jeweils 120 handgefertigte Kampagnen-Level pro Rätseltyp mit dynamischer Sterne- und Fortschrittsspeicherung (insgesamt 600 Level).
+  - Jeweils 120 handgefertigte Kampagnen-Level pro Rätseltyp mit dynamischer Sterne- und Fortschrittsspeicherung (insgesamt 720 Level).
 - 📅 **Tägliches Rätsel (Daily Puzzle)**:
   - Jeden Tag ein neues, synchrones Tagesrätsel mit automatischer Puzzle-Rotation und Streak-Zähler.
 - 🎲 **Freies Spiel (Endlos-Generator)**:
@@ -31,6 +32,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Akari**: Grundlagen (8 Lektionen) und Fortgeschrittene Lektionen (6 Meister-Muster & Wand-Interferenzen).
   - **Nonogramm**: Grundlagen (5 Lektionen: Vollblöcke, Nullzeilen, Überlappungen, Mindestabstände).
   - **Slitherlink**: Grundlagen (6 Lektionen: 0er-Zellen, 3er-Ecken, Grad-2-Regel) und Fortgeschrittene Lektionen (3 Meistermuster & Sub-Loop-Ausschluss).
+  - **Minesweeper**: Grundlagen (6 Lektionen: Zahlenhinweise, Long-Press-Flaggen, 0er-Kettenreaktion, Randlogik).
 - ✏️ **Notizen-Modus (Kandidaten & Entwürfe)**:
   - Ermöglicht das Festhalten von temporären Markierungen und Annahmen direkt auf dem Spielfeld.
 - 💡 **Intelligenter Hinweis-Assistent & Lösungsaufdeckung**:
@@ -69,9 +71,22 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 2. **Zahlenhinweise ($0 \dots 3$)**: Eine Zahl gibt an, wie viele Kanten dieser Zelle zur Schleife gehören. Um eine 0 darf keine Linie verlaufen.
 3. **Punktgrad 2 oder 0**: An jedem Gitterpunkt treffen entweder genau 2 Linien zusammen oder 0. Keine Verzweigungen oder Sackgassen.
 
+### 🚩 Minesweeper (Minenfeld)
+1. **Sichere Aufdeckung**: Ziel ist es, alle Felder ohne Minen aufzudecken. Ein Treffer auf eine Mine beendet das Spiel.
+2. **Zahlenhinweise ($0 \dots 8$)**: Zahlen auf aufgedeckten Feldern zeigen die exakte Anzahl der Minen in allen 8 Nachbarfeldern an.
+3. **0er-Kettenreaktion (Flood-Fill)**: Felder ohne Nachbar-Minen (0) decken automatisch die gesamte angrenzende freie Zone auf.
+4. **Flaggen (🚩)**: Verdächtige Minenfelder können per Long-Press mit einer roten Flagge geschützt werden.
+
 ---
 
 ## 📜 Changelog
+
+### v2.4.0 – 2026-09-11
+* **Neues Puzzle-Plugin: Minesweeper (🚩)**: Vollständige Integration von klassischem Minesweeper mit 120 Kampagnen-Leveln in 4 Kapiteln, täglichem synchronen Rätsel und freiem Spiel (8×8 bis 16×30 Meister-Format).
+* **Touch-Interaktion für Mobilgeräte**: Sofortiges Aufdecken per Tap, Setzen/Entfernen von Flaggen per Long-Press.
+* **Kaskadierendes Flood-Fill**: Automatische Freilegung ganzer sicherer Bereiche bei 0-Nachbar-Zellen mit flüssigen Übergängen.
+* **Intelligente Solver- & Hint-Engine**: Logische Ableitung sicherer Felder und zwingender Minen über Nachbarschaftsregeln und Mengen-Subtraktion (1-1 / 1-2 Muster) mit verständlichen Erklärungen.
+* **Automatisierte Eindeutigkeits- & Konsistenz-Prüfung**: Alle 120 Kampagnen-Level und 6 Tutorial-Lektionen automatisiert auf fehlerfreie Lösbarkeit und exakte Nachbarschaftskonsistenz verifiziert.
 
 ### v2.3.1 – 2026-08-28
 * **Umfassender Hint-Engine Audit & Fehlerkorrektur**: Tiefgehende Überprüfung und Harmonisierung des Hinweissystems über alle 5 Puzzle-Plugins (**Tango**, **Sudoku**, **Akari**, **Nonogramm**, **Slitherlink**).

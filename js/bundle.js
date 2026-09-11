@@ -3434,6 +3434,1472 @@ const AkariPlugin = {
     getI18nStrings: (lang) => AKARI_I18N[lang] || {}
 };
 
+// === Source: js\puzzles\minesweeper\engine.js ===
+/**
+ * Minesweeper Engine
+ * Repräsentiert das Minenfeld, Zellzustände (verdeckt, aufgedeckt, Flagge, Explosion),
+ * Nachbarzahlen-Berechnung, Flood-Fill und Sieg-/Niederlagen-Validierung.
+ */
+
+const CELL_HIDDEN = 0;
+const CELL_REVEALED = 1;
+const CELL_FLAGGED = 2;
+const CELL_EXPLODED = 3;
+
+class MinesweeperEngine {
+    constructor(rows = 8, cols = 8, mineCount = 10) {
+        if (typeof rows === 'object' && rows !== null) {
+            // Falls Optionen-Objekt übergeben wurde
+            const opts = rows;
+            this.rows = opts.rows || opts.size || 8;
+            this.cols = opts.cols || opts.size || this.rows;
+            this.mineCount = opts.mineCount || 10;
+        } else {
+            this.rows = rows;
+            this.cols = cols || rows;
+            this.mineCount = mineCount;
+        }
+        this.size = Math.max(this.rows, this.cols);
+
+        this.grid = Array(this.rows).fill(0).map(() => Array(this.cols).fill(CELL_HIDDEN));
+        this.initialGrid = Array(this.rows).fill(0).map(() => Array(this.cols).fill(CELL_HIDDEN));
+        this.locked = Array(this.rows).fill(0).map(() => Array(this.cols).fill(false));
+        this.notes = Array(this.rows).fill(0).map(() => Array(this.cols).fill(0).map(() => new Set()));
+
+        this.mines = Array(this.rows).fill(0).map(() => Array(this.cols).fill(false));
+        this.adjacency = Array(this.rows).fill(0).map(() => Array(this.cols).fill(0));
+        this.solution = null;
+
+        this.status = 'playing'; // 'playing' | 'won' | 'lost'
+        this.revealedCount = 0;
+        this.flagCount = 0;
+
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Initialisiert oder lädt ein Puzzle
+     */
+    loadPuzzle({ rows, cols, size, mineCount, mines, initialGrid, solution, revealedCells }) {
+        this.rows = rows || size || (mines ? mines.length : 8);
+        this.cols = cols || size || (mines && mines[0] ? mines[0].length : this.rows);
+        this.size = Math.max(this.rows, this.cols);
+
+        this.grid = Array(this.rows).fill(0).map(() => Array(this.cols).fill(CELL_HIDDEN));
+        this.initialGrid = Array(this.rows).fill(0).map(() => Array(this.cols).fill(CELL_HIDDEN));
+        this.locked = Array(this.rows).fill(0).map(() => Array(this.cols).fill(false));
+        this.notes = Array(this.rows).fill(0).map(() => Array(this.cols).fill(0).map(() => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+        this.status = 'playing';
+        this.revealedCount = 0;
+        this.flagCount = 0;
+
+        // Minenfeld setzen
+        if (mines && Array.isArray(mines)) {
+            this.mines = mines.map(row => [...row]);
+        } else if (solution && Array.isArray(solution)) {
+            this.mines = solution.map(row => row.map(v => (v === 1 || v === true || v === 'M')));
+        } else {
+            this.mines = Array(this.rows).fill(0).map(() => Array(this.cols).fill(false));
+        }
+
+        // Zähle Minen
+        this.mineCount = 0;
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (this.mines[r][c]) this.mineCount++;
+            }
+        }
+        if (mineCount !== undefined) this.mineCount = mineCount;
+
+        // Nachbar-Minen (Adjacency) vorberechnen
+        this.calculateAdjacency();
+
+        // Lösung bereitstellen
+        this.solution = this.mines.map(row => row.map(isMine => (isMine ? 1 : 0)));
+
+        // Vorgegebene initial aufgedeckte Zellen (z.B. im Tutorial)
+        if (initialGrid) {
+            for (let r = 0; r < this.rows; r++) {
+                for (let c = 0; c < this.cols; c++) {
+                    const val = initialGrid[r][c];
+                    if (val === CELL_REVEALED) {
+                        this.grid[r][c] = CELL_REVEALED;
+                        this.initialGrid[r][c] = CELL_REVEALED;
+                        this.locked[r][c] = true;
+                        this.revealedCount++;
+                    } else if (val === CELL_FLAGGED) {
+                        this.grid[r][c] = CELL_FLAGGED;
+                        this.initialGrid[r][c] = CELL_FLAGGED;
+                        this.flagCount++;
+                    }
+                }
+            }
+        }
+
+        if (revealedCells && Array.isArray(revealedCells)) {
+            for (const cell of revealedCells) {
+                const { r, c } = cell;
+                if (this.isValid(r, c) && this.grid[r][c] === CELL_HIDDEN) {
+                    this.grid[r][c] = CELL_REVEALED;
+                    this.initialGrid[r][c] = CELL_REVEALED;
+                    this.locked[r][c] = true;
+                    this.revealedCount++;
+                }
+            }
+        }
+    }
+
+    /**
+     * Berechnet für alle Zellen die Anzahl benachbarter Minen (0–8)
+     */
+    calculateAdjacency() {
+        this.adjacency = Array(this.rows).fill(0).map(() => Array(this.cols).fill(0));
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (this.mines[r][c]) {
+                    this.adjacency[r][c] = -1; // Mine
+                    continue;
+                }
+                let count = 0;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = r + dr;
+                        const nc = c + dc;
+                        if (this.isValid(nr, nc) && this.mines[nr][nc]) {
+                            count++;
+                        }
+                    }
+                }
+                this.adjacency[r][c] = count;
+            }
+        }
+    }
+
+    isValid(r, c) {
+        return r >= 0 && r < this.rows && c >= 0 && c < this.cols;
+    }
+
+    /**
+     * Deckt eine Zelle auf (Tap-Aktion)
+     */
+    reveal(r, c) {
+        if (!this.isValid(r, c)) return null;
+        if (this.status !== 'playing') return null;
+        if (this.locked[r][c]) return null;
+        if (this.grid[r][c] === CELL_FLAGGED) return null; // Flaggen schützen vor Aufdecken
+        if (this.grid[r][c] === CELL_REVEALED) return null;
+
+        // Treffer auf Mine! -> Niederlage
+        if (this.mines[r][c]) {
+            this.grid[r][c] = CELL_EXPLODED;
+            this.status = 'lost';
+            this.undoStack.push({
+                type: 'defeat',
+                r,
+                c,
+                previousGrid: this.grid.map(row => [...row])
+            });
+            this.redoStack = [];
+            return {
+                result: 'defeat',
+                r,
+                c,
+                revealedCells: [{ r, c }]
+            };
+        }
+
+        // Sichere Zelle -> Aufdecken mit Flood-Fill bei 0
+        const revealed = [];
+        const queue = [{ r, c }];
+        const visited = new Set();
+        visited.add(`${r},${c}`);
+
+        const prevGrid = this.grid.map(row => [...row]);
+
+        while (queue.length > 0) {
+            const curr = queue.shift();
+            const cr = curr.r;
+            const cc = curr.c;
+
+            if (this.grid[cr][cc] === CELL_HIDDEN) {
+                this.grid[cr][cc] = CELL_REVEALED;
+                this.revealedCount++;
+                revealed.push({ r: cr, c: cc, count: this.adjacency[cr][cc] });
+            }
+
+            // Wenn 0 Nachbar-Minen: Automatisch alle Nachbarn kaskadierend aufdecken
+            if (this.adjacency[cr][cc] === 0) {
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = cr + dr;
+                        const nc = cc + dc;
+                        const key = `${nr},${nc}`;
+                        if (this.isValid(nr, nc) && !visited.has(key)) {
+                            visited.add(key);
+                            if (this.grid[nr][nc] === CELL_HIDDEN && !this.mines[nr][nc]) {
+                                queue.push({ r: nr, c: nc });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        this.undoStack.push({
+            type: 'reveal',
+            r,
+            c,
+            revealedCells: revealed,
+            prevGrid
+        });
+        this.redoStack = [];
+
+        // Siegbedingung prüfen: Alle sicheren Zellen aufgedeckt
+        const totalCells = this.rows * this.cols;
+        const totalSafeCells = totalCells - this.mineCount;
+        const isWon = this.revealedCount >= totalSafeCells;
+
+        if (isWon) {
+            this.status = 'won';
+        }
+
+        return {
+            result: isWon ? 'victory' : 'safe',
+            r,
+            c,
+            revealedCells: revealed
+        };
+    }
+
+    /**
+     * Schaltet Flagge auf verdeckter Zelle um (Long-Press Aktion)
+     */
+    toggleFlag(r, c) {
+        if (!this.isValid(r, c)) return null;
+        if (this.status !== 'playing') return null;
+        if (this.locked[r][c]) return null;
+        if (this.grid[r][c] === CELL_REVEALED) return null;
+
+        const prevVal = this.grid[r][c];
+        let newVal = CELL_HIDDEN;
+
+        if (prevVal === CELL_HIDDEN) {
+            newVal = CELL_FLAGGED;
+            this.flagCount++;
+        } else if (prevVal === CELL_FLAGGED) {
+            newVal = CELL_HIDDEN;
+            this.flagCount--;
+        }
+
+        this.grid[r][c] = newVal;
+
+        this.undoStack.push({
+            type: 'flag',
+            r,
+            c,
+            prevVal,
+            newVal
+        });
+        this.redoStack = [];
+
+        return { r, c, isFlagged: newVal === CELL_FLAGGED };
+    }
+
+    /**
+     * Kompatibilität mit Cycle-Aufruf der App-Shell
+     */
+    cycleCellValue(r, c) {
+        if (!this.isValid(r, c) || this.locked[r][c]) return 0;
+        if (this.grid[r][c] === CELL_REVEALED) return 1;
+
+        // Wenn Zelle verdeckt ist: Aufdecken
+        const res = this.reveal(r, c);
+        if (res) {
+            return this.grid[r][c];
+        }
+        return this.grid[r][c];
+    }
+
+    /**
+     * Setzt einen Zellwert direkt (z.B. für Hints oder NoteMode)
+     */
+    setCellValue(r, c, val, isNote = false) {
+        if (!this.isValid(r, c) || this.locked[r][c]) return;
+
+        if (isNote) {
+            // Note toggeln
+            if (this.notes[r][c].has(val)) {
+                this.notes[r][c].delete(val);
+            } else {
+                this.notes[r][c].add(val);
+            }
+            return;
+        }
+
+        if (val === CELL_FLAGGED) {
+            if (this.grid[r][c] === CELL_HIDDEN) {
+                this.toggleFlag(r, c);
+            }
+        } else if (val === CELL_REVEALED) {
+            this.reveal(r, c);
+        } else if (val === CELL_HIDDEN) {
+            if (this.grid[r][c] === CELL_FLAGGED) {
+                this.toggleFlag(r, c);
+            }
+        }
+    }
+
+    /**
+     * Schaltet Notiz-Zustand um
+     */
+    cycleNoteValue(r, c) {
+        if (!this.isValid(r, c) || this.locked[r][c]) return;
+        this.toggleFlag(r, c);
+    }
+
+    /**
+     * Prüft, ob das Puzzle erfolgreich gelöst ist
+     */
+    isCompleted() {
+        if (this.status === 'lost') return false;
+        const totalSafeCells = (this.rows * this.cols) - this.mineCount;
+        return this.revealedCount >= totalSafeCells;
+    }
+
+    /**
+     * Gibt Fortschritt zurück
+     */
+    getProgress() {
+        const totalSafe = (this.rows * this.cols) - this.mineCount;
+        return {
+            totalMines: this.mineCount,
+            flagCount: this.flagCount,
+            revealedCount: this.revealedCount,
+            totalSafe,
+            remainingSafe: Math.max(0, totalSafe - this.revealedCount),
+            status: this.status
+        };
+    }
+
+    /**
+     * Validierung für Auto-Check
+     */
+    validateRules() {
+        const conflictCells = new Set();
+        // Markiere offensichtlich falsche Flaggen, falls Zahl überschritten
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (this.grid[r][c] === CELL_REVEALED) {
+                    const required = this.adjacency[r][c];
+                    let flags = 0;
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            if (dr === 0 && dc === 0) continue;
+                            const nr = r + dr;
+                            const nc = c + dc;
+                            if (this.isValid(nr, nc) && this.grid[nr][nc] === CELL_FLAGGED) {
+                                flags++;
+                            }
+                        }
+                    }
+                    if (flags > required) {
+                        conflictCells.add(`${r},${c}`);
+                    }
+                }
+            }
+        }
+        return { conflictCells };
+    }
+
+    /**
+     * Findet fehlerhaft gesetzte Flaggen (für Auto-Check / Fehlererkennung)
+     */
+    findMistakes() {
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (this.grid[r][c] === CELL_FLAGGED && !this.mines[r][c]) {
+                    return {
+                        strategy: 'Fehlerhafte Markierung',
+                        title: 'Falsche Flagge',
+                        message: `Hier bei Zeile ${r + 1}, Spalte ${c + 1} befindet sich keine Mine. Die Flagge kann entfernt werden.`,
+                        r,
+                        c,
+                        value: CELL_HIDDEN
+                    };
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Macht den letzten Spielzug rückgängig
+     */
+    undo() {
+        if (this.undoStack.length === 0) return false;
+        const action = this.undoStack.pop();
+        this.redoStack.push(action);
+
+        if (action.type === 'reveal') {
+            this.grid = action.prevGrid.map(row => [...row]);
+            this.recalculateCounts();
+            this.status = 'playing';
+        } else if (action.type === 'flag') {
+            this.grid[action.r][action.c] = action.prevVal;
+            this.recalculateCounts();
+        } else if (action.type === 'defeat') {
+            this.grid = action.previousGrid.map(row => [...row]);
+            this.recalculateCounts();
+            this.status = 'playing';
+        }
+
+        return true;
+    }
+
+    /**
+     * Wiederholt den letzten rückgängig gemachten Zug
+     */
+    redo() {
+        if (this.redoStack.length === 0) return false;
+        const action = this.redoStack.pop();
+        this.undoStack.push(action);
+
+        if (action.type === 'reveal') {
+            this.reveal(action.r, action.c);
+        } else if (action.type === 'flag') {
+            this.grid[action.r][action.c] = action.newVal;
+            this.recalculateCounts();
+        } else if (action.type === 'defeat') {
+            this.grid[action.r][action.c] = CELL_EXPLODED;
+            this.status = 'lost';
+        }
+
+        return true;
+    }
+
+    recalculateCounts() {
+        this.revealedCount = 0;
+        this.flagCount = 0;
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                if (this.grid[r][c] === CELL_REVEALED) this.revealedCount++;
+                if (this.grid[r][c] === CELL_FLAGGED) this.flagCount++;
+            }
+        }
+    }
+
+    restart() {
+        this.grid = this.initialGrid.map(row => [...row]);
+        this.notes = Array(this.rows).fill(0).map(() => Array(this.cols).fill(0).map(() => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+        this.status = 'playing';
+        this.recalculateCounts();
+    }
+
+    getSolution() {
+        return this.solution;
+    }
+}
+
+// === Source: js\puzzles\minesweeper\solver.js ===
+/**
+ * Minesweeper Solver & Hint Engine
+ * Findet logische Züge mit verständlichen deutschen Erklärungen
+ * und validiert die Konsistenz und Eindeutigkeit des Minenfelds.
+ */
+
+
+
+class MinesweeperSolver {
+    /**
+     * Validiert die mathematische Konsistenz des Minenfelds und der Zahlen
+     */
+    static validateConsistency(engineOrData) {
+        const rows = engineOrData.rows;
+        const cols = engineOrData.cols;
+        const mines = engineOrData.mines;
+        const adjacency = engineOrData.adjacency;
+
+        if (!mines || !adjacency) {
+            return { valid: false, error: 'Minen- oder Adjacency-Daten fehlen' };
+        }
+
+        let totalMines = 0;
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (mines[r][c]) {
+                    totalMines++;
+                    if (adjacency[r][c] !== -1 && adjacency[r][c] !== undefined) {
+                        // -1 kennzeichnet Minen in adjacency
+                    }
+                } else {
+                    // Prüfe Nachbarzählung
+                    let count = 0;
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            if (dr === 0 && dc === 0) continue;
+                            const nr = r + dr;
+                            const nc = c + dc;
+                            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && mines[nr][nc]) {
+                                count++;
+                            }
+                        }
+                    }
+                    if (adjacency[r][c] !== count) {
+                        return {
+                            valid: false,
+                            error: `Inkonsistente Nachbarzahl bei (${r},${c}): erwartet ${count}, gefunden ${adjacency[r][c]}`
+                        };
+                    }
+                }
+            }
+        }
+
+        return { valid: true, totalMines };
+    }
+
+    /**
+     * Gibt die Lösung des Puzzles zurück
+     */
+    static solve(engine, max = 1) {
+        if (!engine) return [];
+        if (engine.solution) return [engine.solution];
+        if (engine.mines) {
+            return [engine.mines.map(row => row.map(m => (m ? 1 : 0)))];
+        }
+        return [];
+    }
+
+    /**
+     * Findet einen logischen Tipp für den Spieler
+     */
+    static findLogicalHint(engine, options = {}) {
+        if (!engine || engine.status !== 'playing') return null;
+
+        // 0. Prüfe zuerst auf fehlerhafte Flaggen
+        const mistake = engine.findMistakes ? engine.findMistakes() : null;
+        if (mistake) return mistake;
+
+        const rows = engine.rows;
+        const cols = engine.cols;
+
+        // 1. Strategie: Triviale sichere Felder (Bereits alle Minen durch Flaggen abgedeckt)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (engine.grid[r][c] === CELL_REVEALED) {
+                    const reqMines = engine.adjacency[r][c];
+                    if (reqMines < 0) continue;
+
+                    let flagCount = 0;
+                    const hiddenNeighbors = [];
+
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            if (dr === 0 && dc === 0) continue;
+                            const nr = r + dr;
+                            const nc = c + dc;
+                            if (engine.isValid(nr, nc)) {
+                                if (engine.grid[nr][nc] === CELL_FLAGGED) {
+                                    flagCount++;
+                                } else if (engine.grid[nr][nc] === CELL_HIDDEN) {
+                                    hiddenNeighbors.push({ r: nr, c: nc });
+                                }
+                            }
+                        }
+                    }
+
+                    if (flagCount === reqMines && hiddenNeighbors.length > 0) {
+                        const target = hiddenNeighbors[0];
+                        return {
+                            strategy: 'Sicheres Feld aufdecken',
+                            title: 'Alle Minen markiert',
+                            message: `Die Zahl ${reqMines} bei Zeile ${r + 1}, Spalte ${c + 1} hat bereits alle benötigten Flaggen. Das Nachbarfeld bei Zeile ${target.r + 1}, Spalte ${target.c + 1} ist sicher!`,
+                            r: target.r,
+                            c: target.c,
+                            value: CELL_REVEALED,
+                            expectedVal: CELL_REVEALED,
+                            highlightCells: [{ r, c }, target]
+                        };
+                    }
+                }
+            }
+        }
+
+        // 2. Strategie: Triviale Minen (Verbleibende verdeckte Nachbarn müssen Minen sein)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (engine.grid[r][c] === CELL_REVEALED) {
+                    const reqMines = engine.adjacency[r][c];
+                    if (reqMines <= 0) continue;
+
+                    let flagCount = 0;
+                    const hiddenNeighbors = [];
+
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            if (dr === 0 && dc === 0) continue;
+                            const nr = r + dr;
+                            const nc = c + dc;
+                            if (engine.isValid(nr, nc)) {
+                                if (engine.grid[nr][nc] === CELL_FLAGGED) {
+                                    flagCount++;
+                                } else if (engine.grid[nr][nc] === CELL_HIDDEN) {
+                                    hiddenNeighbors.push({ r: nr, c: nc });
+                                }
+                            }
+                        }
+                    }
+
+                    const neededMines = reqMines - flagCount;
+                    if (neededMines > 0 && hiddenNeighbors.length === neededMines) {
+                        const target = hiddenNeighbors[0];
+                        return {
+                            strategy: 'Mine identifiziert',
+                            title: 'Zwingende Mine',
+                            message: `Die Zahl ${reqMines} bei Zeile ${r + 1}, Spalte ${c + 1} benötigt noch ${neededMines} Mine(n) und hat genau ${hiddenNeighbors.length} verdeckte Nachbarn. Bei Zeile ${target.r + 1}, Spalte ${target.c + 1} muss eine Mine liegen!`,
+                            r: target.r,
+                            c: target.c,
+                            value: CELL_FLAGGED,
+                            expectedVal: CELL_FLAGGED,
+                            highlightCells: [{ r, c }, target]
+                        };
+                    }
+                }
+            }
+        }
+
+        // 3. Strategie: Mengen-Subtraktion (1-1 / 1-2 Muster)
+        for (let r1 = 0; r1 < rows; r1++) {
+            for (let c1 = 0; c1 < cols; c1++) {
+                if (engine.grid[r1][c1] !== CELL_REVEALED) continue;
+                const req1 = engine.adjacency[r1][c1];
+                const h1 = [];
+                let f1 = 0;
+
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = r1 + dr;
+                        const nc = c1 + dc;
+                        if (engine.isValid(nr, nc)) {
+                            if (engine.grid[nr][nc] === CELL_FLAGGED) f1++;
+                            else if (engine.grid[nr][nc] === CELL_HIDDEN) h1.push({ r: nr, c: nc });
+                        }
+                    }
+                }
+                const rem1 = req1 - f1;
+                if (h1.length === 0) continue;
+
+                // Vergleiche mit benachbarter Zahl
+                for (let dr = -2; dr <= 2; dr++) {
+                    for (let dc = -2; dc <= 2; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const r2 = r1 + dr;
+                        const c2 = c1 + dc;
+                        if (!engine.isValid(r2, c2) || engine.grid[r2][c2] !== CELL_REVEALED) continue;
+                        const req2 = engine.adjacency[r2][c2];
+                        const h2 = [];
+                        let f2 = 0;
+
+                        for (let ddr = -1; ddr <= 1; ddr++) {
+                            for (let ddc = -1; ddc <= 1; ddc++) {
+                                if (ddr === 0 && ddc === 0) continue;
+                                const nr2 = r2 + ddr;
+                                const nc2 = c2 + ddc;
+                                if (engine.isValid(nr2, nc2)) {
+                                    if (engine.grid[nr2][nc2] === CELL_FLAGGED) f2++;
+                                    else if (engine.grid[nr2][nc2] === CELL_HIDDEN) h2.push({ r: nr2, c: nc2 });
+                                }
+                            }
+                        }
+                        const rem2 = req2 - f2;
+
+                        // Ist h1 eine echte Teilmenge von h2?
+                        const isSubset = h1.every(c => h2.some(c2 => c2.r === c.r && c2.c === c.c));
+                        if (isSubset && h2.length > h1.length) {
+                            const diff = h2.filter(c => !h1.some(c1 => c1.r === c.r && c1.c === c.c));
+                            if (rem2 === rem1 && diff.length > 0) {
+                                // Alle Zellen in diff sind sicher!
+                                const target = diff[0];
+                                return {
+                                    strategy: 'Mengen-Ausschluss (1-1)',
+                                    title: 'Logischer Ausschluss',
+                                    message: `Durch Vergleich der Zahlen bei (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}) ist das Feld bei Zeile ${target.r + 1}, Spalte ${target.c + 1} garantiert sicher!`,
+                                    r: target.r,
+                                    c: target.c,
+                                    value: CELL_REVEALED,
+                                    expectedVal: CELL_REVEALED,
+                                    highlightCells: [{ r: r1, c: c1 }, { r: r2, c: c2 }, target]
+                                };
+                            } else if (rem2 - rem1 === diff.length && diff.length > 0) {
+                                // Alle Zellen in diff müssen Minen sein!
+                                const target = diff[0];
+                                return {
+                                    strategy: 'Mengen-Ausschluss (1-2)',
+                                    title: 'Zwingende Minen durch Überlappung',
+                                    message: `Durch Vergleich der Zahlen bei (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}) muss das Feld bei Zeile ${target.r + 1}, Spalte ${target.c + 1} eine Mine sein!`,
+                                    r: target.r,
+                                    c: target.c,
+                                    value: CELL_FLAGGED,
+                                    expectedVal: CELL_FLAGGED,
+                                    highlightCells: [{ r: r1, c: c1 }, { r: r2, c: c2 }, target]
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Fallback: Sicheres Feld aus der tatsächlichen Lösung aufdecken
+        // (Für den ersten Klick oder wenn keine rein lokale Deduktion mehr möglich ist)
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (engine.grid[r][c] === CELL_HIDDEN && !engine.mines[r][c]) {
+                    return {
+                        strategy: 'Sicherer Zug',
+                        title: 'Sichere Zelle',
+                        message: `Hier bei Zeile ${r + 1}, Spalte ${c + 1} liegt keine Mine. Du kannst das Feld gefahrlos aufdecken!`,
+                        r,
+                        c,
+                        value: CELL_REVEALED,
+                        expectedVal: CELL_REVEALED,
+                        highlightCells: [{ r, c }]
+                    };
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+// === Source: js\puzzles\minesweeper\generator.js ===
+/**
+ * Minesweeper Puzzle Generator
+ * Erzeugt deterministische Minenfelder basierend auf Seed, Größe und Schwierigkeitsgrad.
+ */
+
+
+
+class MinesweeperGenerator {
+    /**
+     * Deterministischer PRNG aus Seed
+     */
+    static seededRandom(seed) {
+        let s = Math.abs(seed) || 1;
+        return function () {
+            s = (s * 9301 + 49297) % 233280;
+            return s / 233280;
+        };
+    }
+
+    /**
+     * Ermittelt die Standard-Minenanzahl für ein gegebenes Gitter und Schwierigkeit
+     */
+    static getStandardMineCount(rows, cols, difficulty = 'medium') {
+        const totalCells = rows * cols;
+        let density = 0.15; // medium default ~15%
+
+        if (difficulty === 'easy') {
+            density = 0.12;
+        } else if (difficulty === 'hard') {
+            density = 0.20;
+        }
+
+        const count = Math.round(totalCells * density);
+        return Math.max(1, Math.min(count, totalCells - 1));
+    }
+
+    /**
+     * Erzeugt ein deterministisches Minenfeld
+     */
+    static generatePuzzle({ rows = 8, cols = 8, size, difficulty = 'medium', mineCount, seed = 12345 }) {
+        const actualRows = rows || size || 8;
+        const actualCols = cols || size || actualRows;
+        const totalCells = actualRows * actualCols;
+
+        const count = mineCount !== undefined ? mineCount : this.getStandardMineCount(actualRows, actualCols, difficulty);
+        const actualMineCount = Math.max(1, Math.min(count, totalCells - 1));
+
+        const rng = this.seededRandom(seed);
+
+        // Erstelle Liste aller Zellen-Indizes und mische sie deterministisch (Fisher-Yates)
+        const indices = Array.from({ length: totalCells }, (_, i) => i);
+        for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            const tmp = indices[i];
+            indices[i] = indices[j];
+            indices[j] = tmp;
+        }
+
+        // Minen an den ersten `actualMineCount` Positionen platzieren
+        const mines = Array(actualRows).fill(0).map(() => Array(actualCols).fill(false));
+        for (let i = 0; i < actualMineCount; i++) {
+            const idx = indices[i];
+            const r = Math.floor(idx / actualCols);
+            const c = idx % actualCols;
+            mines[r][c] = true;
+        }
+
+        // Engine zur Berechnung von Adjacency und Solution nutzen
+        const engine = new MinesweeperEngine(actualRows, actualCols, actualMineCount);
+        engine.loadPuzzle({ rows: actualRows, cols: actualCols, mines, mineCount: actualMineCount });
+
+        return {
+            rows: actualRows,
+            cols: actualCols,
+            size: Math.max(actualRows, actualCols),
+            mineCount: actualMineCount,
+            mines: engine.mines.map(r => [...r]),
+            adjacency: engine.adjacency.map(r => [...r]),
+            solution: engine.mines.map(row => row.map(isMine => (isMine ? 1 : 0)))
+        };
+    }
+}
+
+// === Source: js\puzzles\minesweeper\renderer.js ===
+/**
+ * Minesweeper Visual Renderer
+ * Zeichnet das Minenfeld, Zellzustände (verdeckt, aufgedeckt, Flaggen, Minen, Explosionen),
+ * Zahlenfarben und Animationen.
+ */
+
+
+
+
+function getFlagSvg(extraClass = '') {
+    return `<svg class="minesweeper-symbol minesweeper-flag ${extraClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" fill="#ef4444" stroke="#ef4444" />
+        <line x1="4" y1="22" x2="4" y2="15" stroke="currentColor" stroke-width="2.5" />
+    </svg>`;
+}
+
+function getMineSvg(extraClass = '') {
+    return `<svg class="minesweeper-symbol minesweeper-mine ${extraClass}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <circle cx="12" cy="12" r="6" fill="currentColor"/>
+        <line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="10" cy="10" r="1.5" fill="#ffffff" opacity="0.8"/>
+    </svg>`;
+}
+
+function getExplosionSvg(extraClass = '') {
+    return `<svg class="minesweeper-symbol minesweeper-explosion ${extraClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M12 2l2.4 5.6L20 8l-4 4.5 1.2 5.9-5.2-3.2L6.8 18.4 8 12.5 4 8l5.6-.4L12 2z" fill="#f97316" stroke="#ef4444"/>
+        <circle cx="12" cy="12" r="3" fill="#fbbf24"/>
+    </svg>`;
+}
+
+class MinesweeperRenderer {
+    static getSymbolSvg(val, extraClass = '') {
+        if (val === 'flag' || val === CELL_FLAGGED) return getFlagSvg(extraClass);
+        if (val === 'mine' || val === CELL_EXPLODED) return getMineSvg(extraClass);
+        return '';
+    }
+
+    static renderBoard(container, engine, state, onCellInteraction) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        const rows = engine.rows;
+        const cols = engine.cols;
+
+        const gridEl = document.createElement('div');
+        gridEl.className = `minesweeper-grid size-${rows}x${cols}`;
+        gridEl.style.setProperty('--grid-rows', rows);
+        gridEl.style.setProperty('--grid-cols', cols);
+
+        const isGameOver = engine.status === 'lost' || state.solutionRevealed;
+        const isGameWon = engine.status === 'won';
+
+        for (let r = 0; r < rows; r++) {
+            const rowEl = document.createElement('div');
+            rowEl.className = 'grid-row minesweeper-row';
+
+            for (let c = 0; c < cols; c++) {
+                const cellEl = document.createElement('div');
+                cellEl.className = 'grid-cell minesweeper-cell';
+                cellEl.dataset.r = r;
+                cellEl.dataset.c = c;
+
+                const val = engine.grid[r][c];
+                const isMine = engine.mines[r][c];
+                const adj = engine.adjacency[r][c];
+
+                const isSelected = !isGameOver && state.selectedCell && state.selectedCell.r === r && state.selectedCell.c === c;
+                const isHintShimmer = !isGameOver && state.hintPlacedCell && state.hintPlacedCell.r === r && state.hintPlacedCell.c === c;
+
+                if (isSelected) cellEl.classList.add('selected');
+                if (isHintShimmer) cellEl.classList.add('hint-shimmer');
+
+                if (isGameOver) {
+                    // Spielende durch Mine oder Lösung anzeigen
+                    if (val === CELL_EXPLODED) {
+                        cellEl.classList.add('cell-exploded');
+                        cellEl.innerHTML = getExplosionSvg('icon-exploded');
+                    } else if (isMine) {
+                        if (val === CELL_FLAGGED) {
+                            cellEl.classList.add('cell-flagged', 'cell-flagged-correct');
+                            cellEl.innerHTML = getFlagSvg('icon-flag');
+                        } else {
+                            cellEl.classList.add('cell-mine-revealed');
+                            cellEl.innerHTML = getMineSvg('icon-mine');
+                        }
+                    } else if (val === CELL_FLAGGED && !isMine) {
+                        // Falsch gesetzte Flagge
+                        cellEl.classList.add('cell-flagged-wrong');
+                        cellEl.innerHTML = `<span class="wrong-flag-cross">✕</span>${getFlagSvg('icon-flag-dim')}`;
+                    } else if (val === CELL_REVEALED) {
+                        cellEl.classList.add('cell-revealed');
+                        if (adj > 0) {
+                            cellEl.classList.add(`mine-count-${adj}`);
+                            cellEl.innerHTML = `<span class="cell-number">${adj}</span>`;
+                        }
+                    } else {
+                        // Verdeckt gebliebene sichere Zelle
+                        cellEl.classList.add('cell-hidden-over');
+                        if (adj > 0) {
+                            cellEl.innerHTML = `<span class="cell-ghost-number">${adj}</span>`;
+                        }
+                    }
+                } else if (isGameWon) {
+                    // Gewonnen!
+                    if (isMine) {
+                        cellEl.classList.add('cell-flagged', 'cell-won');
+                        cellEl.innerHTML = getFlagSvg('icon-flag');
+                    } else {
+                        cellEl.classList.add('cell-revealed');
+                        if (adj > 0) {
+                            cellEl.classList.add(`mine-count-${adj}`);
+                            cellEl.innerHTML = `<span class="cell-number">${adj}</span>`;
+                        }
+                    }
+                } else {
+                    // Regulärer Spielzustand
+                    if (val === CELL_REVEALED) {
+                        cellEl.classList.add('cell-revealed');
+                        if (adj > 0) {
+                            cellEl.classList.add(`mine-count-${adj}`);
+                            cellEl.innerHTML = `<span class="cell-number">${adj}</span>`;
+                        }
+                    } else if (val === CELL_FLAGGED) {
+                        cellEl.classList.add('cell-flagged');
+                        cellEl.innerHTML = getFlagSvg('icon-flag');
+                    } else {
+                        // CELL_HIDDEN
+                        cellEl.classList.add('cell-hidden');
+                    }
+                }
+
+                if (typeof onCellInteraction === 'function') {
+                    onCellInteraction(cellEl, r, c);
+                }
+
+                rowEl.appendChild(cellEl);
+            }
+            gridEl.appendChild(rowEl);
+        }
+
+        container.appendChild(gridEl);
+    }
+
+    static renderKeypad(container, engine, state, onKeyInput) {
+        if (!container) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        const pad = document.createElement('div');
+        pad.className = 'minesweeper-keypad';
+
+        const btnReveal = document.createElement('button');
+        btnReveal.className = 'minesweeper-action-btn reveal-btn active';
+        btnReveal.innerHTML = `<span class="btn-icon">⛏️</span><span class="btn-label">Aufdecken</span>`;
+        btnReveal.addEventListener('click', () => {
+            if (typeof onKeyInput === 'function') onKeyInput(CELL_REVEALED);
+        });
+
+        const btnFlag = document.createElement('button');
+        btnFlag.className = 'minesweeper-action-btn flag-btn';
+        btnFlag.innerHTML = `<span class="btn-icon">🚩</span><span class="btn-label">Flagge</span>`;
+        btnFlag.addEventListener('click', () => {
+            if (typeof onKeyInput === 'function') onKeyInput(CELL_FLAGGED);
+        });
+
+        pad.appendChild(btnReveal);
+        pad.appendChild(btnFlag);
+        container.appendChild(pad);
+    }
+
+    static getRulesHtml(lang = 'de') {
+        const t = MINESWEEPER_I18N[lang] || MINESWEEPER_I18N.de;
+        return `
+            <div class="rules-modal-content minesweeper-rules">
+                <h3>${t.minesweeper_rules_title}</h3>
+                <p>${t.minesweeper_rules_p1}</p>
+                <ul>
+                    <li><strong>Zahlen:</strong> ${t.minesweeper_rules_p2}</li>
+                    <li><strong>0er-Kettenreaktion:</strong> ${t.minesweeper_rules_p3}</li>
+                    <li><strong>Flaggen:</strong> ${t.minesweeper_rules_p4}</li>
+                </ul>
+                <div class="rules-example-box" style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                    <div class="minesweeper-cell cell-revealed mine-count-1" style="width: 44px; height: 44px; display:flex; align-items:center; justify-content:center; border-radius:6px; font-weight:bold; font-size:1.4rem;">1</div>
+                    <div class="minesweeper-cell cell-revealed mine-count-2" style="width: 44px; height: 44px; display:flex; align-items:center; justify-content:center; border-radius:6px; font-weight:bold; font-size:1.4rem;">2</div>
+                    <div class="minesweeper-cell cell-revealed mine-count-3" style="width: 44px; height: 44px; display:flex; align-items:center; justify-content:center; border-radius:6px; font-weight:bold; font-size:1.4rem;">3</div>
+                    <div class="minesweeper-cell cell-flagged" style="width: 44px; height: 44px; display:flex; align-items:center; justify-content:center; border-radius:6px;">${getFlagSvg('')}</div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// === Source: js\puzzles\minesweeper\data\i18n.js ===
+/**
+ * Minesweeper Lokalisierungs-Strings (Deutsch & Englisch)
+ */
+
+const MINESWEEPER_I18N = {
+    de: {
+        puzzle_minesweeper_name: 'Minesweeper',
+        puzzle_minesweeper_desc: 'Klassisches Minenfeld mit Zahlenhinweisen & Flaggen',
+        minesweeper_mines_remaining: 'Verbleibende Minen',
+        minesweeper_action_reveal: 'Aufdecken',
+        minesweeper_action_flag: 'Flagge',
+        minesweeper_game_over: 'Mine getroffen!',
+        minesweeper_game_over_desc: 'Du bist auf eine Mine getreten. Versuche es gleich noch einmal!',
+        minesweeper_rules_title: 'Minesweeper Regeln',
+        minesweeper_rules_p1: 'Das Ziel ist es, alle minenfreien Felder aufzudecken, ohne eine Mine zu detonieren.',
+        minesweeper_rules_p2: 'Zahlen auf aufgedeckten Feldern verraten, wie viele Minen sich in den 8 angrenzenden Feldern befinden.',
+        minesweeper_rules_p3: 'Felder mit einer 0 decken automatisch alle angrenzenden sicheren Bereiche per Kettenreaktion auf.',
+        minesweeper_rules_p4: 'Halte ein verdecktes Feld gedrückt (Long-Press), um eine rote Flagge 🚩 zu setzen und es vor versehentlichem Antippen zu schützen.'
+    },
+    en: {
+        puzzle_minesweeper_name: 'Minesweeper',
+        puzzle_minesweeper_desc: 'Classic minefield with number clues & flags',
+        minesweeper_mines_remaining: 'Remaining Mines',
+        minesweeper_action_reveal: 'Reveal',
+        minesweeper_action_flag: 'Flag',
+        minesweeper_game_over: 'Mine detonated!',
+        minesweeper_game_over_desc: 'You stepped on a mine. Try again!',
+        minesweeper_rules_title: 'Minesweeper Rules',
+        minesweeper_rules_p1: 'The goal is to reveal all safe cells without detonating any mine.',
+        minesweeper_rules_p2: 'Numbers on revealed cells show how many mines are hidden in the 8 adjacent cells.',
+        minesweeper_rules_p3: 'Cells with a 0 automatically reveal all adjacent safe areas in a chain reaction.',
+        minesweeper_rules_p4: 'Long-press any hidden cell to plant a red flag 🚩 and protect it from accidental taps.'
+    }
+};
+
+// === Source: js\puzzles\minesweeper\data\levels.js ===
+/**
+ * Minesweeper Level & Tagesrätsel-Generierung
+ * 120 Kampagnen-Level in 4 Kapiteln + tägliche Puzzles
+ */
+
+
+
+function getMinesweeperCampaignLevel(levelIndex) {
+    let rows, cols, difficulty;
+
+    if (levelIndex < 10) {
+        // Kapitel 1: Level 1–10 (8×8 Einfach, ca. 7 Minen)
+        rows = 8;
+        cols = 8;
+        difficulty = 'easy';
+    } else if (levelIndex < 20) {
+        // Kapitel 1: Level 11–20 (8×8 Mittel, ca. 10 Minen)
+        rows = 8;
+        cols = 8;
+        difficulty = 'medium';
+    } else if (levelIndex < 30) {
+        // Kapitel 1: Level 21–30 (8×8 Schwer, ca. 13 Minen)
+        rows = 8;
+        cols = 8;
+        difficulty = 'hard';
+    } else if (levelIndex < 45) {
+        // Kapitel 2: Level 31–45 (12×12 Mittel, ca. 22 Minen)
+        rows = 12;
+        cols = 12;
+        difficulty = 'medium';
+    } else if (levelIndex < 60) {
+        // Kapitel 2: Level 46–60 (12×12 Schwer, ca. 29 Minen)
+        rows = 12;
+        cols = 12;
+        difficulty = 'hard';
+    } else if (levelIndex < 75) {
+        // Kapitel 3: Level 61–75 (16×16 Mittel, ca. 38 Minen)
+        rows = 16;
+        cols = 16;
+        difficulty = 'medium';
+    } else if (levelIndex < 90) {
+        // Kapitel 3: Level 76–90 (16×16 Schwer, ca. 51 Minen)
+        rows = 16;
+        cols = 16;
+        difficulty = 'hard';
+    } else if (levelIndex < 105) {
+        // Kapitel 4: Level 91–105 (16×30 Mittel, ca. 72 Minen)
+        rows = 16;
+        cols = 30;
+        difficulty = 'medium';
+    } else {
+        // Kapitel 4: Level 106–120 (16×30 Meister, ca. 96 Minen)
+        rows = 16;
+        cols = 30;
+        difficulty = 'hard';
+    }
+
+    // Deterministischer Seed pro Level
+    const seed = 7000 + (levelIndex + 1) * 137;
+    const generated = MinesweeperGenerator.generatePuzzle({ rows, cols, difficulty, seed });
+
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1}`,
+        ...generated
+    };
+}
+
+/**
+ * Erzeugt das synchrone Tagesrätsel basierend auf dem Datum (JJJJ-MM-TT)
+ */
+function getMinesweeperDailyPuzzle(dateStr) {
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10);
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+
+    const rows = isWeekend ? 16 : 12;
+    const cols = isWeekend ? 16 : 12;
+    const difficulty = isWeekend ? 'hard' : 'medium';
+
+    const generated = MinesweeperGenerator.generatePuzzle({ rows, cols, difficulty, seed });
+    return {
+        id: `daily_${dateStr}`,
+        date: dateStr,
+        name: `Tagesrätsel (${dateStr})`,
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\minesweeper\data\tutorial.js ===
+/**
+ * Minesweeper Tutorial Lektionen (Didaktischer Aufbau)
+ * Jedes Tutorial-Level besitzt ein fest definiertes Minenfeld mit eindeutiger Lösung.
+ */
+
+
+
+const MINESWEEPER_TUTORIAL_STEPS = [
+    {
+        id: 1,
+        title: 'Das Minenfeld & Erste Schritte',
+        subtitle: 'Was bedeuten die Zahlen?',
+        description: 'Willkommen bei **Minesweeper**! Das Ziel ist es, alle sicheren Felder aufzudecken, ohne eine Mine zu treffen. Eine Zahl zeigt an, wie viele Minen sich in den **8 angrenzenden Nachbarfeldern** verbergen. Tippe auf ein verdecktes Feld, um es aufzudecken.',
+        size: 4,
+        rows: 4,
+        cols: 4,
+        mineCount: 1,
+        mines: [
+            [true, false, false, false],
+            [false, false, false, false],
+            [false, false, false, false],
+            [false, false, false, false]
+        ],
+        adjacency: [
+            [-1, 1, 0, 0],
+            [1, 1, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        initialGrid: [
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN],
+            [CELL_HIDDEN, CELL_REVEALED, CELL_HIDDEN, CELL_HIDDEN],
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN],
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN]
+        ],
+        solution: [
+            [1, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        explanation: 'Klasse! Du hast verstanden, wie Zahlen Auskunft über benachbarte Minen geben.'
+    },
+    {
+        id: 2,
+        title: 'Flaggen setzen (Long-Press)',
+        subtitle: 'Markiere vermutete Minen',
+        description: 'Wenn du sicher bist, dass unter einem Feld eine Mine liegt, halte das Feld **lange gedrückt** (Long-Press), um eine **rote Flagge 🚩** zu setzen. Flaggen schützen das Feld vor versehentlichem Antippen!',
+        size: 3,
+        rows: 3,
+        cols: 3,
+        mineCount: 1,
+        mines: [
+            [false, false, false],
+            [false, false, false],
+            [false, false, true]
+        ],
+        adjacency: [
+            [0, 0, 0],
+            [0, 1, 1],
+            [0, 1, -1]
+        ],
+        initialGrid: [
+            [CELL_REVEALED, CELL_REVEALED, CELL_REVEALED],
+            [CELL_REVEALED, CELL_REVEALED, CELL_HIDDEN],
+            [CELL_REVEALED, CELL_HIDDEN, CELL_HIDDEN]
+        ],
+        solution: [
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 1]
+        ],
+        explanation: 'Hervorragend! Mit der Flagge hast du die Mine sicher unschädlich markiert.'
+    },
+    {
+        id: 3,
+        title: 'Kettenreaktion (Die Null)',
+        subtitle: 'Automatische Freilegung',
+        description: 'Felder mit einer **0** haben keinerlei Minen in ihrer Nachbarschaft. Wenn du ein 0-Feld aufdeckst, werden automatisch alle angrenzenden sicheren Felder aufgedeckt (**Flood-Fill**). Tippe auf das Feld in der Mitte!',
+        size: 4,
+        rows: 4,
+        cols: 4,
+        mineCount: 2,
+        mines: [
+            [true, false, false, true],
+            [false, false, false, false],
+            [false, false, false, false],
+            [false, false, false, false]
+        ],
+        adjacency: [
+            [-1, 1, 1, -1],
+            [1, 1, 1, 1],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        initialGrid: [
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN],
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN],
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN],
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN]
+        ],
+        solution: [
+            [1, 0, 0, 1],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        explanation: 'Fantastisch! Die Kettenreaktion hat dir auf einen Schlag viele sichere Felder geöffnet.'
+    },
+    {
+        id: 4,
+        title: 'Ecken & Randlogik',
+        subtitle: 'Weniger Nachbarn am Rand',
+        description: 'Ein Eckfeld hat nur **3 Nachbarn**, ein Randfeld nur **5**. Wenn eine Eckzelle eine "1" zeigt und nur noch ein verdecktes Feld angrenzt, muss dieses zwingend die Mine sein!',
+        size: 3,
+        rows: 3,
+        cols: 3,
+        mineCount: 1,
+        mines: [
+            [true, false, false],
+            [false, false, false],
+            [false, false, false]
+        ],
+        adjacency: [
+            [-1, 1, 0],
+            [1, 1, 0],
+            [0, 0, 0]
+        ],
+        initialGrid: [
+            [CELL_HIDDEN, CELL_REVEALED, CELL_REVEALED],
+            [CELL_REVEALED, CELL_REVEALED, CELL_REVEALED],
+            [CELL_REVEALED, CELL_REVEALED, CELL_REVEALED]
+        ],
+        solution: [
+            [1, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0]
+        ],
+        explanation: 'Sehr gut! An den Rändern lässt sich die Minenposition besonders schnell ableiten.'
+    },
+    {
+        id: 5,
+        title: 'Sicheres Aufdecken durch Flaggen',
+        subtitle: 'Vollständige Nachbarschaft nutzen',
+        description: 'Sobald du alle Minen um eine Zahl herum mit Flaggen 🚩 markiert hast, sind alle verbleibenden Nachbarfelder **garantiert sicher**. Decke sie gefahrlos auf!',
+        size: 3,
+        rows: 3,
+        cols: 3,
+        mineCount: 2,
+        mines: [
+            [true, false, true],
+            [false, false, false],
+            [false, false, false]
+        ],
+        adjacency: [
+            [-1, 2, -1],
+            [1, 2, 1],
+            [0, 0, 0]
+        ],
+        initialGrid: [
+            [CELL_FLAGGED, CELL_REVEALED, CELL_FLAGGED],
+            [CELL_HIDDEN, CELL_REVEALED, CELL_HIDDEN],
+            [CELL_REVEALED, CELL_REVEALED, CELL_REVEALED]
+        ],
+        solution: [
+            [1, 0, 1],
+            [0, 0, 0],
+            [0, 0, 0]
+        ],
+        explanation: 'Perfekt! Du weißt jetzt, wie du bekannte Minen nutzt, um neue sichere Felder freizulegen.'
+    },
+    {
+        id: 6,
+        title: 'Deine erste Mission',
+        subtitle: 'Meistere ein ganzes Mini-Minenfeld',
+        description: 'Nutze alles Gelernte: Decke sichere Felder auf, markiere Minen mit Flaggen und löse das gesamte 4×4 Minenfeld!',
+        size: 4,
+        rows: 4,
+        cols: 4,
+        mineCount: 2,
+        mines: [
+            [false, false, false, false],
+            [false, true, false, false],
+            [false, false, true, false],
+            [false, false, false, false]
+        ],
+        adjacency: [
+            [1, 1, 1, 0],
+            [1, -1, 2, 1],
+            [1, 2, -1, 1],
+            [0, 1, 1, 1]
+        ],
+        initialGrid: [
+            [CELL_REVEALED, CELL_HIDDEN, CELL_HIDDEN, CELL_REVEALED],
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN],
+            [CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN, CELL_HIDDEN],
+            [CELL_REVEALED, CELL_HIDDEN, CELL_HIDDEN, CELL_REVEALED]
+        ],
+        solution: [
+            [0, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 0]
+        ],
+        explanation: 'Bravo! Du hast die Grundlagen von Minesweeper vollständig gemeistert.'
+    }
+];
+
+// === Source: js\puzzles\minesweeper\index.js ===
+/**
+ * Minesweeper Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für klassisches Minesweeper.
+ */
+
+
+
+
+
+
+
+
+
+const MinesweeperPlugin = {
+    id: 'minesweeper',
+    name: 'Minesweeper',
+    icon: '🚩',
+    description: 'Minenfeld mit Zahlenhinweisen & Flaggen',
+    cssPath: './css/puzzles/minesweeper.css',
+
+    getSizes: () => [
+        { id: 8, label: '8 × 8 (Kompakt)', gridSize: 8, rows: 8, cols: 8 },
+        { id: 12, label: '12 × 12 (Standard)', gridSize: 12, rows: 12, cols: 12 },
+        { id: 16, label: '16 × 16 (Groß)', gridSize: 16, rows: 16, cols: 16 },
+        { id: 30, label: '16 × 30 (Meister)', gridSize: 30, rows: 16, cols: 30 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [CELL_HIDDEN, CELL_REVEALED, CELL_FLAGGED],
+
+    getInputConfig: () => ({
+        type: 'cycle',
+        allowKeypad: false,
+        keys: [CELL_REVEALED, CELL_FLAGGED]
+    }),
+
+    createEngine: (size = 8) => {
+        if (size === 30) {
+            return new MinesweeperEngine(16, 30);
+        }
+        return new MinesweeperEngine(size, size);
+    },
+
+    generatePuzzle: (opts) => {
+        let rows = opts.rows || opts.size || 8;
+        let cols = opts.cols || opts.size || rows;
+        if (opts.size === 30) {
+            rows = 16;
+            cols = 30;
+        }
+        return MinesweeperGenerator.generatePuzzle({
+            rows,
+            cols,
+            difficulty: opts.difficulty || 'medium',
+            mineCount: opts.mineCount,
+            seed: opts.seed || Math.floor(Math.random() * 1000000)
+        });
+    },
+
+    solvePuzzle: (engine, max = 1) => MinesweeperSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => MinesweeperRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => MinesweeperRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass) => MinesweeperRenderer.getSymbolSvg(val, extraClass),
+
+    getHint: (engine, options) => MinesweeperSolver.findLogicalHint(engine, options),
+    getRules: (lang) => MinesweeperRenderer.getRulesHtml(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 120,
+        chapters: [
+            { id: 0, name: 'Rekrut (8×8)', levelRange: [0, 29], desc: '8×8 Grundlagen & Einstieg' },
+            { id: 1, name: 'Pionier (12×12)', levelRange: [30, 59], desc: '12×12 Mittlere Minenfelder' },
+            { id: 2, name: 'Experte (16×16)', levelRange: [60, 89], desc: '16×16 Große Herausforderungen' },
+            { id: 3, name: 'Meister (16×30)', levelRange: [90, 119], desc: '16×30 Das ultimative Minenfeld' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getMinesweeperCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getMinesweeperDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: MINESWEEPER_TUTORIAL_STEPS, badge: '6 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => MINESWEEPER_I18N[lang] || {}
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { MinesweeperPlugin };
+}
+
 // === Source: js\puzzles\nonogram\engine.js ===
 /**
  * Nonogram (Picross / Griddlers) Engine
@@ -40364,6 +41830,7 @@ const puzzleRegistry = new PuzzleRegistry();
 
 
 
+
 class CortexApp {
     constructor() {
         // Storage Migration
@@ -40375,6 +41842,7 @@ class CortexApp {
         puzzleRegistry.register(SlitherlinkPlugin);
         puzzleRegistry.register(SudokuPlugin);
         puzzleRegistry.register(TangoPlugin);
+        puzzleRegistry.register(MinesweeperPlugin);
 
         // Aktives Plugin laden
         const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
@@ -40499,6 +41967,8 @@ class CortexApp {
                 this.freePlaySize = 10;
             } else if (pluginId === 'tango') {
                 this.freePlaySize = 6;
+            } else if (pluginId === 'minesweeper') {
+                this.freePlaySize = 8;
             } else {
                 this.freePlaySize = sizes[0].id;
             }
@@ -41109,8 +42579,33 @@ class CortexApp {
             return;
         }
 
-        // Direktes Durchschalten (Cycle-Modus für Tango, Akari & Nonogram)
-        if (this.isNoteMode) {
+        // Direktes Durchschalten (Cycle-Modus für Tango, Akari & Nonogram, Tap-Aufdecken für Minesweeper)
+        if (this.activePlugin.id === 'minesweeper') {
+            if (this.isNoteMode) {
+                this.engine.toggleFlag(r, c);
+                audio.vibrate(30);
+                this.movesCount++;
+            } else {
+                const res = this.engine.reveal(r, c);
+                if (res) {
+                    this.movesCount++;
+                    if (res.result === 'defeat') {
+                        this.isGameActive = false;
+                        this.timer.stop();
+                        audio.playError();
+                        audio.vibrate(80);
+                        if (this.currentMode === 'campaign' || this.currentMode === 'free') {
+                            StatsManager.recordGame(this.activePlugin.id, this.engine.size, this.secondsElapsed, false);
+                        }
+                        this.renderGrid();
+                        this.clearActiveGameState();
+                        return;
+                    } else {
+                        audio.playClear();
+                    }
+                }
+            }
+        } else if (this.isNoteMode) {
             this.engine.cycleNoteValue(r, c);
             audio.vibrate(25);
         } else {
@@ -41167,6 +42662,10 @@ class CortexApp {
                 this.movesCount++;
                 audio.vibrate(30);
             }
+        } else if (this.activePlugin.id === 'minesweeper') {
+            this.engine.toggleFlag(r, c);
+            this.movesCount++;
+            audio.vibrate(30);
         }
 
         this.renderGrid();
@@ -41587,6 +43086,9 @@ class CortexApp {
                     } else if (this.activePlugin.id === 'nonogram') {
                         if (valToSet === 1) audio.playBulb ? audio.playBulb() : audio.playSun();
                         else audio.playClear();
+                    } else if (this.activePlugin.id === 'minesweeper') {
+                        if (valToSet === 1) audio.playClear();
+                        else audio.vibrate(30);
                     } else {
                         audio.playDigit(valToSet);
                     }
@@ -41781,6 +43283,16 @@ class CortexApp {
                 vEdges: this.engine.vEdges,
                 solution: this.engine.solution
             };
+        } else if (this.activePlugin.id === 'minesweeper') {
+            return {
+                size: this.engine.size,
+                rows: this.engine.rows,
+                cols: this.engine.cols,
+                mineCount: this.engine.mineCount,
+                mines: this.engine.mines,
+                initialGrid: this.engine.initialGrid,
+                solution: this.engine.solution
+            };
         }
         return null;
     }
@@ -41870,6 +43382,9 @@ class CortexApp {
         }
         if (Array.isArray(session.engineState?.redoStack)) {
             this.engine.redoStack = session.engineState.redoStack;
+        }
+        if (typeof this.engine.recalculateCounts === 'function') {
+            this.engine.recalculateCounts();
         }
 
         this.secondsElapsed = session.secondsElapsed || 0;
@@ -42188,10 +43703,13 @@ class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
         const akariStats = StatsManager.getPuzzleStats('akari');
+        const nonogramStats = StatsManager.getPuzzleStats('nonogram');
+        const slitherlinkStats = StatsManager.getPuzzleStats('slitherlink');
+        const minesweeperStats = StatsManager.getPuzzleStats('minesweeper');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -42202,6 +43720,12 @@ class CortexApp {
             displayStats = sudokuStats;
         } else if (currentTab === 'akari') {
             displayStats = akariStats;
+        } else if (currentTab === 'nonogram') {
+            displayStats = nonogramStats;
+        } else if (currentTab === 'slitherlink') {
+            displayStats = slitherlinkStats;
+        } else if (currentTab === 'minesweeper') {
+            displayStats = minesweeperStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -42245,6 +43769,13 @@ class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 10, labelKey: 'stats_best_time_10' },
                     { id: 14, labelKey: 'stats_best_time_14' }
+                ];
+            } else if (currentTab === 'minesweeper') {
+                sizesToShow = [
+                    { id: 8, labelKey: 'stats_best_time_8' },
+                    { id: 12, labelKey: 'stats_best_time_12' },
+                    { id: 16, labelKey: 'stats_best_time_16' },
+                    { id: 30, labelKey: 'stats_best_time_30' }
                 ];
             } else {
                 // Gesamt-Tab

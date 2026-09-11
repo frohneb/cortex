@@ -1,0 +1,207 @@
+/* ==========================================================================
+   Minesweeper Puzzle Specific Stylesheet (Cortex)
+   ========================================================================== */
+
+.minesweeper-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100%;
+    height: 100%;
+    max-width: 480px;
+    max-height: 480px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 30px var(--shadow-color);
+    border: 2.5px solid var(--accent-red, #ef4444) !important;
+    box-sizing: border-box;
+    padding: 6px;
+    gap: 3px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+/* 16x30 Breitformat / Meister-Modus */
+.minesweeper-grid.size-16x30 {
+    aspect-ratio: unset !important;
+    max-width: 100% !important;
+    max-height: 90vh !important;
+    overflow: auto;
+    padding: 4px;
+    gap: 2px;
+}
+
+body.theme-cyberpunk .minesweeper-grid {
+    border-color: #ff0055 !important;
+    box-shadow: 0 0 25px rgba(255, 0, 85, 0.4);
+}
+
+body.theme-minimal .minesweeper-grid {
+    border-color: var(--border-color) !important;
+}
+
+.minesweeper-row {
+    display: flex !important;
+    flex-direction: row !important;
+    flex: 1;
+    gap: 3px;
+    width: 100%;
+}
+
+.minesweeper-grid.size-16x30 .minesweeper-row {
+    gap: 2px;
+}
+
+/* Basis-Zelle */
+.minesweeper-cell {
+    position: relative;
+    flex: 1;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-weight: 800;
+    border-radius: 6px;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: transform 0.1s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Verdeckte Zelle (3D-Look & Haptik) */
+.minesweeper-cell.cell-hidden {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%), var(--bg-tertiary, #2a2d36);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.minesweeper-cell.cell-hidden:hover {
+    transform: translateY(-1px);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%), var(--bg-tertiary, #2a2d36);
+}
+
+.minesweeper-cell.cell-hidden:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Aufgedeckte Zelle */
+.minesweeper-cell.cell-revealed {
+    background: var(--bg-primary, #181a20);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    animation: cell-reveal-pop 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes cell-reveal-pop {
+    0% { transform: scale(0.92); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Flaggen */
+.minesweeper-cell.cell-flagged {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    animation: flag-plant-bounce 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes flag-plant-bounce {
+    0% { transform: scale(0.7); }
+    70% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
+
+.minesweeper-symbol {
+    width: 68%;
+    height: 68%;
+    display: block;
+}
+
+/* Explosion bei Minentreffer */
+.minesweeper-cell.cell-exploded {
+    background: radial-gradient(circle, #ef4444 0%, #991b1b 100%) !important;
+    border-color: #fca5a5 !important;
+    box-shadow: 0 0 15px #ef4444, inset 0 0 8px #fef08a !important;
+    animation: mine-shake 0.4s ease;
+    z-index: 2;
+}
+
+@keyframes mine-shake {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    20% { transform: translate(-3px, 2px) scale(1.08); }
+    40% { transform: translate(3px, -2px) scale(1.08); }
+    60% { transform: translate(-2px, -2px) scale(1.04); }
+    80% { transform: translate(2px, 2px) scale(1.02); }
+}
+
+/* Aufgedeckte Minen bei Game Over */
+.minesweeper-cell.cell-mine-revealed {
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Falsch gesetzte Flaggen bei Game Over */
+.minesweeper-cell.cell-flagged-wrong {
+    background: rgba(239, 68, 68, 0.25);
+    border: 1px dashed #ef4444;
+}
+
+.wrong-flag-cross {
+    position: absolute;
+    color: #ef4444;
+    font-size: 1.2rem;
+    font-weight: 900;
+    z-index: 3;
+}
+
+/* Zahlenfarben 1–8 */
+.minesweeper-cell.mine-count-1 { color: #3b82f6; text-shadow: 0 0 8px rgba(59, 130, 246, 0.35); }
+.minesweeper-cell.mine-count-2 { color: #10b981; text-shadow: 0 0 8px rgba(16, 185, 129, 0.35); }
+.minesweeper-cell.mine-count-3 { color: #ef4444; text-shadow: 0 0 8px rgba(239, 68, 68, 0.35); }
+.minesweeper-cell.mine-count-4 { color: #818cf8; text-shadow: 0 0 8px rgba(129, 140, 248, 0.35); }
+.minesweeper-cell.mine-count-5 { color: #f97316; text-shadow: 0 0 8px rgba(249, 115, 22, 0.35); }
+.minesweeper-cell.mine-count-6 { color: #06b6d4; text-shadow: 0 0 8px rgba(6, 182, 212, 0.35); }
+.minesweeper-cell.mine-count-7 { color: #e2e8f0; text-shadow: 0 0 8px rgba(226, 232, 240, 0.35); }
+.minesweeper-cell.mine-count-8 { color: #94a3b8; }
+
+/* Größenabhängige Schriftgrade */
+.minesweeper-grid.size-8x8 .minesweeper-cell { font-size: clamp(1.2rem, 4.5vw, 1.8rem); border-radius: 8px; }
+.minesweeper-grid.size-12x12 .minesweeper-cell { font-size: clamp(0.9rem, 3.2vw, 1.35rem); border-radius: 6px; }
+.minesweeper-grid.size-16x16 .minesweeper-cell { font-size: clamp(0.75rem, 2.4vw, 1.05rem); border-radius: 4px; }
+.minesweeper-grid.size-16x30 .minesweeper-cell { font-size: clamp(0.65rem, 1.8vw, 0.9rem); border-radius: 3px; min-width: 22px; min-height: 22px; }
+
+/* Keypad Aktionen */
+.minesweeper-keypad {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    width: 100%;
+    max-width: 400px;
+    margin: 10px auto;
+}
+
+.minesweeper-action-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 18px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.minesweeper-action-btn.active {
+    background: var(--accent-gradient, linear-gradient(135deg, #ef4444 0%, #dc2626 100%));
+    color: #ffffff;
+    border-color: transparent;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+}
