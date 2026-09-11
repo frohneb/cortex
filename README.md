@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.4.0-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.4.1-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -80,6 +80,9 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.4.1 – 2026-09-11
+* **Puzzleauswahl-Menü bereinigt**: Das Auswahl-Modal wurde auf die 6 vollständig implementierten und spielbaren Logikrätsel (**Tango**, **Sudoku**, **Akari**, **Nonogramm**, **Slitherlink** und **Minesweeper**) fokussiert; nicht-implementierte Platzhalterkarten ("Demnächst") wurden entfernt.
 
 ### v2.4.0 – 2026-09-11
 * **Neues Puzzle-Plugin: Minesweeper (🚩)**: Vollständige Integration von klassischem Minesweeper mit 120 Kampagnen-Leveln in 4 Kapiteln, täglichem synchronen Rätsel und freiem Spiel (8×8 bis 16×30 Meister-Format).

@@ -42036,24 +42036,6 @@ class CortexApp {
             });
             grid.appendChild(card);
         }
-
-        // Vorschau auf kommende Puzzles
-        const upcoming = [
-            { name: 'Star Battle', icon: '⭐', desc: 'Sternenschlacht & Regionen' },
-            { name: 'Futoshiki', icon: '📐', desc: 'Ungleichungs-Gitter' },
-            { name: 'Tents & Trees', icon: '⛺', desc: 'Zelte & Bäume' }
-        ];
-        for (const u of upcoming) {
-            const card = document.createElement('div');
-            card.className = 'puzzle-select-card coming-soon';
-            card.innerHTML = `
-                <span class="puzzle-icon">${u.icon}</span>
-                <span class="puzzle-name">${u.name}</span>
-                <span class="puzzle-desc">${u.desc}</span>
-                <span class="puzzle-badge" style="background:rgba(255,255,255,0.1); border-color:var(--border-color); color:var(--text-secondary);">Demnächst</span>
-            `;
-            grid.appendChild(card);
-        }
     }
 
     updateI18n() {
