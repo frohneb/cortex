@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.4.1-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.4.2-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -18,14 +18,8 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Sudoku**: Klassisches 9×9 sowie 4×4 (Mini) und 16×16 (Monster-Sudoku) mit passgenauen Blockkammern (2×2, 3×3, 4×4).
   - **Akari (Light Up / Glühbirnen)**: Größen von 6×6 bis 14×14 mit Lichtstrahlen-Glow, Wand-Nachbarschaftszahlen ($0 \dots 4$) und SVG-Glühbirnen (💡).
   - **Nonogramm (Picross / Griddlers)**: Größen von 5×5 bis 15×15 mit Zeilen- & Spalten-Zahlenhinweisen, 5er-Block-Trennern und Pixel-Art-Illustrationen (🖼️).
-  - **Slitherlink (Rundweg / Fences / Takegaki)**: Größen von 4×4 bis 10×10 mit Zahlen ($0 \dots 3$), Punktgitter und flüssiger **Wischsteuerung (Drag-to-Draw)** zum Zeichnen der Schleife (➿).
+  - **Slitherlink (Loop / Fences)**: Größen von 4×4 bis 10×10 mit Kanten-Hinweiszahlen ($0 \dots 3$), intelligenter Wischgesten-Steuerung (Drag-to-Draw) und Kreuz-Markierungen.
   - **Minesweeper (Minenfeld)**: Größen von 8×8 bis 16×30 mit Zahlen ($0 \dots 8$), kaskadierendem Flood-Fill bei 0-Feldern und Flaggen-Markierung (🚩).
-- 🏆 **Umfangreiche Kampagnen**:
-  - Jeweils 120 handgefertigte Kampagnen-Level pro Rätseltyp mit dynamischer Sterne- und Fortschrittsspeicherung (insgesamt 720 Level).
-- 📅 **Tägliches Rätsel (Daily Puzzle)**:
-  - Jeden Tag ein neues, synchrones Tagesrätsel mit automatischer Puzzle-Rotation und Streak-Zähler.
-- 🎲 **Freies Spiel (Endlos-Generator)**:
-  - Beliebig viele, deterministisch überprüfte und eindeutig lösbare Rätsel in verschiedenen Größen und Schwierigkeitsgraden (*Einfach*, *Mittel*, *Schwer*).
 - 🎓 **Interaktive Tutorials & Lösungsstrategien**:
   - **Tango**: Grundlagen (6 Schritte), Mathematik (8 Lektionen) und Meister-Muster (14 Lektionen).
   - **Sudoku**: Grundlagen (Reihen, Spalten, Blöcke) und Fortgeschrittene Lektionen (*Naked Pairs*, *Hidden Singles*, Block-Interferenzen).
@@ -80,6 +74,9 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.4.2 – 2026-09-13
+* **Minesweeper Spielfeld-Skalierung optimiert**: Behebung des Layout-Überhangs im Minenfeld-Gitter (insbesondere bei 16×16-Tagesrätseln auf Smartphones). Dynamische Gitterabstände (`gap: 2px` bei 16×16), proportionale Zifferngrößen (`clamp(0.6rem, 2.2vw, 0.95rem)`), `min-width: 0 !important` und `overflow: hidden` garantieren ein perfektes, bündiges Einpassen in die Spielfeldumrandung ohne horizontales Ausbrechen.
 
 ### v2.4.1 – 2026-09-11
 * **Puzzleauswahl-Menü bereinigt**: Das Auswahl-Modal wurde auf die 6 vollständig implementierten und spielbaren Logikrätsel (**Tango**, **Sudoku**, **Akari**, **Nonogramm**, **Slitherlink** und **Minesweeper**) fokussiert; nicht-implementierte Platzhalterkarten ("Demnächst") wurden entfernt.
