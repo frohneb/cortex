@@ -33,8 +33,8 @@ public class NotificationReceiver extends BroadcastReceiver {
             builder = new Notification.Builder(context);
         }
 
-        builder.setContentTitle("Tango Tagesrätsel")
-               .setContentText("Dein heutiges Tagesrätsel wartet auf dich! ☀️🌙")
+        builder.setContentTitle("Cortex Tagesrätsel")
+               .setContentText("Dein heutiges Tagesrätsel wartet auf dich! 🧩")
                .setSmallIcon(context.getApplicationInfo().icon)
                .setContentIntent(pendingIntent)
                .setAutoCancel(true);
@@ -50,7 +50,7 @@ public class NotificationReceiver extends BroadcastReceiver {
             boolean enabled = prefs.getBoolean(MainActivity.KEY_ENABLED, true);
             if (enabled) {
                 int hour = prefs.getInt(MainActivity.KEY_HOUR, 9);
-                int minute = prefs.getInt(MainActivity.KEY_MINUTE, 30);
+                int minute = prefs.getInt(MainActivity.KEY_MINUTE, 0);
                 MainActivity.scheduleExactDailyAlarm(context, hour, minute);
             }
         } catch (Exception e) {

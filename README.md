@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.4.2-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.4.3-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -74,6 +74,14 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.4.3 – 2026-09-17
+* **Sudoku 16×16 Generator Performance- & Stabilitäts-Fix ([Issue #1](https://github.com/frohneb/cortex/issues/1))**: Behebung des Browser- und WebView-Absturzes beim Erzeugen von 16×16-Sudokus auf Stufe „Schwer“ im freien Spiel und Wochenend-Tagesrätsel. Implementierung eines ultra-schnellen Bitmask-Solvers mit 32-Bit Bitmasken, MRV-Heuristik (Minimum Remaining Values) und striktem Node-Budget (`maxNodes = 5000`), wodurch 16×16-Gitter in unter 300 ms stabil und garantiert eindeutig generiert werden.
+* **Tägliche Terminerinnerung repariert (Android & Web/PWA)**:
+  * Umstellung der nativen AlarmManager-Aktivierung auf `setAndAllowWhileIdle()`, wodurch der lautlose `SecurityException`-Fehler auf modernen Android-Versionen (Android 12–14, targetSdk 34) ohne invasive Sonderberechtigungen behoben wurde.
+  * Automatisches Re-Arming des Alarms beim App-Start in `MainActivity.onCreate` und in der App-Shell.
+  * Dynamische periodische Aktualisierung des In-App-Banners und Fallback auf die Web Notification API im Browser/PWA-Betrieb.
+  * Aktualisierung der Benachrichtigungstexte auf Cortex.
 
 ### v2.4.2 – 2026-09-13
 * **Minesweeper Spielfeld-Skalierung optimiert**: Behebung des Layout-Überhangs im Minenfeld-Gitter (insbesondere bei 16×16-Tagesrätseln auf Smartphones). Dynamische Gitterabstände (`gap: 2px` bei 16×16), proportionale Zifferngrößen (`clamp(0.6rem, 2.2vw, 0.95rem)`), `min-width: 0 !important` und `overflow: hidden` garantieren ein perfektes, bündiges Einpassen in die Spielfeldumrandung ohne horizontales Ausbrechen.

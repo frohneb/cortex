@@ -101,7 +101,7 @@ export class SudokuGenerator {
         if (size === 4) {
             targetClues = difficulty === 'easy' ? 8 : (difficulty === 'medium' ? 6 : 4);
         } else if (size === 16) {
-            targetClues = difficulty === 'easy' ? 140 : (difficulty === 'medium' ? 120 : 105);
+            targetClues = difficulty === 'easy' ? 140 : (difficulty === 'medium' ? 124 : 112);
         } else {
             // 9x9
             targetClues = difficulty === 'easy' ? 36 : (difficulty === 'medium' ? 30 : 25);
@@ -123,6 +123,7 @@ export class SudokuGenerator {
         SudokuGenerator.shuffle(pairs, rng);
 
         let currentClues = size * size;
+        const maxCheckNodes = size === 16 ? 2500 : 5000;
 
         for (const pair of pairs) {
             if (currentClues <= targetClues) break;
@@ -135,11 +136,10 @@ export class SudokuGenerator {
             puzzleGrid[p1.r][p1.c] = SUDOKU_EMPTY;
             puzzleGrid[p2.r][p2.c] = SUDOKU_EMPTY;
 
-            testEngine.loadPuzzle({ size, initialGrid: puzzleGrid });
-            const sols = SudokuSolver.solve(testEngine, 2);
+            const solCount = SudokuSolver.countSolutions(puzzleGrid, size, 2, maxCheckNodes);
 
-            if (sols.length !== 1) {
-                // Nicht mehr eindeutig -> wiederherstellen
+            if (solCount !== 1) {
+                // Nicht mehr eindeutig oder Timeout -> wiederherstellen
                 puzzleGrid[p1.r][p1.c] = val1;
                 puzzleGrid[p2.r][p2.c] = val2;
             } else {

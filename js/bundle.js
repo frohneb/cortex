@@ -37660,71 +37660,213 @@ class SudokuSolver {
     }
 
     /**
-     * Findet alle Lösungen via Backtracking mit MRV Heuristik (Minimum Remaining Values)
+     * Zählt die Anzahl der Lösungen mit ultra-schnellem Bitmask-Backtracking & MRV
+     * Bricht bei Erreichen von maxSolutions oder maxNodes sofort ab (Schutz vor Thread-Freeze).
+     */
+    static countSolutions(grid, size = 9, maxSolutions = 2, maxNodes = 5000) {
+        const boxH = size === 4 ? 2 : (size === 16 ? 4 : 3);
+        const boxW = size === 4 ? 2 : (size === 16 ? 4 : 3);
+        const fullMask = (1 << (size + 1)) - 2;
+
+        const rowMask = new Int32Array(size);
+        const colMask = new Int32Array(size);
+        const boxMask = new Int32Array(size);
+        const emptyCells = [];
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                const v = grid[r][c];
+                const b = Math.floor(r / boxH) * boxW + Math.floor(c / boxW);
+                if (v > 0) {
+                    const bit = 1 << v;
+                    if ((rowMask[r] & bit) || (colMask[c] & bit) || (boxMask[b] & bit)) {
+                        return 0; // Ungültiger Zustand
+                    }
+                    rowMask[r] |= bit;
+                    colMask[c] |= bit;
+                    boxMask[b] |= bit;
+                } else {
+                    emptyCells.push({ r, c, b });
+                }
+            }
+        }
+
+        function bitCount(n) {
+            let c = 0;
+            while (n > 0) {
+                n &= n - 1;
+                c++;
+            }
+            return c;
+        }
+
+        let solutionCount = 0;
+        let nodeCount = 0;
+
+        function search() {
+            nodeCount++;
+            if (nodeCount > maxNodes) {
+                solutionCount = Math.max(solutionCount, maxSolutions);
+                return;
+            }
+            if (solutionCount >= maxSolutions) return;
+
+            let minCandidates = 999;
+            let bestIdx = -1;
+            let bestAvail = 0;
+
+            for (let i = 0; i < emptyCells.length; i++) {
+                const cell = emptyCells[i];
+                if (grid[cell.r][cell.c] !== SUDOKU_EMPTY) continue;
+
+                const used = rowMask[cell.r] | colMask[cell.c] | boxMask[cell.b];
+                const avail = fullMask & ~used;
+                const cnt = bitCount(avail);
+
+                if (cnt === 0) return; // Widerspruch
+
+                if (cnt < minCandidates) {
+                    minCandidates = cnt;
+                    bestIdx = i;
+                    bestAvail = avail;
+                    if (minCandidates === 1) break;
+                }
+            }
+
+            if (bestIdx === -1) {
+                solutionCount++;
+                return;
+            }
+
+            const cell = emptyCells[bestIdx];
+            const { r, c, b } = cell;
+            let avail = bestAvail;
+
+            while (avail > 0) {
+                const lsb = avail & -avail;
+                const val = 31 - Math.clz32(lsb);
+
+                grid[r][c] = val;
+                rowMask[r] |= lsb;
+                colMask[c] |= lsb;
+                boxMask[b] |= lsb;
+
+                search();
+
+                rowMask[r] &= ~lsb;
+                colMask[c] &= ~lsb;
+                boxMask[b] &= ~lsb;
+                grid[r][c] = SUDOKU_EMPTY;
+                avail &= ~lsb;
+
+                if (solutionCount >= maxSolutions || nodeCount > maxNodes) return;
+            }
+        }
+
+        search();
+        return solutionCount;
+    }
+
+    /**
+     * Findet alle Lösungen via ultra-schnellem Bitmask-Backtracking mit MRV Heuristik
      */
     static solve(engine, maxSolutions = 2) {
         const size = engine.size;
-        const boxH = engine.boxH;
-        const boxW = engine.boxW;
+        const boxH = engine.boxH || (size === 4 ? 2 : (size === 16 ? 4 : 3));
+        const boxW = engine.boxW || (size === 4 ? 2 : (size === 16 ? 4 : 3));
         const grid = engine.grid.map(row => [...row]);
         const solutions = [];
+        const fullMask = (1 << (size + 1)) - 2;
 
-        function isValid(r, c, val) {
-            for (let i = 0; i < size; i++) {
-                if (grid[r][i] === val) return false;
-                if (grid[i][c] === val) return false;
-            }
-            const startR = Math.floor(r / boxH) * boxH;
-            const startC = Math.floor(c / boxW) * boxW;
-            for (let rr = startR; rr < startR + boxH; rr++) {
-                for (let cc = startC; cc < startC + boxW; cc++) {
-                    if (grid[rr][cc] === val) return false;
-                }
-            }
-            return true;
-        }
+        const rowMask = new Int32Array(size);
+        const colMask = new Int32Array(size);
+        const boxMask = new Int32Array(size);
+        const emptyCells = [];
 
-        function findBestEmptyCell() {
-            let minCandidates = 999;
-            let best = null;
-
-            for (let r = 0; r < size; r++) {
-                for (let c = 0; c < size; c++) {
-                    if (grid[r][c] === SUDOKU_EMPTY) {
-                        let candCount = 0;
-                        for (let v = 1; v <= size; v++) {
-                            if (isValid(r, c, v)) candCount++;
-                        }
-                        if (candCount === 0) return { r: -1, c: -1 }; // Widerspruch
-                        if (candCount < minCandidates) {
-                            minCandidates = candCount;
-                            best = { r, c };
-                            if (minCandidates === 1) return best;
-                        }
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                const v = grid[r][c];
+                const b = Math.floor(r / boxH) * boxW + Math.floor(c / boxW);
+                if (v > 0) {
+                    const bit = 1 << v;
+                    if ((rowMask[r] & bit) || (colMask[c] & bit) || (boxMask[b] & bit)) {
+                        return solutions;
                     }
+                    rowMask[r] |= bit;
+                    colMask[c] |= bit;
+                    boxMask[b] |= bit;
+                } else {
+                    emptyCells.push({ r, c, b });
                 }
             }
-            return best;
         }
+
+        function bitCount(n) {
+            let c = 0;
+            while (n > 0) {
+                n &= n - 1;
+                c++;
+            }
+            return c;
+        }
+
+        let nodeCount = 0;
+        const maxNodes = 10000;
 
         function backtrack() {
+            nodeCount++;
+            if (nodeCount > maxNodes) return;
             if (solutions.length >= maxSolutions) return;
 
-            const cell = findBestEmptyCell();
-            if (cell && cell.r === -1) return;
-            if (!cell) {
+            let minCandidates = 999;
+            let bestIdx = -1;
+            let bestAvail = 0;
+
+            for (let i = 0; i < emptyCells.length; i++) {
+                const cell = emptyCells[i];
+                if (grid[cell.r][cell.c] !== SUDOKU_EMPTY) continue;
+
+                const used = rowMask[cell.r] | colMask[cell.c] | boxMask[cell.b];
+                const avail = fullMask & ~used;
+                const cnt = bitCount(avail);
+
+                if (cnt === 0) return;
+
+                if (cnt < minCandidates) {
+                    minCandidates = cnt;
+                    bestIdx = i;
+                    bestAvail = avail;
+                    if (minCandidates === 1) break;
+                }
+            }
+
+            if (bestIdx === -1) {
                 solutions.push(grid.map(row => [...row]));
                 return;
             }
 
-            const { r, c } = cell;
-            for (let val = 1; val <= size; val++) {
-                if (isValid(r, c, val)) {
-                    grid[r][c] = val;
-                    backtrack();
-                    grid[r][c] = SUDOKU_EMPTY;
-                    if (solutions.length >= maxSolutions) return;
-                }
+            const cell = emptyCells[bestIdx];
+            const { r, c, b } = cell;
+            let avail = bestAvail;
+
+            while (avail > 0) {
+                const lsb = avail & -avail;
+                const val = 31 - Math.clz32(lsb);
+
+                grid[r][c] = val;
+                rowMask[r] |= lsb;
+                colMask[c] |= lsb;
+                boxMask[b] |= lsb;
+
+                backtrack();
+
+                rowMask[r] &= ~lsb;
+                colMask[c] &= ~lsb;
+                boxMask[b] &= ~lsb;
+                grid[r][c] = SUDOKU_EMPTY;
+                avail &= ~lsb;
+
+                if (solutions.length >= maxSolutions || nodeCount > maxNodes) return;
             }
         }
 
@@ -37837,7 +37979,7 @@ class SudokuGenerator {
         if (size === 4) {
             targetClues = difficulty === 'easy' ? 8 : (difficulty === 'medium' ? 6 : 4);
         } else if (size === 16) {
-            targetClues = difficulty === 'easy' ? 140 : (difficulty === 'medium' ? 120 : 105);
+            targetClues = difficulty === 'easy' ? 140 : (difficulty === 'medium' ? 124 : 112);
         } else {
             // 9x9
             targetClues = difficulty === 'easy' ? 36 : (difficulty === 'medium' ? 30 : 25);
@@ -37859,6 +38001,7 @@ class SudokuGenerator {
         SudokuGenerator.shuffle(pairs, rng);
 
         let currentClues = size * size;
+        const maxCheckNodes = size === 16 ? 2500 : 5000;
 
         for (const pair of pairs) {
             if (currentClues <= targetClues) break;
@@ -37871,11 +38014,10 @@ class SudokuGenerator {
             puzzleGrid[p1.r][p1.c] = SUDOKU_EMPTY;
             puzzleGrid[p2.r][p2.c] = SUDOKU_EMPTY;
 
-            testEngine.loadPuzzle({ size, initialGrid: puzzleGrid });
-            const sols = SudokuSolver.solve(testEngine, 2);
+            const solCount = SudokuSolver.countSolutions(puzzleGrid, size, 2, maxCheckNodes);
 
-            if (sols.length !== 1) {
-                // Nicht mehr eindeutig -> wiederherstellen
+            if (solCount !== 1) {
+                // Nicht mehr eindeutig oder Timeout -> wiederherstellen
                 puzzleGrid[p1.r][p1.c] = val1;
                 puzzleGrid[p2.r][p2.c] = val2;
             } else {
@@ -41917,10 +42059,16 @@ class CortexApp {
         if (canvas) animations.init(canvas);
 
         this.bindEvents();
-        this.updateI18n();
         this.checkDailyReminder();
         this.checkDailySystemNotification();
-        this.notifCheckInterval = setInterval(() => this.checkDailySystemNotification(), 30000);
+        if (this.reminderEnabled && window.AndroidNotification?.scheduleDailyReminder) {
+            const [h, m] = this.reminderTime.split(':').map(Number);
+            try { window.AndroidNotification.scheduleDailyReminder(h, m); } catch (e) {}
+        }
+        this.notifCheckInterval = setInterval(() => {
+            this.checkDailyReminder();
+            this.checkDailySystemNotification();
+        }, 30000);
 
         // Prüfe auf wiederherstellbaren Zwischenstand
         const restored = this.restoreActiveGameState();
@@ -43859,13 +44007,18 @@ class CortexApp {
         const remTimeRow = document.getElementById('settingReminderTimeRow');
         if (remTimeRow) remTimeRow.style.display = enabled ? 'flex' : 'none';
 
-        if (enabled && window.AndroidNotification?.scheduleDailyReminder) {
-            const [h, m] = this.reminderTime.split(':').map(Number);
-            try { window.AndroidNotification.scheduleDailyReminder(h, m); } catch (e) {}
+        if (enabled) {
+            if (window.AndroidNotification?.scheduleDailyReminder) {
+                const [h, m] = this.reminderTime.split(':').map(Number);
+                try { window.AndroidNotification.scheduleDailyReminder(h, m); } catch (e) {}
+            } else if ('Notification' in window && Notification.permission === 'default') {
+                try { Notification.requestPermission(); } catch (e) {}
+            }
         } else if (!enabled && window.AndroidNotification?.cancelDailyReminder) {
             try { window.AndroidNotification.cancelDailyReminder(); } catch (e) {}
         }
         this.checkDailyReminder();
+        this.checkDailySystemNotification();
     }
 
     setReminderTime(timeStr) {
@@ -43923,6 +44076,14 @@ class CortexApp {
             if (window.AndroidNotification?.showNotification) {
                 try {
                     window.AndroidNotification.showNotification(t('notif_title'), t('notif_body'));
+                    StorageManager.setItem(StorageKeys.LAST_NOTIF_DATE, today);
+                } catch (e) {}
+            } else if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    new Notification(t('notif_title'), {
+                        body: t('notif_body'),
+                        icon: './assets/icons/icon-192.png'
+                    });
                     StorageManager.setItem(StorageKeys.LAST_NOTIF_DATE, today);
                 } catch (e) {}
             }

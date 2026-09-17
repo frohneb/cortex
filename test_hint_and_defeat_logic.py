@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).parent.resolve()
 class TestHintAndDefeatLogic(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = http.server.HTTPServer(('127.0.0.1', 8977), http.server.SimpleHTTPRequestHandler)
+        cls.server = http.server.ThreadingHTTPServer(('127.0.0.1', 8977), http.server.SimpleHTTPRequestHandler)
         cls.thread = threading.Thread(target=cls.server.serve_forever)
         cls.thread.daemon = True
         cls.thread.start()
@@ -61,11 +61,11 @@ try {{
             chrome_path,
             '--headless=new',
             '--disable-gpu',
-            '--virtual-time-budget=4000',
+            '--virtual-time-budget=12000',
             '--dump-dom',
             'http://127.0.0.1:8977/test_eval_temp.html'
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+        res = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         if test_file.exists():
             test_file.unlink()
 

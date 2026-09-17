@@ -109,10 +109,16 @@ export class CortexApp {
         if (canvas) animations.init(canvas);
 
         this.bindEvents();
-        this.updateI18n();
         this.checkDailyReminder();
         this.checkDailySystemNotification();
-        this.notifCheckInterval = setInterval(() => this.checkDailySystemNotification(), 30000);
+        if (this.reminderEnabled && window.AndroidNotification?.scheduleDailyReminder) {
+            const [h, m] = this.reminderTime.split(':').map(Number);
+            try { window.AndroidNotification.scheduleDailyReminder(h, m); } catch (e) {}
+        }
+        this.notifCheckInterval = setInterval(() => {
+            this.checkDailyReminder();
+            this.checkDailySystemNotification();
+        }, 30000);
 
         // Prüfe auf wiederherstellbaren Zwischenstand
         const restored = this.restoreActiveGameState();
@@ -2051,13 +2057,18 @@ export class CortexApp {
         const remTimeRow = document.getElementById('settingReminderTimeRow');
         if (remTimeRow) remTimeRow.style.display = enabled ? 'flex' : 'none';
 
-        if (enabled && window.AndroidNotification?.scheduleDailyReminder) {
-            const [h, m] = this.reminderTime.split(':').map(Number);
-            try { window.AndroidNotification.scheduleDailyReminder(h, m); } catch (e) {}
+        if (enabled) {
+            if (window.AndroidNotification?.scheduleDailyReminder) {
+                const [h, m] = this.reminderTime.split(':').map(Number);
+                try { window.AndroidNotification.scheduleDailyReminder(h, m); } catch (e) {}
+            } else if ('Notification' in window && Notification.permission === 'default') {
+                try { Notification.requestPermission(); } catch (e) {}
+            }
         } else if (!enabled && window.AndroidNotification?.cancelDailyReminder) {
             try { window.AndroidNotification.cancelDailyReminder(); } catch (e) {}
         }
         this.checkDailyReminder();
+        this.checkDailySystemNotification();
     }
 
     setReminderTime(timeStr) {
@@ -2115,6 +2126,14 @@ export class CortexApp {
             if (window.AndroidNotification?.showNotification) {
                 try {
                     window.AndroidNotification.showNotification(t('notif_title'), t('notif_body'));
+                    StorageManager.setItem(StorageKeys.LAST_NOTIF_DATE, today);
+                } catch (e) {}
+            } else if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    new Notification(t('notif_title'), {
+                        body: t('notif_body'),
+                        icon: './assets/icons/icon-192.png'
+                    });
                     StorageManager.setItem(StorageKeys.LAST_NOTIF_DATE, today);
                 } catch (e) {}
             }

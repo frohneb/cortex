@@ -102,6 +102,18 @@ public class MainActivity extends Activity {
                 requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
             }
         }
+
+        // Re-Arming bei App-Start
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            if (prefs.getBoolean(KEY_ENABLED, false)) {
+                int hour = prefs.getInt(KEY_HOUR, 9);
+                int minute = prefs.getInt(KEY_MINUTE, 0);
+                scheduleExactDailyAlarm(this, hour, minute);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public static void createNotificationChannel(Context context) {
@@ -190,12 +202,14 @@ public class MainActivity extends Activity {
 
             long triggerAtMillis = calendar.getTimeInMillis();
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                Intent showIntent = new Intent(context, MainActivity.class);
-                showIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                PendingIntent showPendingIntent = PendingIntent.getActivity(context, 0, showIntent, flags);
-                AlarmManager.AlarmClockInfo clockInfo = new AlarmManager.AlarmClockInfo(triggerAtMillis, showPendingIntent);
-                alarmManager.setAlarmClock(clockInfo, pendingIntent);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
+                } else {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent);
             } else {
