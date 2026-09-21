@@ -20,6 +20,9 @@ export class SlitherlinkRenderer {
 
         const solution = state.solutionRevealed ? (engine.getSolution ? engine.getSolution() : engine.solution) : null;
 
+        const currentHint = state.currentHint;
+        const hintPlacedEdge = state.hintPlacedEdge;
+
         const pad = 24;
         const totalW = cols * 100 + pad * 2;
         const totalH = rows * 100 + pad * 2;
@@ -33,8 +36,12 @@ export class SlitherlinkRenderer {
                 const count = engine.getCellEdgeCount(r, c);
                 const isSatisfied = clue !== null && count === clue;
                 const isViolated = clue !== null && count > clue;
+                const isHintCell = !state.solutionRevealed && currentHint && (
+                    (currentHint.cell && currentHint.cell.r === r && currentHint.cell.c === c) ||
+                    (!currentHint.edgeType && currentHint.r === r && currentHint.c === c)
+                );
 
-                svgHtml += `<g class="slitherlink-cell-group ${isSatisfied ? 'satisfied' : ''} ${isViolated ? 'violated' : ''}" data-r="${r}" data-c="${c}">`;
+                svgHtml += `<g class="slitherlink-cell-group ${isSatisfied ? 'satisfied' : ''} ${isViolated ? 'violated' : ''} ${isHintCell ? 'hint-target-cell' : ''}" data-r="${r}" data-c="${c}">`;
                 svgHtml += `<rect x="${c * 100 + 12}" y="${r * 100 + 12}" width="76" height="76" class="slitherlink-cell-bg" rx="12"></rect>`;
                 if (clue !== null && clue !== undefined) {
                     svgHtml += `<text x="${c * 100 + 50}" y="${r * 100 + 52}" class="slitherlink-clue-text clue-${clue}" text-anchor="middle" dominant-baseline="central">${clue}</text>`;
@@ -55,12 +62,24 @@ export class SlitherlinkRenderer {
                     val = solution.hEdges[r][c];
                 }
                 const hasNote = engine.hNotes[r][c] && engine.hNotes[r][c].has(2);
+                const isHintEdge = !state.solutionRevealed && currentHint && currentHint.edgeType === 'h' && currentHint.r === r && currentHint.c === c;
+                const isHintMistake = isHintEdge && (currentHint.isMistake || currentHint.type === 'error');
+                const isHintPlaced = !state.solutionRevealed && hintPlacedEdge && hintPlacedEdge.type === 'h' && hintPlacedEdge.r === r && hintPlacedEdge.c === c;
+
                 const x1 = c * 100;
                 const y1 = r * 100;
                 const x2 = (c + 1) * 100;
                 const y2 = r * 100;
 
-                svgHtml += `<g class="slitherlink-edge-group slitherlink-edge-h val-${val} ${hasNote ? 'has-note' : ''}" data-edge-type="h" data-r="${r}" data-c="${c}">`;
+                let edgeClasses = `slitherlink-edge-group slitherlink-edge-h val-${val} ${hasNote ? 'has-note' : ''}`;
+                if (isHintEdge) {
+                    edgeClasses += ' hint-highlight' + (isHintMistake ? ' error-highlight' : '');
+                }
+                if (isHintPlaced) {
+                    edgeClasses += ' hint-shimmer';
+                }
+
+                svgHtml += `<g class="${edgeClasses}" data-edge-type="h" data-r="${r}" data-c="${c}">`;
                 svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-hitzone" stroke-width="42" stroke="transparent" stroke-linecap="round"></line>`;
 
                 if (val === 1) {
@@ -73,7 +92,23 @@ export class SlitherlinkRenderer {
                     svgHtml += `<line x1="${midX - 8}" y1="${midY + 8}" x2="${midX + 8}" y2="${midY - 8}"></line>`;
                     svgHtml += `</g>`;
                 } else {
-                    svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                    if (isHintEdge && !isHintMistake) {
+                        const expVal = currentHint.expectedVal !== undefined ? currentHint.expectedVal : currentHint.value;
+                        if (expVal === 1) {
+                            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-line slitherlink-edge-ghost-line" stroke-width="7" stroke-linecap="round"></line>`;
+                        } else if (expVal === 2) {
+                            const midX = (x1 + x2) / 2;
+                            const midY = y1;
+                            svgHtml += `<g class="slitherlink-edge-cross ghost-cross">`;
+                            svgHtml += `<line x1="${midX - 8}" y1="${midY - 8}" x2="${midX + 8}" y2="${midY + 8}"></line>`;
+                            svgHtml += `<line x1="${midX - 8}" y1="${midY + 8}" x2="${midX + 8}" y2="${midY - 8}"></line>`;
+                            svgHtml += `</g>`;
+                        } else {
+                            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                        }
+                    } else {
+                        svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                    }
                 }
                 svgHtml += `</g>`;
             }
@@ -87,12 +122,24 @@ export class SlitherlinkRenderer {
                     val = solution.vEdges[r][c];
                 }
                 const hasNote = engine.vNotes[r][c] && engine.vNotes[r][c].has(2);
+                const isHintEdge = !state.solutionRevealed && currentHint && currentHint.edgeType === 'v' && currentHint.r === r && currentHint.c === c;
+                const isHintMistake = isHintEdge && (currentHint.isMistake || currentHint.type === 'error');
+                const isHintPlaced = !state.solutionRevealed && hintPlacedEdge && hintPlacedEdge.type === 'v' && hintPlacedEdge.r === r && hintPlacedEdge.c === c;
+
                 const x1 = c * 100;
                 const y1 = r * 100;
                 const x2 = c * 100;
                 const y2 = (r + 1) * 100;
 
-                svgHtml += `<g class="slitherlink-edge-group slitherlink-edge-v val-${val} ${hasNote ? 'has-note' : ''}" data-edge-type="v" data-r="${r}" data-c="${c}">`;
+                let edgeClasses = `slitherlink-edge-group slitherlink-edge-v val-${val} ${hasNote ? 'has-note' : ''}`;
+                if (isHintEdge) {
+                    edgeClasses += ' hint-highlight' + (isHintMistake ? ' error-highlight' : '');
+                }
+                if (isHintPlaced) {
+                    edgeClasses += ' hint-shimmer';
+                }
+
+                svgHtml += `<g class="${edgeClasses}" data-edge-type="v" data-r="${r}" data-c="${c}">`;
                 svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-hitzone" stroke-width="42" stroke="transparent" stroke-linecap="round"></line>`;
 
                 if (val === 1) {
@@ -105,7 +152,23 @@ export class SlitherlinkRenderer {
                     svgHtml += `<line x1="${midX - 8}" y1="${midY + 8}" x2="${midX + 8}" y2="${midY - 8}"></line>`;
                     svgHtml += `</g>`;
                 } else {
-                    svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                    if (isHintEdge && !isHintMistake) {
+                        const expVal = currentHint.expectedVal !== undefined ? currentHint.expectedVal : currentHint.value;
+                        if (expVal === 1) {
+                            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-line slitherlink-edge-ghost-line" stroke-width="7" stroke-linecap="round"></line>`;
+                        } else if (expVal === 2) {
+                            const midX = x1;
+                            const midY = (y1 + y2) / 2;
+                            svgHtml += `<g class="slitherlink-edge-cross ghost-cross">`;
+                            svgHtml += `<line x1="${midX - 8}" y1="${midY - 8}" x2="${midX + 8}" y2="${midY + 8}"></line>`;
+                            svgHtml += `<line x1="${midX - 8}" y1="${midY + 8}" x2="${midX + 8}" y2="${midY - 8}"></line>`;
+                            svgHtml += `</g>`;
+                        } else {
+                            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                        }
+                    } else {
+                        svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                    }
                 }
                 svgHtml += `</g>`;
             }
@@ -119,7 +182,11 @@ export class SlitherlinkRenderer {
                 const deg = engine.getVertexDegree(vr, vc);
                 const isError = deg > 2;
                 const rRadius = isError ? 7 : (deg === 2 ? 6 : 5);
-                svgHtml += `<circle cx="${vc * 100}" cy="${vr * 100}" r="${rRadius}" class="slitherlink-dot deg-${deg} ${isError ? 'dot-error' : ''}"></circle>`;
+                const isHintDot = !state.solutionRevealed && currentHint && (
+                    (currentHint.vertex && currentHint.vertex.vr === vr && currentHint.vertex.vc === vc) ||
+                    (!currentHint.edgeType && !currentHint.cell && currentHint.vr === vr && currentHint.vc === vc)
+                );
+                svgHtml += `<circle cx="${vc * 100}" cy="${vr * 100}" r="${rRadius}" class="slitherlink-dot deg-${deg} ${isError ? 'dot-error' : ''} ${isHintDot ? 'hint-target-dot' : ''}"></circle>`;
             }
         }
         svgHtml += `</g>`;
@@ -198,6 +265,19 @@ export class SlitherlinkRenderer {
 
             const edge = getEdgeFromPoint(e.clientX, e.clientY);
             if (!edge) return;
+
+            // Aktive Hinweis-Markierungen aufheben, sobald der Spieler interagiert
+            const app = getApp();
+            if (app) {
+                if (app.hintPlacedEdge || app.currentHint) {
+                    app.hintPlacedEdge = null;
+                    app.currentHint = null;
+                    wrapper.querySelectorAll('.hint-shimmer, .hint-highlight, .error-highlight, .hint-target-cell, .hint-target-dot').forEach(el => {
+                        el.classList.remove('hint-shimmer', 'hint-highlight', 'error-highlight', 'hint-target-cell', 'hint-target-dot');
+                    });
+                    wrapper.querySelectorAll('.slitherlink-edge-ghost-line, .ghost-cross').forEach(el => el.remove());
+                }
+            }
 
             isDragging = true;
             isDragActive = false;

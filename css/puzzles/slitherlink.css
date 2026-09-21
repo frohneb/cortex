@@ -174,3 +174,108 @@ body.theme-amoled .slitherlink-dot.deg-2 {
     0% { transform: scale(1); opacity: 1; }
     100% { transform: scale(1.15); opacity: 0.7; }
 }
+
+/* ==========================================================================
+   4. Hinweissystem & Feedback-Effekte
+   ========================================================================== */
+
+/* A. Shimmer auf gesetzter Kante nach Tipp-Ausführung */
+.slitherlink-edge-group.hint-shimmer .slitherlink-edge-line {
+    stroke: #fbbf24 !important;
+    filter: drop-shadow(0 0 10px #fbbf24) drop-shadow(0 0 18px rgba(251, 191, 36, 0.75)) !important;
+    animation: slitherlink-edge-pulse 1.3s infinite ease-in-out;
+}
+
+.slitherlink-edge-group.hint-shimmer .slitherlink-edge-cross line {
+    stroke: #fbbf24 !important;
+    stroke-width: 4.5 !important;
+    filter: drop-shadow(0 0 8px #fbbf24) !important;
+    animation: slitherlink-edge-pulse 1.3s infinite ease-in-out;
+}
+
+/* B. Vorschau / Highlight während Tipp-Dialog */
+.slitherlink-edge-group.hint-highlight .slitherlink-edge-line {
+    stroke: #38bdf8 !important;
+    filter: drop-shadow(0 0 10px #38bdf8) !important;
+    animation: slitherlink-edge-pulse 1.2s infinite ease-in-out;
+}
+
+.slitherlink-edge-group.hint-highlight .slitherlink-edge-guide {
+    stroke: #38bdf8 !important;
+    stroke-width: 4 !important;
+    stroke-dasharray: 6, 6 !important;
+    filter: drop-shadow(0 0 8px #38bdf8) !important;
+    animation: slitherlink-guide-pulse 1.2s infinite ease-in-out;
+}
+
+.slitherlink-edge-group.hint-highlight .slitherlink-edge-cross line {
+    stroke: #38bdf8 !important;
+    stroke-width: 4 !important;
+    filter: drop-shadow(0 0 8px #38bdf8) !important;
+}
+
+.slitherlink-edge-ghost-line {
+    stroke: #38bdf8 !important;
+    stroke-dasharray: 8, 5 !important;
+    filter: drop-shadow(0 0 8px #38bdf8) !important;
+    animation: slitherlink-guide-pulse 1.2s infinite ease-in-out;
+}
+
+.slitherlink-edge-cross.ghost-cross line {
+    stroke: #38bdf8 !important;
+    stroke-width: 3.5 !important;
+    stroke-dasharray: 4, 3 !important;
+    filter: drop-shadow(0 0 8px #38bdf8) !important;
+    animation: slitherlink-guide-pulse 1.2s infinite ease-in-out;
+}
+
+/* C. Fehler-Hervorhebung (Mistake / Regelverstoß) */
+.slitherlink-edge-group.hint-highlight.error-highlight .slitherlink-edge-line {
+    stroke: #ef4444 !important;
+    filter: drop-shadow(0 0 12px #ef4444) !important;
+    animation: slitherlink-edge-shake 0.4s infinite alternate ease-in-out;
+}
+
+.slitherlink-edge-group.hint-highlight.error-highlight .slitherlink-edge-cross line {
+    stroke: #ef4444 !important;
+    stroke-width: 5 !important;
+    filter: drop-shadow(0 0 10px #ef4444) !important;
+    animation: slitherlink-edge-shake 0.4s infinite alternate ease-in-out;
+}
+
+/* D. Zellen- & Punkt-Hinweise */
+.slitherlink-cell-group.hint-target-cell .slitherlink-cell-bg {
+    fill: rgba(56, 189, 248, 0.16) !important;
+    stroke: #38bdf8 !important;
+    stroke-width: 2.5 !important;
+    stroke-dasharray: 6, 4;
+    animation: slitherlink-cell-glow 1.4s infinite ease-in-out;
+}
+
+.slitherlink-dot.hint-target-dot {
+    fill: #38bdf8 !important;
+    r: 8.5 !important;
+    filter: drop-shadow(0 0 10px #38bdf8) !important;
+    animation: slitherlink-edge-pulse 1.2s infinite ease-in-out;
+}
+
+/* E. Animation Keyframes */
+@keyframes slitherlink-edge-pulse {
+    0%, 100% { opacity: 0.85; }
+    50% { opacity: 1; }
+}
+
+@keyframes slitherlink-guide-pulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+}
+
+@keyframes slitherlink-cell-glow {
+    0%, 100% { fill-opacity: 0.12; }
+    50% { fill-opacity: 0.28; }
+}
+
+@keyframes slitherlink-edge-shake {
+    0% { opacity: 0.7; }
+    100% { opacity: 1; }
+}

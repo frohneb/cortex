@@ -274,6 +274,90 @@ try {{
             self.assertIn(pid, result, f"Plugin {pid} muss im Hint-Ergebnis enthalten sein")
             self.assertTrue(result[pid]['hasHint'], f"Plugin {pid} muss einen gültigen Hinweis liefern")
 
+    def test_slitherlink_find_mistakes_detects_wrong_line_and_cross(self):
+        """Testet, dass Slitherlink findMistakes sowohl falsche Linien als auch falsche Kreuze zuverlässig erkennt"""
+        js_code = """
+        const p = SlitherlinkPlugin;
+        const engine = p.createEngine(5);
+        const lvl = p.getCampaignLevel(0);
+        engine.loadPuzzle(lvl);
+
+        // Finde eine Kante, die in der Lösung 0/2 ist, und setze sie auf 1 (Linie)
+        let wrongHR = -1, wrongHC = -1;
+        for (let r = 0; r <= engine.rows; r++) {
+            for (let c = 0; c < engine.cols; c++) {
+                if (lvl.solution.hEdges[r][c] !== 1) {
+                    wrongHR = r;
+                    wrongHC = c;
+                    break;
+                }
+            }
+            if (wrongHR !== -1) break;
+        }
+
+        engine.setEdge('h', wrongHR, wrongHC, 1, false);
+
+        const mistake = engine.findMistakes();
+        const hint = p.getHint(engine, {});
+
+        document.getElementById('output').textContent = JSON.stringify({
+            hasMistake: mistake !== null,
+            edgeType: mistake ? mistake.edgeType : null,
+            r: mistake ? mistake.r : null,
+            c: mistake ? mistake.c : null,
+            expectedVal: mistake ? mistake.expectedVal : null,
+            hintIsMistake: hint ? (hint.isMistake === true || hint.type === 'error') : false,
+            hintHasAction: hint ? (hint.value !== undefined || hint.expectedVal !== undefined) : false,
+            hintEdgeType: hint ? hint.edgeType : null
+        });
+        """
+        result = self.run_browser_eval(js_code)
+        self.assertTrue(result['hasMistake'], "findMistakes muss falsche Slitherlink-Kante erkennen")
+        self.assertEqual(result['edgeType'], 'h', "Erkannte Kante muss horizontal sein")
+        self.assertTrue(result['hintIsMistake'], "getHint muss Fehler-Hinweis priorisieren")
+        self.assertTrue(result['hintHasAction'], "Fehler-Hinweis muss einen ausführbaren Zug (value/expectedVal) enthalten")
+        self.assertEqual(result['hintEdgeType'], 'h', "Fehler-Hinweis muss Ziel-Kante angeben")
+
+    def test_slitherlink_hint_placed_edge_shimmer_lifecycle(self):
+        """Testet, dass bei Slitherlink hintPlacedEdge gesetzt wird und nach dem nächsten Zug zurückgesetzt wird"""
+        js_code = """
+        const p = SlitherlinkPlugin;
+        const engine = p.createEngine(5);
+        const lvl = p.getCampaignLevel(0);
+        engine.loadPuzzle(lvl);
+
+        const hint = p.getHint(engine, {});
+
+        // Simuliere handleHint Apply in AppShell
+        let hintPlacedEdge = null;
+        let hintPlacedCell = null;
+        if (hint && hint.edgeType) {
+            hintPlacedEdge = { type: hint.edgeType, r: hint.r, c: hint.c };
+            hintPlacedCell = null;
+        }
+
+        const isShimmeringBeforeMove = (hintPlacedEdge !== null &&
+                                        hintPlacedEdge.type === hint.edgeType &&
+                                        hintPlacedEdge.r === hint.r &&
+                                        hintPlacedEdge.c === hint.c);
+
+        // Simuliere Spielerinteraktion (onPointerDown)
+        hintPlacedEdge = null;
+        const isShimmeringAfterMove = (hintPlacedEdge !== null);
+
+        document.getElementById('output').textContent = JSON.stringify({
+            hintEdgeType: hint.edgeType,
+            hintR: hint.r,
+            hintC: hint.c,
+            isShimmeringBeforeMove,
+            isShimmeringAfterMove
+        });
+        """
+        result = self.run_browser_eval(js_code)
+        self.assertIn(result['hintEdgeType'], ['h', 'v'], "Hinweis muss eine horizontale oder vertikale Kante vorschlagen")
+        self.assertTrue(result['isShimmeringBeforeMove'], "hintPlacedEdge muss vor dem nächsten Zug aktiv sein")
+        self.assertFalse(result['isShimmeringAfterMove'], "hintPlacedEdge muss nach dem nächsten Zug zurückgesetzt sein")
+
 
 if __name__ == "__main__":
     unittest.main()

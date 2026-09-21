@@ -1,18 +1,19 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.4.3-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.5.0-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
 [![Security](https://img.shields.io/badge/Security-10.0%2F10%20Perfekt-brightgreen.svg)](SECURITY.md)
 
-Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink** und **Minesweeper**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones und Web-Browser.
+Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink** und **Minesweeper**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones, Android Auto (Cockpit-Modus) und Web-Browser.
 
 ---
 
 ## ✨ Features
 
 - 🚫 **100 % Werbefrei & Offline**: Keine Werbung, keine In-App-Käufe, kein Tracking, keine unnötigen Berechtigungen (kein Internet-Zugriff erforderlich).
+- 🚗 **Android Auto & Automotive OS („Play While Parked“)**: Vollwertige Unterstützung für Auto-Infotainmentsysteme im geparkten Zustand (z. B. während Ladepausen) mit zweispaltigem Cockpit-Layout und Rotary-Controller-Unterstützung.
 - 🧩 **Modulare Puzzle-Architektur (Cortex Engine)**:
   - **Tango (Takuzu / Binairo / Binoxxo)**: Größen von 4×4 bis 10×10 mit Sonnen (☀️), Monden (🌙), Gleichheit (`=`) und Gegenteil (`×`).
   - **Sudoku**: Klassisches 9×9 sowie 4×4 (Mini) und 16×16 (Monster-Sudoku) mit passgenauen Blockkammern (2×2, 3×3, 4×4).
@@ -74,6 +75,26 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.5.0 – 2026-09-21
+* 🚗 **Android Auto & Automotive OS Integration („Play While Parked“)**:
+  * Offizielle Google Car App Kompatibilität für das Spielen bei stehendem Fahrzeug (z. B. während des Ladens von E-Autos oder bei Wartezeiten).
+  * `CAR_LAUNCHER`-Kategorie und Automotive-Deskriptor (`automotive_app_desc.xml`) im Android-Manifest eingebunden.
+* 🖥️ **Responsives Cockpit- & Landscape-Design**:
+  * Zweispaltiges Layout für **16:9-**, **21:9-** und Breitbild-Fahrzeugdisplays.
+  * **Linke Seite**: Maximal dimensioniertes, vertikal vollformatiges Spielfeld mit automatischer Skalierung bis zu `calc(100vh - 28px)`.
+  * **Rechte Seite**: Ergonomische Cockpit-Sidebar für Header (Level, Timer, Neustart, Menü), Keypad (Zahlen/Symbole) und Aktionsleiste (Undo, Redo, Notizen, Zoom, Hinweis).
+  * Optimierte flache Modals mit bis zu `92vh` Höhe gegen abgeschnittene Inhalte.
+* 🕹️ **D-Pad, Rotary Controller & Tastatur-Navigation**:
+  * Nativ spielbar mit Dreh-Drück-Stellern im Auto (z. B. BMW iDrive, Mazda Commander) sowie externen Controllern und Tastaturen.
+  * `Pfeiltasten`: Nahtlose Zell-Navigation über das gesamte Gitter.
+  * `Enter` / `Leertaste`: Feld aktivieren bzw. Wert durchschalten.
+  * `0`–`9` & `Backspace`: Schnelleingabe und Löschen.
+  * Globale Shortcuts (`u` / `Strg+Z`: Undo, `r` / `Strg+Y`: Redo, `h`: Hinweis, `n`: Notizen, `Escape`: Dialoge/Menü).
+* ➿ **Slitherlink Hinweissystem vollständig repariert**:
+  * Implementierung von `findMistakes()` in `SlitherlinkEngine` zur präzisen Identifikation fehlerhafter Linien und Kreuze sowie zur Erkennung unerlaubter Verzweigungen.
+  * Vollständige Anreicherung der Deducing-Kandidaten mit Zielkante und Aktionswerten, wodurch der Button „Zug ausführen“ stets aktiv ist.
+  * Visuelle Hinweisrückmeldung direkt auf dem SVG-Board: Geisterlinien (`slitherlink-edge-ghost-line`), Geisterkreuze, Kanten-Shimmer (`hint-shimmer`), Zellmarkierungen und Fehler-Schütteln (`error-highlight`).
 
 ### v2.4.3 – 2026-09-17
 * **Sudoku 16×16 Generator Performance- & Stabilitäts-Fix ([Issue #1](https://github.com/frohneb/cortex/issues/1))**: Behebung des Browser- und WebView-Absturzes beim Erzeugen von 16×16-Sudokus auf Stufe „Schwer“ im freien Spiel und Wochenend-Tagesrätsel. Implementierung eines ultra-schnellen Bitmask-Solvers mit 32-Bit Bitmasken, MRV-Heuristik (Minimum Remaining Values) und striktem Node-Budget (`maxNodes = 5000`), wodurch 16×16-Gitter in unter 300 ms stabil und garantiert eindeutig generiert werden.

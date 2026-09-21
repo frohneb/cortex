@@ -6451,6 +6451,8 @@ const NonogramPlugin = {
  * Verwaltet den Kanten-Zustand, Punktegrad, Schleifen-Topologie und Validierung.
  */
 
+
+
 class SlitherlinkEngine {
     constructor(size = 5) {
         this.size = size;
@@ -6770,6 +6772,177 @@ class SlitherlinkEngine {
         // Es müssen alle Linienkanten in dieser einen Schleife enthalten sein
         return loopEdgeCount === totalLineEdges && visitedVertices.size === activeVertices;
     }
+
+    /**
+     * Gibt die Lösung des Rätsels zurück oder berechnet sie bei Bedarf dynamisch.
+     */
+    getSolution() {
+        if (this.solution) return this.solution;
+        if (typeof SlitherlinkSolver !== 'undefined' && typeof SlitherlinkSolver.solve === 'function') {
+            const sols = SlitherlinkSolver.solve(this.clues, 1);
+            if (sols && sols.length > 0) {
+                this.solution = sols[0];
+                return this.solution;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Prüft auf Fehler (abweichende Kanten gegenüber der Gesamtlösung oder Regelverletzungen).
+     * Liefert ein direkt über den Hinweisbutton behebbares Fehler-Objekt zurück oder null, falls fehlerfrei.
+     */
+    findMistakes() {
+        const sol = this.getSolution();
+
+        // 1. Abweichungen gegenüber der Lösung priorisieren (präzise Kanten-Korrektur)
+        if (sol) {
+            if (sol.hEdges) {
+                for (let r = 0; r <= this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const curVal = this.hEdges[r][c];
+                        const solVal = sol.hEdges[r][c];
+                        if (curVal === 1 && solVal !== 1) {
+                            return {
+                                type: 'error',
+                                isMistake: true,
+                                errorSubtype: 'error_wrong_edge',
+                                edgeType: 'h',
+                                r, c,
+                                value: 2, // Falsche Linie durch Kreuz ersetzen bzw. entfernen
+                                expectedVal: 2,
+                                title: 'Fehlerhafte Linie korrigieren',
+                                strategy: 'Fehler korrigieren',
+                                message: `Die horizontale Kante bei (${r + 1}, ${c + 1}) ist kein Teil der Lösungsschleife. Entferne sie oder setze ein Kreuz (✕).`
+                            };
+                        } else if (curVal === 2 && solVal === 1) {
+                            return {
+                                type: 'error',
+                                isMistake: true,
+                                errorSubtype: 'error_wrong_cross',
+                                edgeType: 'h',
+                                r, c,
+                                value: 1, // Kante muss Teil der Schleife sein
+                                expectedVal: 1,
+                                title: 'Fehlerhaftes Kreuz korrigieren',
+                                strategy: 'Fehler korrigieren',
+                                message: `Die horizontale Kante bei (${r + 1}, ${c + 1}) wurde fälschlicherweise durchkreuzt, ist aber Teil der Lösungsschleife.`
+                            };
+                        }
+                    }
+                }
+            }
+
+            if (sol.vEdges) {
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c <= this.cols; c++) {
+                        const curVal = this.vEdges[r][c];
+                        const solVal = sol.vEdges[r][c];
+                        if (curVal === 1 && solVal !== 1) {
+                            return {
+                                type: 'error',
+                                isMistake: true,
+                                errorSubtype: 'error_wrong_edge',
+                                edgeType: 'v',
+                                r, c,
+                                value: 2,
+                                expectedVal: 2,
+                                title: 'Fehlerhafte Linie korrigieren',
+                                strategy: 'Fehler korrigieren',
+                                message: `Die vertikale Kante bei (${r + 1}, ${c + 1}) ist kein Teil der Lösungsschleife. Entferne sie oder setze ein Kreuz (✕).`
+                            };
+                        } else if (curVal === 2 && solVal === 1) {
+                            return {
+                                type: 'error',
+                                isMistake: true,
+                                errorSubtype: 'error_wrong_cross',
+                                edgeType: 'v',
+                                r, c,
+                                value: 1,
+                                expectedVal: 1,
+                                title: 'Fehlerhaftes Kreuz korrigieren',
+                                strategy: 'Fehler korrigieren',
+                                message: `Die vertikale Kante bei (${r + 1}, ${c + 1}) wurde fälschlicherweise durchkreuzt, ist aber Teil der Lösungsschleife.`
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Regelverletzungen prüfen, falls keine Lösung vorliegt oder keine Kanten abweichen
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const clue = this.clues[r][c];
+                if (clue !== null && clue !== undefined) {
+                    const lines = this.getCellEdgeCount(r, c);
+                    if (lines > clue) {
+                        const cellEdges = this.getCellEdges(r, c);
+                        const firstLine = cellEdges.find(e => e.val === 1);
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorSubtype: 'error_too_many_lines',
+                            edgeType: firstLine ? firstLine.type : undefined,
+                            r: firstLine ? firstLine.r : r,
+                            c: firstLine ? firstLine.c : c,
+                            cell: { r, c },
+                            value: 2,
+                            expectedVal: 2,
+                            title: 'Zu viele Linien',
+                            strategy: 'Regelverletzung',
+                            message: `Die Zelle (${r + 1}, ${c + 1}) hat bereits ${lines} Linien, darf aber nur ${clue} haben.`
+                        };
+                    }
+                    const crosses = this.getCellCrossCount(r, c);
+                    if (4 - crosses < clue) {
+                        const cellEdges = this.getCellEdges(r, c);
+                        const firstCross = cellEdges.find(e => e.val === 2);
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorSubtype: 'error_not_enough_edges',
+                            edgeType: firstCross ? firstCross.type : undefined,
+                            r: firstCross ? firstCross.r : r,
+                            c: firstCross ? firstCross.c : c,
+                            cell: { r, c },
+                            value: 0,
+                            expectedVal: 0,
+                            title: 'Zahl unerreichbar',
+                            strategy: 'Regelverletzung',
+                            message: `Die Zelle (${r + 1}, ${c + 1}) kann die geforderte Zahl ${clue} durch zu viele Kreuze nicht mehr erreichen.`
+                        };
+                    }
+                }
+            }
+        }
+
+        for (let vr = 0; vr <= this.rows; vr++) {
+            for (let vc = 0; vc <= this.cols; vc++) {
+                const deg = this.getVertexDegree(vr, vc);
+                if (deg > 2) {
+                    const vEdges = this.getVertexEdges(vr, vc);
+                    const firstLine = vEdges.find(e => e.val === 1);
+                    return {
+                        type: 'error',
+                        isMistake: true,
+                        errorSubtype: 'error_vertex_branch',
+                        edgeType: firstLine ? firstLine.type : undefined,
+                        r: firstLine ? firstLine.r : vr,
+                        c: firstLine ? firstLine.c : vc,
+                        vertex: { vr, vc },
+                        value: 2,
+                        expectedVal: 2,
+                        title: 'Unerlaubte Verzweigung',
+                        strategy: 'Regelverletzung',
+                        message: `Am Punkt (${vr + 1}, ${vc + 1}) treffen ${deg} Linien zusammen. Es sind maximal genau 2 Linien erlaubt.`
+                    };
+                }
+            }
+        }
+
+        return null;
+    }
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -6787,126 +6960,34 @@ class SlitherlinkSolver {
      * Ermittelt den nächsten logischen Tipp für den Spieler
      */
     static getHint(engine, options = {}) {
+        // 1. FEHLER-PRÜFUNG (Priorität: Spieler-Fehler sofort aufdecken und korrigieren)
+        const mistake = engine.findMistakes ? engine.findMistakes() : null;
+        if (mistake) {
+            return {
+                ...mistake,
+                isMistake: true,
+                type: 'error'
+            };
+        }
+
         const rows = engine.rows;
         const cols = engine.cols;
+        const candidates = [];
 
-        // 1. FEHLER-PRÜFUNG
-        // 1a. Zelle mit zu vielen Linien
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const clue = engine.clues[r][c];
-                if (clue !== null && clue !== undefined) {
-                    const lines = engine.getCellEdgeCount(r, c);
-                    if (lines > clue) {
-                        return {
-                            type: 'error_too_many_lines',
-                            r, c,
-                            title: 'Zu viele Linien',
-                            strategy: 'Regelverletzung',
-                            message: `Die Zelle (${r + 1}, ${c + 1}) hat bereits ${lines} Linien, darf aber nur ${clue} haben.`
-                        };
-                    }
-                    const crosses = engine.getCellCrossCount(r, c);
-                    if (4 - crosses < clue) {
-                        return {
-                            type: 'error_not_enough_edges',
-                            r, c,
-                            title: 'Zahl unerreichbar',
-                            strategy: 'Regelverletzung',
-                            message: `Die Zelle (${r + 1}, ${c + 1}) kann die geforderte Zahl ${clue} durch zu viele Kreuze nicht mehr erreichen.`
-                        };
-                    }
-                }
+        // Hilfsfunktion: Berechnet Distanz zur Fokus-Zelle bzw. Fokus-Kante
+        const getDistanceToFocus = (cand) => {
+            if (options.focusEdge && options.focusEdge.type === cand.edgeType) {
+                if (options.focusEdge.r === cand.r && options.focusEdge.c === cand.c) return 0;
             }
-        }
-
-        // 1b. Punkt mit mehr als 2 Linien
-        for (let vr = 0; vr <= rows; vr++) {
-            for (let vc = 0; vc <= cols; vc++) {
-                const deg = engine.getVertexDegree(vr, vc);
-                if (deg > 2) {
-                    return {
-                        type: 'error_vertex_branch',
-                        vr, vc,
-                        title: 'Unerlaubte Verzweigung',
-                        strategy: 'Regelverletzung',
-                        message: `Am Punkt (${vr + 1}, ${vc + 1}) treffen ${deg} Linien zusammen. Es sind maximal genau 2 Linien erlaubt.`
-                    };
-                }
+            if (options.focusCell) {
+                const edgeCenterR = cand.edgeType === 'h' ? cand.r : cand.r + 0.5;
+                const edgeCenterC = cand.edgeType === 'h' ? cand.c + 0.5 : cand.c;
+                const cellCenterR = options.focusCell.r + 0.5;
+                const cellCenterC = options.focusCell.c + 0.5;
+                return Math.hypot(edgeCenterR - cellCenterR, edgeCenterC - cellCenterC);
             }
-        }
-
-        // 1c. Abweichungen von der Gesamtlösung (falsche Linien oder falsche Kreuze)
-        let sol = engine.solution;
-        if (!sol && typeof SlitherlinkSolver.solve === 'function') {
-            const sols = SlitherlinkSolver.solve(engine.clues, 1);
-            if (sols && sols.length > 0) sol = sols[0];
-        }
-
-        if (sol) {
-            if (sol.hEdges) {
-                for (let r = 0; r <= rows; r++) {
-                    for (let c = 0; c < cols; c++) {
-                        const curVal = engine.hEdges[r][c];
-                        const solVal = sol.hEdges[r][c];
-                        if (curVal === 1 && solVal !== 1) {
-                            return {
-                                type: 'error_wrong_edge',
-                                edgeType: 'h',
-                                r, c,
-                                value: 2,
-                                expectedVal: 2,
-                                title: 'Fehlerhafte Linie korrigieren',
-                                strategy: 'Fehler korrigieren',
-                                message: `Die horizontale Kante bei (${r + 1}, ${c + 1}) ist kein Teil der Lösungsschleife. Entferne sie oder setze ein Kreuz (✕).`
-                            };
-                        } else if (curVal === 2 && solVal === 1) {
-                            return {
-                                type: 'error_wrong_cross',
-                                edgeType: 'h',
-                                r, c,
-                                value: 1,
-                                expectedVal: 1,
-                                title: 'Fehlerhaftes Kreuz korrigieren',
-                                strategy: 'Fehler korrigieren',
-                                message: `Die horizontale Kante bei (${r + 1}, ${c + 1}) wurde fälschlicherweise durchkreuzt, ist aber Teil der Lösungsschleife.`
-                            };
-                        }
-                    }
-                }
-            }
-            if (sol.vEdges) {
-                for (let r = 0; r < rows; r++) {
-                    for (let c = 0; c <= cols; c++) {
-                        const curVal = engine.vEdges[r][c];
-                        const solVal = sol.vEdges[r][c];
-                        if (curVal === 1 && solVal !== 1) {
-                            return {
-                                type: 'error_wrong_edge',
-                                edgeType: 'v',
-                                r, c,
-                                value: 2,
-                                expectedVal: 2,
-                                title: 'Fehlerhafte Linie korrigieren',
-                                strategy: 'Fehler korrigieren',
-                                message: `Die vertikale Kante bei (${r + 1}, ${c + 1}) ist kein Teil der Lösungsschleife. Entferne sie oder setze ein Kreuz (✕).`
-                            };
-                        } else if (curVal === 2 && solVal === 1) {
-                            return {
-                                type: 'error_wrong_cross',
-                                edgeType: 'v',
-                                r, c,
-                                value: 1,
-                                expectedVal: 1,
-                                title: 'Fehlerhaftes Kreuz korrigieren',
-                                strategy: 'Fehler korrigieren',
-                                message: `Die vertikale Kante bei (${r + 1}, ${c + 1}) wurde fälschlicherweise durchkreuzt, ist aber Teil der Lösungsschleife.`
-                            };
-                        }
-                    }
-                }
-            }
-        }
+            return 999;
+        };
 
         // 2. BASIS-STRATEGIEN
         // 2a. 0er-Zelle: Alle noch leeren Kanten müssen ✕ werden
@@ -6916,42 +6997,162 @@ class SlitherlinkSolver {
                     const edges = engine.getCellEdges(r, c);
                     for (const edge of edges) {
                         if (edge.val === 0) {
-                            return {
+                            candidates.push({
                                 type: 'clue_0',
                                 edgeType: edge.type,
                                 r: edge.r, c: edge.c,
+                                cell: { r, c },
                                 value: 2, // Kreuz
+                                expectedVal: 2,
+                                priority: 10,
                                 title: '0er-Zelle sperren',
                                 strategy: 'Basis: Null-Regel',
                                 message: `Um eine 0 dürfen keine Linien verlaufen. Alle 4 Kanten müssen durchkreuzt werden.`
-                            };
+                            });
                         }
                     }
                 }
             }
         }
 
-        // 2b. Erfüllte Zahlen: Übrige Kanten auf ✕ setzen
+        // 4. MUSTER-LOGIK (3er in Ecken & Paare)
+        // 4a. 3 in der Ecke
+        const corners = [
+            { r: 0, c: 0, outerH: { r: 0, c: 0 }, outerV: { r: 0, c: 0 } },
+            { r: 0, c: cols - 1, outerH: { r: 0, c: cols - 1 }, outerV: { r: 0, c: cols } },
+            { r: rows - 1, c: 0, outerH: { r: rows, c: 0 }, outerV: { r: rows - 1, c: 0 } },
+            { r: rows - 1, c: cols - 1, outerH: { r: rows, c: cols - 1 }, outerV: { r: rows - 1, c: cols } }
+        ];
+
+        for (const corner of corners) {
+            if (engine.clues[corner.r][corner.c] === 3) {
+                if (engine.hEdges[corner.outerH.r][corner.outerH.c] === 0) {
+                    candidates.push({
+                        type: 'corner_3',
+                        edgeType: 'h',
+                        r: corner.outerH.r, c: corner.outerH.c,
+                        cell: { r: corner.r, c: corner.c },
+                        value: 1,
+                        expectedVal: 1,
+                        priority: 9,
+                        title: '3 in der Spielfeldecke',
+                        strategy: 'Muster: Eck-Dreier',
+                        message: `Eine 3 in einer Ecke erzwingt zwingend die beiden äußeren Kanten als Linien.`
+                    });
+                }
+                if (engine.vEdges[corner.outerV.r][corner.outerV.c] === 0) {
+                    candidates.push({
+                        type: 'corner_3',
+                        edgeType: 'v',
+                        r: corner.outerV.r, c: corner.outerV.c,
+                        cell: { r: corner.r, c: corner.c },
+                        value: 1,
+                        expectedVal: 1,
+                        priority: 9,
+                        title: '3 in der Spielfeldecke',
+                        strategy: 'Muster: Eck-Dreier',
+                        message: `Eine 3 in einer Ecke erzwingt zwingend die beiden äußeren Kanten als Linien.`
+                    });
+                }
+            }
+        }
+
+        // 4b. Benachbarte 3er (Horizontal 3-3)
         for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols - 1; c++) {
+                if (engine.clues[r][c] === 3 && engine.clues[r][c + 1] === 3) {
+                    // Gemeinsame Mittelkante (vEdge r, c+1) muss 1 sein
+                    if (engine.vEdges[r][c + 1] === 0) {
+                        candidates.push({
+                            type: 'adjacent_3',
+                            edgeType: 'v',
+                            r, c: c + 1,
+                            cell: { r, c },
+                            value: 1,
+                            expectedVal: 1,
+                            priority: 8,
+                            title: 'Benachbarte 3er',
+                            strategy: 'Muster: 3er-Nachbarschaft',
+                            message: `Zwei nebeneinanderliegende 3er teilen sich immer eine gemeinsame Linie in der Mitte.`
+                        });
+                    }
+                    if (engine.vEdges[r][c] === 0) {
+                        candidates.push({
+                            type: 'adjacent_3',
+                            edgeType: 'v',
+                            r, c,
+                            cell: { r, c },
+                            value: 1,
+                            expectedVal: 1,
+                            priority: 8,
+                            title: 'Benachbarte 3er',
+                            strategy: 'Muster: 3er-Nachbarschaft',
+                            message: `Bei zwei benachbarten 3ern müssen auch die parallelen Außenkanten Linien sein.`
+                        });
+                    }
+                    if (engine.vEdges[r][c + 2] === 0) {
+                        candidates.push({
+                            type: 'adjacent_3',
+                            edgeType: 'v',
+                            r, c: c + 2,
+                            cell: { r, c: c + 1 },
+                            value: 1,
+                            expectedVal: 1,
+                            priority: 8,
+                            title: 'Benachbarte 3er',
+                            strategy: 'Muster: 3er-Nachbarschaft',
+                            message: `Bei zwei benachbarten 3ern müssen auch die parallelen Außenkanten Linien sein.`
+                        });
+                    }
+                }
+            }
+        }
+
+        // 4c. Benachbarte 3er (Vertikal 3 / 3)
+        for (let r = 0; r < rows - 1; r++) {
             for (let c = 0; c < cols; c++) {
-                const clue = engine.clues[r][c];
-                if (clue !== null && clue !== undefined) {
-                    const lines = engine.getCellEdgeCount(r, c);
-                    if (lines === clue) {
-                        const edges = engine.getCellEdges(r, c);
-                        for (const edge of edges) {
-                            if (edge.val === 0) {
-                                return {
-                                    type: 'clue_satisfied',
-                                    edgeType: edge.type,
-                                    r: edge.r, c: edge.c,
-                                    value: 2,
-                                    title: 'Zahl bereits erfüllt',
-                                    strategy: 'Basis: Vollständige Zahl',
-                                    message: `Die Zahl ${clue} in Zelle (${r + 1}, ${c + 1}) hat bereits alle ${clue} Linien. Die restlichen Kanten müssen ✕ sein.`
-                                };
-                            }
-                        }
+                if (engine.clues[r][c] === 3 && engine.clues[r + 1][c] === 3) {
+                    if (engine.hEdges[r + 1][c] === 0) {
+                        candidates.push({
+                            type: 'adjacent_3',
+                            edgeType: 'h',
+                            r: r + 1, c,
+                            cell: { r, c },
+                            value: 1,
+                            expectedVal: 1,
+                            priority: 8,
+                            title: 'Benachbarte 3er',
+                            strategy: 'Muster: 3er-Nachbarschaft',
+                            message: `Zwei übereinanderliegende 3er teilen sich immer eine gemeinsame horizontale Linie.`
+                        });
+                    }
+                    if (engine.hEdges[r][c] === 0) {
+                        candidates.push({
+                            type: 'adjacent_3',
+                            edgeType: 'h',
+                            r, c,
+                            cell: { r, c },
+                            value: 1,
+                            expectedVal: 1,
+                            priority: 8,
+                            title: 'Benachbarte 3er',
+                            strategy: 'Muster: 3er-Nachbarschaft',
+                            message: `Bei zwei übereinanderliegenden 3ern müssen auch die oberen und unteren Außenkanten Linien sein.`
+                        });
+                    }
+                    if (engine.hEdges[r + 2][c] === 0) {
+                        candidates.push({
+                            type: 'adjacent_3',
+                            edgeType: 'h',
+                            r: r + 2, c,
+                            cell: { r: r + 1, c },
+                            value: 1,
+                            expectedVal: 1,
+                            priority: 8,
+                            title: 'Benachbarte 3er',
+                            strategy: 'Muster: 3er-Nachbarschaft',
+                            message: `Bei zwei übereinanderliegenden 3ern müssen auch die oberen und unteren Außenkanten Linien sein.`
+                        });
                     }
                 }
             }
@@ -6971,40 +7172,19 @@ class SlitherlinkSolver {
                         const edges = engine.getCellEdges(r, c);
                         for (const edge of edges) {
                             if (edge.val === 0) {
-                                return {
+                                candidates.push({
                                     type: 'clue_forced_lines',
                                     edgeType: edge.type,
                                     r: edge.r, c: edge.c,
+                                    cell: { r, c },
                                     value: 1, // Linie
+                                    expectedVal: 1,
+                                    priority: 7,
                                     title: 'Zwingende Linien',
                                     strategy: 'Basis: Kantenmangel',
                                     message: `Die Zelle (${r + 1}, ${c + 1}) benötigt noch ${needed} Linie(n) und hat genau ${remainingEmpty} freie Kante(n). Diese müssen Linien sein.`
-                                };
+                                });
                             }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. PUNKTGRAD-LOGIK (Vertices)
-        // 3a. Punkt hat 2 Linien -> alle anderen anstoßenden Kanten müssen ✕ sein
-        for (let vr = 0; vr <= rows; vr++) {
-            for (let vc = 0; vc <= cols; vc++) {
-                const edges = engine.getVertexEdges(vr, vc);
-                const lines = edges.filter(e => e.val === 1).length;
-                if (lines === 2) {
-                    for (const edge of edges) {
-                        if (edge.val === 0) {
-                            return {
-                                type: 'vertex_full',
-                                edgeType: edge.type,
-                                r: edge.r, c: edge.c,
-                                value: 2,
-                                title: 'Punkt ist voll',
-                                strategy: 'Punktegrad: Exakt 2 Linien',
-                                message: `Am Punkt (${vr + 1}, ${vc + 1}) treffen bereits 2 Linien zusammen. Alle weiteren Kanten müssen ✕ sein.`
-                            };
                         }
                     }
                 }
@@ -7020,15 +7200,73 @@ class SlitherlinkSolver {
 
                 if (lines === 1 && emptyEdges.length === 1) {
                     const nextEdge = emptyEdges[0];
-                    return {
+                    candidates.push({
                         type: 'vertex_continuation',
                         edgeType: nextEdge.type,
                         r: nextEdge.r, c: nextEdge.c,
+                        vertex: { vr, vc },
                         value: 1,
+                        expectedVal: 1,
+                        priority: 6,
                         title: 'Linie fortführen',
                         strategy: 'Punktegrad: Pfadfortsetzung',
                         message: `Die Schleife am Punkt (${vr + 1}, ${vc + 1}) darf nicht abbrechen. Sie muss entlang der einzigen offenen Kante weitergehen.`
-                    };
+                    });
+                }
+            }
+        }
+
+        // 3a. Punkt hat 2 Linien -> alle anderen anstoßenden Kanten müssen ✕ sein
+        for (let vr = 0; vr <= rows; vr++) {
+            for (let vc = 0; vc <= cols; vc++) {
+                const edges = engine.getVertexEdges(vr, vc);
+                const lines = edges.filter(e => e.val === 1).length;
+                if (lines === 2) {
+                    for (const edge of edges) {
+                        if (edge.val === 0) {
+                            candidates.push({
+                                type: 'vertex_full',
+                                edgeType: edge.type,
+                                r: edge.r, c: edge.c,
+                                vertex: { vr, vc },
+                                value: 2,
+                                expectedVal: 2,
+                                priority: 5,
+                                title: 'Punkt ist voll',
+                                strategy: 'Punktegrad: Exakt 2 Linien',
+                                message: `Am Punkt (${vr + 1}, ${vc + 1}) treffen bereits 2 Linien zusammen. Alle weiteren Kanten müssen ✕ sein.`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2b. Erfüllte Zahlen: Übrige Kanten auf ✕ setzen
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const clue = engine.clues[r][c];
+                if (clue !== null && clue !== undefined) {
+                    const lines = engine.getCellEdgeCount(r, c);
+                    if (lines === clue) {
+                        const edges = engine.getCellEdges(r, c);
+                        for (const edge of edges) {
+                            if (edge.val === 0) {
+                                candidates.push({
+                                    type: 'clue_satisfied',
+                                    edgeType: edge.type,
+                                    r: edge.r, c: edge.c,
+                                    cell: { r, c },
+                                    value: 2,
+                                    expectedVal: 2,
+                                    priority: 4,
+                                    title: 'Zahl bereits erfüllt',
+                                    strategy: 'Basis: Vollständige Zahl',
+                                    message: `Die Zahl ${clue} in Zelle (${r + 1}, ${c + 1}) hat bereits alle ${clue} Linien. Die restlichen Kanten müssen ✕ sein.`
+                                });
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -7043,178 +7281,139 @@ class SlitherlinkSolver {
 
                 if (lines === 0 && crosses === edges.length - 1 && emptyEdges.length === 1) {
                     const lastEdge = emptyEdges[0];
-                    return {
+                    candidates.push({
                         type: 'vertex_dead_end',
                         edgeType: lastEdge.type,
                         r: lastEdge.r, c: lastEdge.c,
+                        vertex: { vr, vc },
                         value: 2,
+                        expectedVal: 2,
+                        priority: 3,
                         title: 'Sackgasse ausschließen',
                         strategy: 'Punktegrad: Keine Sackgasse',
                         message: `Am Punkt (${vr + 1}, ${vc + 1}) sind fast alle Kanten blockiert. Eine einzelne Linie hierhin würde eine Sackgasse bilden.`
-                    };
+                    });
                 }
             }
         }
 
-        // 4. MUSTER-LOGIK (3er in Ecken & Paare)
-        // 4a. 3 in der Ecke
-        const corners = [
-            { r: 0, c: 0, outerH: { r: 0, c: 0 }, outerV: { r: 0, c: 0 } },
-            { r: 0, c: cols - 1, outerH: { r: 0, c: cols - 1 }, outerV: { r: 0, c: cols } },
-            { r: rows - 1, c: 0, outerH: { r: rows, c: 0 }, outerV: { r: rows - 1, c: 0 } },
-            { r: rows - 1, c: cols - 1, outerH: { r: rows, c: cols - 1 }, outerV: { r: rows - 1, c: cols } }
-        ];
-
-        for (const corner of corners) {
-            if (engine.clues[corner.r][corner.c] === 3) {
-                if (engine.hEdges[corner.outerH.r][corner.outerH.c] === 0) {
-                    return {
-                        type: 'corner_3',
-                        edgeType: 'h',
-                        r: corner.outerH.r, c: corner.outerH.c,
-                        value: 1,
-                        title: '3 in der Spielfeldecke',
-                        strategy: 'Muster: Eck-Dreier',
-                        message: `Eine 3 in einer Ecke erzwingt zwingend die beiden äußeren Kanten als Linien.`
-                    };
-                }
-                if (engine.vEdges[corner.outerV.r][corner.outerV.c] === 0) {
-                    return {
-                        type: 'corner_3',
-                        edgeType: 'v',
-                        r: corner.outerV.r, c: corner.outerV.c,
-                        value: 1,
-                        title: '3 in der Spielfeldecke',
-                        strategy: 'Muster: Eck-Dreier',
-                        message: `Eine 3 in einer Ecke erzwingt zwingend die beiden äußeren Kanten als Linien.`
-                    };
-                }
-            }
-        }
-
-        // 4b. Benachbarte 3er (Horizontal 3-3)
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols - 1; c++) {
-                if (engine.clues[r][c] === 3 && engine.clues[r][c + 1] === 3) {
-                    // Gemeinsame Mittelkante (vEdge r, c+1) muss 1 sein
-                    if (engine.vEdges[r][c + 1] === 0) {
-                        return {
-                            type: 'adjacent_3',
-                            edgeType: 'v',
-                            r, c: c + 1,
-                            value: 1,
-                            title: 'Benachbarte 3er',
-                            strategy: 'Muster: 3er-Nachbarschaft',
-                            message: `Zwei nebeneinanderliegende 3er teilen sich immer eine gemeinsame Linie in der Mitte.`
-                        };
-                    }
-                    // Äußere Kanten
-                    if (engine.vEdges[r][c] === 0) {
-                        return {
-                            type: 'adjacent_3',
-                            edgeType: 'v',
-                            r, c,
-                            value: 1,
-                            title: 'Benachbarte 3er',
-                            strategy: 'Muster: 3er-Nachbarschaft',
-                            message: `Bei zwei benachbarten 3ern müssen auch die parallelen Außenkanten Linien sein.`
-                        };
-                    }
-                    if (engine.vEdges[r][c + 2] === 0) {
-                        return {
-                            type: 'adjacent_3',
-                            edgeType: 'v',
-                            r, c: c + 2,
-                            value: 1,
-                            title: 'Benachbarte 3er',
-                            strategy: 'Muster: 3er-Nachbarschaft',
-                            message: `Bei zwei benachbarten 3ern müssen auch die parallelen Außenkanten Linien sein.`
-                        };
+        // Wenn deduktive Kandidaten gefunden wurden, wähle den besten
+        if (candidates.length > 0) {
+            candidates.sort((a, b) => {
+                if (options.focusCell || options.focusEdge) {
+                    const distA = getDistanceToFocus(a);
+                    const distB = getDistanceToFocus(b);
+                    if (Math.abs(distA - distB) > 0.001) {
+                        return distA - distB;
                     }
                 }
-            }
-        }
-
-        // 4c. Benachbarte 3er (Vertikal 3 / 3)
-        for (let r = 0; r < rows - 1; r++) {
-            for (let c = 0; c < cols; c++) {
-                if (engine.clues[r][c] === 3 && engine.clues[r + 1][c] === 3) {
-                    if (engine.hEdges[r + 1][c] === 0) {
-                        return {
-                            type: 'adjacent_3',
-                            edgeType: 'h',
-                            r: r + 1, c,
-                            value: 1,
-                            title: 'Benachbarte 3er',
-                            strategy: 'Muster: 3er-Nachbarschaft',
-                            message: `Zwei übereinanderliegende 3er teilen sich immer eine gemeinsame horizontale Linie.`
-                        };
-                    }
-                    if (engine.hEdges[r][c] === 0) {
-                        return {
-                            type: 'adjacent_3',
-                            edgeType: 'h',
-                            r, c,
-                            value: 1,
-                            title: 'Benachbarte 3er',
-                            strategy: 'Muster: 3er-Nachbarschaft',
-                            message: `Bei zwei übereinanderliegenden 3ern müssen auch die oberen und unteren Außenkanten Linien sein.`
-                        };
-                    }
-                    if (engine.hEdges[r + 2][c] === 0) {
-                        return {
-                            type: 'adjacent_3',
-                            edgeType: 'h',
-                            r: r + 2, c,
-                            value: 1,
-                            title: 'Benachbarte 3er',
-                            strategy: 'Muster: 3er-Nachbarschaft',
-                            message: `Bei zwei übereinanderliegenden 3ern müssen auch die oberen und unteren Außenkanten Linien sein.`
-                        };
-                    }
-                }
-            }
+                return b.priority - a.priority;
+            });
+            return candidates[0];
         }
 
         // 5. VORAUSSCHAUENDE LÖSUNG (FALLBACK VIA SOLVER-LÖSUNG)
-        if (engine.solution) {
-            if (engine.solution.hEdges) {
+        const sol = engine.getSolution ? engine.getSolution() : (engine.solution || (SlitherlinkSolver.solve(engine.clues, 1)?.[0]));
+        if (sol) {
+            // Priorisiere das Finden einer Schleifen-LINIE (solVal === 1)
+            // Bevorzuge Linien, die an bestehende Linien oder Zahlenhinweise anschließen
+            let bestLineCand = null;
+            let bestLineScore = -1;
+
+            const evaluateLineCand = (edgeType, r, c) => {
+                let score = 1;
+                // Anbindung an bestehende Linien prüfen
+                const v1 = (edgeType === 'h') ? { vr: r, vc: c } : { vr: r, vc: c };
+                const v2 = (edgeType === 'h') ? { vr: r, vc: c + 1 } : { vr: r + 1, vc: c };
+                if (engine.getVertexDegree(v1.vr, v1.vc) > 0) score += 3;
+                if (engine.getVertexDegree(v2.vr, v2.vc) > 0) score += 3;
+
+                // Anbindung an Zahlenhinweise prüfen
+                if (edgeType === 'h') {
+                    if (r > 0 && engine.clues[r - 1][c] !== null) score += 2;
+                    if (r < rows && engine.clues[r][c] !== null) score += 2;
+                } else {
+                    if (c > 0 && engine.clues[r][c - 1] !== null) score += 2;
+                    if (c < cols && engine.clues[r][c] !== null) score += 2;
+                }
+
+                if (options.focusCell) {
+                    const dist = getDistanceToFocus({ edgeType, r, c });
+                    score -= dist * 0.5;
+                }
+
+                if (score > bestLineScore) {
+                    bestLineScore = score;
+                    bestLineCand = {
+                        type: 'solution_step',
+                        edgeType,
+                        r, c,
+                        value: 1,
+                        expectedVal: 1,
+                        title: 'Linien-Schritt',
+                        strategy: 'Logische Schlussfolgerung',
+                        message: `Die ${edgeType === 'h' ? 'horizontale' : 'vertikale'} Kante (${r + 1}, ${c + 1}) ist Teil der eindeutigen Gesamtschleife.`
+                    };
+                }
+            };
+
+            if (sol.hEdges) {
                 for (let r = 0; r <= rows; r++) {
                     for (let c = 0; c < cols; c++) {
-                        const solVal = engine.solution.hEdges[r][c];
-                        const curVal = engine.hEdges[r][c];
-                        if (curVal === 0 && solVal !== undefined) {
+                        if (engine.hEdges[r][c] === 0 && sol.hEdges[r][c] === 1) {
+                            evaluateLineCand('h', r, c);
+                        }
+                    }
+                }
+            }
+
+            if (sol.vEdges) {
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c <= cols; c++) {
+                        if (engine.vEdges[r][c] === 0 && sol.vEdges[r][c] === 1) {
+                            evaluateLineCand('v', r, c);
+                        }
+                    }
+                }
+            }
+
+            if (bestLineCand) {
+                return bestLineCand;
+            }
+
+            // Falls alle Linien bereits gefunden sind, verbleibende Kreuze (solVal !== 1) vorschlagen
+            if (sol.hEdges) {
+                for (let r = 0; r <= rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        if (engine.hEdges[r][c] === 0 && sol.hEdges[r][c] !== 1) {
                             return {
                                 type: 'solution_step',
                                 edgeType: 'h',
                                 r, c,
-                                value: solVal === 1 ? 1 : 2,
-                                title: solVal === 1 ? 'Linien-Schritt' : 'Kante ausschließen',
+                                value: 2,
+                                expectedVal: 2,
+                                title: 'Kante ausschließen',
                                 strategy: 'Logische Schlussfolgerung',
-                                message: solVal === 1 
-                                    ? `Die horizontale Kante (${r + 1}, ${c + 1}) ist Teil der eindeutigen Gesamtschleife.`
-                                    : `Die horizontale Kante (${r + 1}, ${c + 1}) kann nicht Teil der Schleife sein und erhält ein Kreuz.`
+                                message: `Die horizontale Kante (${r + 1}, ${c + 1}) kann nicht Teil der Schleife sein und erhält ein Kreuz.`
                             };
                         }
                     }
                 }
             }
-            if (engine.solution.vEdges) {
+
+            if (sol.vEdges) {
                 for (let r = 0; r < rows; r++) {
                     for (let c = 0; c <= cols; c++) {
-                        const solVal = engine.solution.vEdges[r][c];
-                        const curVal = engine.vEdges[r][c];
-                        if (curVal === 0 && solVal !== undefined) {
+                        if (engine.vEdges[r][c] === 0 && sol.vEdges[r][c] !== 1) {
                             return {
                                 type: 'solution_step',
                                 edgeType: 'v',
                                 r, c,
-                                value: solVal === 1 ? 1 : 2,
-                                title: solVal === 1 ? 'Linien-Schritt' : 'Kante ausschließen',
+                                value: 2,
+                                expectedVal: 2,
+                                title: 'Kante ausschließen',
                                 strategy: 'Logische Schlussfolgerung',
-                                message: solVal === 1 
-                                    ? `Die vertikale Kante (${r + 1}, ${c + 1}) ist Teil der eindeutigen Gesamtschleife.`
-                                    : `Die vertikale Kante (${r + 1}, ${c + 1}) kann nicht Teil der Schleife sein und erhält ein Kreuz.`
+                                message: `Die vertikale Kante (${r + 1}, ${c + 1}) kann nicht Teil der Schleife sein und erhält ein Kreuz.`
                             };
                         }
                     }
@@ -7663,6 +7862,9 @@ class SlitherlinkRenderer {
 
         const solution = state.solutionRevealed ? (engine.getSolution ? engine.getSolution() : engine.solution) : null;
 
+        const currentHint = state.currentHint;
+        const hintPlacedEdge = state.hintPlacedEdge;
+
         const pad = 24;
         const totalW = cols * 100 + pad * 2;
         const totalH = rows * 100 + pad * 2;
@@ -7676,8 +7878,12 @@ class SlitherlinkRenderer {
                 const count = engine.getCellEdgeCount(r, c);
                 const isSatisfied = clue !== null && count === clue;
                 const isViolated = clue !== null && count > clue;
+                const isHintCell = !state.solutionRevealed && currentHint && (
+                    (currentHint.cell && currentHint.cell.r === r && currentHint.cell.c === c) ||
+                    (!currentHint.edgeType && currentHint.r === r && currentHint.c === c)
+                );
 
-                svgHtml += `<g class="slitherlink-cell-group ${isSatisfied ? 'satisfied' : ''} ${isViolated ? 'violated' : ''}" data-r="${r}" data-c="${c}">`;
+                svgHtml += `<g class="slitherlink-cell-group ${isSatisfied ? 'satisfied' : ''} ${isViolated ? 'violated' : ''} ${isHintCell ? 'hint-target-cell' : ''}" data-r="${r}" data-c="${c}">`;
                 svgHtml += `<rect x="${c * 100 + 12}" y="${r * 100 + 12}" width="76" height="76" class="slitherlink-cell-bg" rx="12"></rect>`;
                 if (clue !== null && clue !== undefined) {
                     svgHtml += `<text x="${c * 100 + 50}" y="${r * 100 + 52}" class="slitherlink-clue-text clue-${clue}" text-anchor="middle" dominant-baseline="central">${clue}</text>`;
@@ -7698,12 +7904,24 @@ class SlitherlinkRenderer {
                     val = solution.hEdges[r][c];
                 }
                 const hasNote = engine.hNotes[r][c] && engine.hNotes[r][c].has(2);
+                const isHintEdge = !state.solutionRevealed && currentHint && currentHint.edgeType === 'h' && currentHint.r === r && currentHint.c === c;
+                const isHintMistake = isHintEdge && (currentHint.isMistake || currentHint.type === 'error');
+                const isHintPlaced = !state.solutionRevealed && hintPlacedEdge && hintPlacedEdge.type === 'h' && hintPlacedEdge.r === r && hintPlacedEdge.c === c;
+
                 const x1 = c * 100;
                 const y1 = r * 100;
                 const x2 = (c + 1) * 100;
                 const y2 = r * 100;
 
-                svgHtml += `<g class="slitherlink-edge-group slitherlink-edge-h val-${val} ${hasNote ? 'has-note' : ''}" data-edge-type="h" data-r="${r}" data-c="${c}">`;
+                let edgeClasses = `slitherlink-edge-group slitherlink-edge-h val-${val} ${hasNote ? 'has-note' : ''}`;
+                if (isHintEdge) {
+                    edgeClasses += ' hint-highlight' + (isHintMistake ? ' error-highlight' : '');
+                }
+                if (isHintPlaced) {
+                    edgeClasses += ' hint-shimmer';
+                }
+
+                svgHtml += `<g class="${edgeClasses}" data-edge-type="h" data-r="${r}" data-c="${c}">`;
                 svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-hitzone" stroke-width="42" stroke="transparent" stroke-linecap="round"></line>`;
 
                 if (val === 1) {
@@ -7716,7 +7934,23 @@ class SlitherlinkRenderer {
                     svgHtml += `<line x1="${midX - 8}" y1="${midY + 8}" x2="${midX + 8}" y2="${midY - 8}"></line>`;
                     svgHtml += `</g>`;
                 } else {
-                    svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                    if (isHintEdge && !isHintMistake) {
+                        const expVal = currentHint.expectedVal !== undefined ? currentHint.expectedVal : currentHint.value;
+                        if (expVal === 1) {
+                            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-line slitherlink-edge-ghost-line" stroke-width="7" stroke-linecap="round"></line>`;
+                        } else if (expVal === 2) {
+                            const midX = (x1 + x2) / 2;
+                            const midY = y1;
+                            svgHtml += `<g class="slitherlink-edge-cross ghost-cross">`;
+                            svgHtml += `<line x1="${midX - 8}" y1="${midY - 8}" x2="${midX + 8}" y2="${midY + 8}"></line>`;
+                            svgHtml += `<line x1="${midX - 8}" y1="${midY + 8}" x2="${midX + 8}" y2="${midY - 8}"></line>`;
+                            svgHtml += `</g>`;
+                        } else {
+                            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                        }
+                    } else {
+                        svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                    }
                 }
                 svgHtml += `</g>`;
             }
@@ -7730,12 +7964,24 @@ class SlitherlinkRenderer {
                     val = solution.vEdges[r][c];
                 }
                 const hasNote = engine.vNotes[r][c] && engine.vNotes[r][c].has(2);
+                const isHintEdge = !state.solutionRevealed && currentHint && currentHint.edgeType === 'v' && currentHint.r === r && currentHint.c === c;
+                const isHintMistake = isHintEdge && (currentHint.isMistake || currentHint.type === 'error');
+                const isHintPlaced = !state.solutionRevealed && hintPlacedEdge && hintPlacedEdge.type === 'v' && hintPlacedEdge.r === r && hintPlacedEdge.c === c;
+
                 const x1 = c * 100;
                 const y1 = r * 100;
                 const x2 = c * 100;
                 const y2 = (r + 1) * 100;
 
-                svgHtml += `<g class="slitherlink-edge-group slitherlink-edge-v val-${val} ${hasNote ? 'has-note' : ''}" data-edge-type="v" data-r="${r}" data-c="${c}">`;
+                let edgeClasses = `slitherlink-edge-group slitherlink-edge-v val-${val} ${hasNote ? 'has-note' : ''}`;
+                if (isHintEdge) {
+                    edgeClasses += ' hint-highlight' + (isHintMistake ? ' error-highlight' : '');
+                }
+                if (isHintPlaced) {
+                    edgeClasses += ' hint-shimmer';
+                }
+
+                svgHtml += `<g class="${edgeClasses}" data-edge-type="v" data-r="${r}" data-c="${c}">`;
                 svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-hitzone" stroke-width="42" stroke="transparent" stroke-linecap="round"></line>`;
 
                 if (val === 1) {
@@ -7748,7 +7994,23 @@ class SlitherlinkRenderer {
                     svgHtml += `<line x1="${midX - 8}" y1="${midY + 8}" x2="${midX + 8}" y2="${midY - 8}"></line>`;
                     svgHtml += `</g>`;
                 } else {
-                    svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                    if (isHintEdge && !isHintMistake) {
+                        const expVal = currentHint.expectedVal !== undefined ? currentHint.expectedVal : currentHint.value;
+                        if (expVal === 1) {
+                            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-line slitherlink-edge-ghost-line" stroke-width="7" stroke-linecap="round"></line>`;
+                        } else if (expVal === 2) {
+                            const midX = x1;
+                            const midY = (y1 + y2) / 2;
+                            svgHtml += `<g class="slitherlink-edge-cross ghost-cross">`;
+                            svgHtml += `<line x1="${midX - 8}" y1="${midY - 8}" x2="${midX + 8}" y2="${midY + 8}"></line>`;
+                            svgHtml += `<line x1="${midX - 8}" y1="${midY + 8}" x2="${midX + 8}" y2="${midY - 8}"></line>`;
+                            svgHtml += `</g>`;
+                        } else {
+                            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                        }
+                    } else {
+                        svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="slitherlink-edge-guide" stroke-width="2"></line>`;
+                    }
                 }
                 svgHtml += `</g>`;
             }
@@ -7762,7 +8024,11 @@ class SlitherlinkRenderer {
                 const deg = engine.getVertexDegree(vr, vc);
                 const isError = deg > 2;
                 const rRadius = isError ? 7 : (deg === 2 ? 6 : 5);
-                svgHtml += `<circle cx="${vc * 100}" cy="${vr * 100}" r="${rRadius}" class="slitherlink-dot deg-${deg} ${isError ? 'dot-error' : ''}"></circle>`;
+                const isHintDot = !state.solutionRevealed && currentHint && (
+                    (currentHint.vertex && currentHint.vertex.vr === vr && currentHint.vertex.vc === vc) ||
+                    (!currentHint.edgeType && !currentHint.cell && currentHint.vr === vr && currentHint.vc === vc)
+                );
+                svgHtml += `<circle cx="${vc * 100}" cy="${vr * 100}" r="${rRadius}" class="slitherlink-dot deg-${deg} ${isError ? 'dot-error' : ''} ${isHintDot ? 'hint-target-dot' : ''}"></circle>`;
             }
         }
         svgHtml += `</g>`;
@@ -7841,6 +8107,19 @@ class SlitherlinkRenderer {
 
             const edge = getEdgeFromPoint(e.clientX, e.clientY);
             if (!edge) return;
+
+            // Aktive Hinweis-Markierungen aufheben, sobald der Spieler interagiert
+            const app = getApp();
+            if (app) {
+                if (app.hintPlacedEdge || app.currentHint) {
+                    app.hintPlacedEdge = null;
+                    app.currentHint = null;
+                    wrapper.querySelectorAll('.hint-shimmer, .hint-highlight, .error-highlight, .hint-target-cell, .hint-target-dot').forEach(el => {
+                        el.classList.remove('hint-shimmer', 'hint-highlight', 'error-highlight', 'hint-target-cell', 'hint-target-dot');
+                    });
+                    wrapper.querySelectorAll('.slitherlink-edge-ghost-line, .ghost-cross').forEach(el => el.remove());
+                }
+            }
 
             isDragging = true;
             isDragActive = false;
@@ -42010,6 +42289,7 @@ class CortexApp {
         this.hintsUsed = 0;
         this.currentHint = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.solutionRevealed = false;
         this.isGameActive = false;
         this.ignoreClickUntil = 0;
@@ -42091,6 +42371,7 @@ class CortexApp {
             tutorialStepIndex: this.tutorialStepIndex,
             selectedCell: this.selectedCell,
             hintPlacedCell: this.hintPlacedCell,
+            hintPlacedEdge: this.hintPlacedEdge,
             currentHint: this.currentHint,
             isNoteMode: this.isNoteMode,
             autoCheck: this.autoCheck,
@@ -42582,6 +42863,121 @@ class CortexApp {
         });
         window.addEventListener('beforeunload', () => this.saveActiveGameState());
         window.addEventListener('pagehide', () => this.saveActiveGameState());
+
+        // Tastatur- & Controller-Navigation (Android Auto, Rotary Controller, Gamepads, Desktop)
+        this.bindKeyboardNavigation();
+    }
+
+    bindKeyboardNavigation() {
+        window.addEventListener('keydown', (e) => {
+            // Textfelder nicht stören
+            const tag = document.activeElement ? document.activeElement.tagName : '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+                return;
+            }
+
+            // 1. Modale Dialoge mit Escape schließen
+            if (e.key === 'Escape') {
+                const openModals = Array.from(document.querySelectorAll('.modal-overlay')).filter(m => m.style.display === 'flex');
+                if (openModals.length > 0) {
+                    const topModal = openModals[openModals.length - 1];
+                    this.toggleModal(topModal.id, false);
+                    e.preventDefault();
+                    return;
+                } else if (this.isGameActive) {
+                    this.openMenuTab('play');
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            // Wenn ein Modal aktiv geöffnet ist, keine Spielbrett-Steuerung ausführen
+            const hasOpenModal = document.querySelector('.modal-overlay[style*="display: flex"]');
+            if (hasOpenModal) {
+                return;
+            }
+
+            if (!this.isGameActive || !this.engine) return;
+
+            const rows = this.engine.rows || this.engine.size || 6;
+            const cols = this.engine.cols || this.engine.size || 6;
+
+            // 2. Pfeiltasten-Navigation (D-Pad / Rotary Controller / Tastatur)
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+                let curR = this.selectedCell ? this.selectedCell.r : 0;
+                let curC = this.selectedCell ? this.selectedCell.c : 0;
+
+                if (!this.selectedCell) {
+                    this.selectedCell = { r: 0, c: 0 };
+                } else {
+                    if (e.key === 'ArrowUp') curR = Math.max(0, curR - 1);
+                    else if (e.key === 'ArrowDown') curR = Math.min(rows - 1, curR + 1);
+                    else if (e.key === 'ArrowLeft') curC = Math.max(0, curC - 1);
+                    else if (e.key === 'ArrowRight') curC = Math.min(cols - 1, curC + 1);
+                    this.selectedCell = { r: curR, c: curC };
+                }
+
+                this.renderGrid();
+                if (typeof audio !== 'undefined' && audio.vibrate) audio.vibrate(10);
+                return;
+            }
+
+            // 3. Enter / Leertaste: Ausgewählte Zelle aktivieren / weiterschalten
+            if (e.key === 'Enter' || e.key === ' ') {
+                if (this.selectedCell) {
+                    e.preventDefault();
+                    this.handleCellClick(this.selectedCell.r, this.selectedCell.c);
+                }
+                return;
+            }
+
+            // 4. Ziffern 0-9 & Backspace / Delete
+            if (e.key >= '0' && e.key <= '9') {
+                e.preventDefault();
+                this.applyKeypadInput(parseInt(e.key, 10));
+                return;
+            }
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                e.preventDefault();
+                this.applyKeypadInput(0);
+                return;
+            }
+
+            // 5. Globale Aktions-Kürzel
+            const keyLower = e.key.toLowerCase();
+            if ((e.ctrlKey || e.metaKey) && keyLower === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) this.handleRedo();
+                else this.handleUndo();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && keyLower === 'y') {
+                e.preventDefault();
+                this.handleRedo();
+                return;
+            }
+            if (keyLower === 'u') {
+                e.preventDefault();
+                this.handleUndo();
+                return;
+            }
+            if (keyLower === 'r' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                this.handleRedo();
+                return;
+            }
+            if (keyLower === 'h') {
+                e.preventDefault();
+                this.handleHint();
+                return;
+            }
+            if (keyLower === 'n') {
+                e.preventDefault();
+                this.toggleNoteMode();
+                return;
+            }
+        });
     }
 
     applyTheme(theme) {
@@ -42683,6 +43079,7 @@ class CortexApp {
         const isSameCell = this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
         this.selectedCell = { r, c };
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
 
         const inputConfig = this.activePlugin.getInputConfig();
 
@@ -42767,6 +43164,7 @@ class CortexApp {
         this.ignoreClickUntil = Date.now() + 600;
         this.selectedCell = { r, c };
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
 
         if (this.activePlugin.id === 'tango') {
             if (this.isNoteMode) {
@@ -42824,6 +43222,7 @@ class CortexApp {
         if (this.engine.locked[r][c]) return;
 
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
 
         if (this.isNoteMode) {
             this.engine.setCellValue(r, c, val, true);
@@ -42861,6 +43260,7 @@ class CortexApp {
         this.scrollToTop();
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -42904,6 +43304,7 @@ class CortexApp {
 
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -42947,6 +43348,7 @@ class CortexApp {
 
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -43054,6 +43456,7 @@ class CortexApp {
 
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -43084,6 +43487,7 @@ class CortexApp {
 
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -43120,6 +43524,7 @@ class CortexApp {
         }
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -43133,6 +43538,8 @@ class CortexApp {
 
     handleUndo() {
         if (!this.isGameActive) return;
+        this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         const res = this.engine.undo();
         if (res) {
             audio.playClear();
@@ -43143,6 +43550,8 @@ class CortexApp {
 
     handleRedo() {
         if (!this.isGameActive) return;
+        this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         const res = this.engine.redo();
         if (res) {
             audio.playClear();
@@ -43188,6 +43597,9 @@ class CortexApp {
 
                 if (hint.edgeType !== undefined && hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
                     // Slitherlink Kanten-Hinweis
+                    this.hintPlacedEdge = { type: hint.edgeType, r: hint.r, c: hint.c };
+                    this.hintPlacedCell = null;
+                    this.currentHint = null;
                     if (typeof this.engine.setEdge === 'function') {
                         this.engine.setEdge(hint.edgeType, hint.r, hint.c, valToSet, false);
                     }
@@ -43201,6 +43613,8 @@ class CortexApp {
                     this.checkCompletion();
                     this.saveActiveGameState();
                 } else if (hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
+                    this.hintPlacedEdge = null;
+                    this.currentHint = null;
                     this.selectedCell = { r: hint.r, c: hint.c };
                     this.hintPlacedCell = { r: hint.r, c: hint.c };
                     if (typeof this.engine.setCellValue === 'function') {

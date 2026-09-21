@@ -60,6 +60,7 @@ export class CortexApp {
         this.hintsUsed = 0;
         this.currentHint = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.solutionRevealed = false;
         this.isGameActive = false;
         this.ignoreClickUntil = 0;
@@ -141,6 +142,7 @@ export class CortexApp {
             tutorialStepIndex: this.tutorialStepIndex,
             selectedCell: this.selectedCell,
             hintPlacedCell: this.hintPlacedCell,
+            hintPlacedEdge: this.hintPlacedEdge,
             currentHint: this.currentHint,
             isNoteMode: this.isNoteMode,
             autoCheck: this.autoCheck,
@@ -632,6 +634,121 @@ export class CortexApp {
         });
         window.addEventListener('beforeunload', () => this.saveActiveGameState());
         window.addEventListener('pagehide', () => this.saveActiveGameState());
+
+        // Tastatur- & Controller-Navigation (Android Auto, Rotary Controller, Gamepads, Desktop)
+        this.bindKeyboardNavigation();
+    }
+
+    bindKeyboardNavigation() {
+        window.addEventListener('keydown', (e) => {
+            // Textfelder nicht stören
+            const tag = document.activeElement ? document.activeElement.tagName : '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+                return;
+            }
+
+            // 1. Modale Dialoge mit Escape schließen
+            if (e.key === 'Escape') {
+                const openModals = Array.from(document.querySelectorAll('.modal-overlay')).filter(m => m.style.display === 'flex');
+                if (openModals.length > 0) {
+                    const topModal = openModals[openModals.length - 1];
+                    this.toggleModal(topModal.id, false);
+                    e.preventDefault();
+                    return;
+                } else if (this.isGameActive) {
+                    this.openMenuTab('play');
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            // Wenn ein Modal aktiv geöffnet ist, keine Spielbrett-Steuerung ausführen
+            const hasOpenModal = document.querySelector('.modal-overlay[style*="display: flex"]');
+            if (hasOpenModal) {
+                return;
+            }
+
+            if (!this.isGameActive || !this.engine) return;
+
+            const rows = this.engine.rows || this.engine.size || 6;
+            const cols = this.engine.cols || this.engine.size || 6;
+
+            // 2. Pfeiltasten-Navigation (D-Pad / Rotary Controller / Tastatur)
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+                let curR = this.selectedCell ? this.selectedCell.r : 0;
+                let curC = this.selectedCell ? this.selectedCell.c : 0;
+
+                if (!this.selectedCell) {
+                    this.selectedCell = { r: 0, c: 0 };
+                } else {
+                    if (e.key === 'ArrowUp') curR = Math.max(0, curR - 1);
+                    else if (e.key === 'ArrowDown') curR = Math.min(rows - 1, curR + 1);
+                    else if (e.key === 'ArrowLeft') curC = Math.max(0, curC - 1);
+                    else if (e.key === 'ArrowRight') curC = Math.min(cols - 1, curC + 1);
+                    this.selectedCell = { r: curR, c: curC };
+                }
+
+                this.renderGrid();
+                if (typeof audio !== 'undefined' && audio.vibrate) audio.vibrate(10);
+                return;
+            }
+
+            // 3. Enter / Leertaste: Ausgewählte Zelle aktivieren / weiterschalten
+            if (e.key === 'Enter' || e.key === ' ') {
+                if (this.selectedCell) {
+                    e.preventDefault();
+                    this.handleCellClick(this.selectedCell.r, this.selectedCell.c);
+                }
+                return;
+            }
+
+            // 4. Ziffern 0-9 & Backspace / Delete
+            if (e.key >= '0' && e.key <= '9') {
+                e.preventDefault();
+                this.applyKeypadInput(parseInt(e.key, 10));
+                return;
+            }
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                e.preventDefault();
+                this.applyKeypadInput(0);
+                return;
+            }
+
+            // 5. Globale Aktions-Kürzel
+            const keyLower = e.key.toLowerCase();
+            if ((e.ctrlKey || e.metaKey) && keyLower === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) this.handleRedo();
+                else this.handleUndo();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && keyLower === 'y') {
+                e.preventDefault();
+                this.handleRedo();
+                return;
+            }
+            if (keyLower === 'u') {
+                e.preventDefault();
+                this.handleUndo();
+                return;
+            }
+            if (keyLower === 'r' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                this.handleRedo();
+                return;
+            }
+            if (keyLower === 'h') {
+                e.preventDefault();
+                this.handleHint();
+                return;
+            }
+            if (keyLower === 'n') {
+                e.preventDefault();
+                this.toggleNoteMode();
+                return;
+            }
+        });
     }
 
     applyTheme(theme) {
@@ -733,6 +850,7 @@ export class CortexApp {
         const isSameCell = this.selectedCell && this.selectedCell.r === r && this.selectedCell.c === c;
         this.selectedCell = { r, c };
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
 
         const inputConfig = this.activePlugin.getInputConfig();
 
@@ -817,6 +935,7 @@ export class CortexApp {
         this.ignoreClickUntil = Date.now() + 600;
         this.selectedCell = { r, c };
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
 
         if (this.activePlugin.id === 'tango') {
             if (this.isNoteMode) {
@@ -874,6 +993,7 @@ export class CortexApp {
         if (this.engine.locked[r][c]) return;
 
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
 
         if (this.isNoteMode) {
             this.engine.setCellValue(r, c, val, true);
@@ -911,6 +1031,7 @@ export class CortexApp {
         this.scrollToTop();
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -954,6 +1075,7 @@ export class CortexApp {
 
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -997,6 +1119,7 @@ export class CortexApp {
 
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -1104,6 +1227,7 @@ export class CortexApp {
 
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -1134,6 +1258,7 @@ export class CortexApp {
 
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -1170,6 +1295,7 @@ export class CortexApp {
         }
         this.selectedCell = null;
         this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         this.movesCount = 0;
         this.hintsUsed = 0;
         this.solutionRevealed = false;
@@ -1183,6 +1309,8 @@ export class CortexApp {
 
     handleUndo() {
         if (!this.isGameActive) return;
+        this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         const res = this.engine.undo();
         if (res) {
             audio.playClear();
@@ -1193,6 +1321,8 @@ export class CortexApp {
 
     handleRedo() {
         if (!this.isGameActive) return;
+        this.hintPlacedCell = null;
+        this.hintPlacedEdge = null;
         const res = this.engine.redo();
         if (res) {
             audio.playClear();
@@ -1238,6 +1368,9 @@ export class CortexApp {
 
                 if (hint.edgeType !== undefined && hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
                     // Slitherlink Kanten-Hinweis
+                    this.hintPlacedEdge = { type: hint.edgeType, r: hint.r, c: hint.c };
+                    this.hintPlacedCell = null;
+                    this.currentHint = null;
                     if (typeof this.engine.setEdge === 'function') {
                         this.engine.setEdge(hint.edgeType, hint.r, hint.c, valToSet, false);
                     }
@@ -1251,6 +1384,8 @@ export class CortexApp {
                     this.checkCompletion();
                     this.saveActiveGameState();
                 } else if (hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
+                    this.hintPlacedEdge = null;
+                    this.currentHint = null;
                     this.selectedCell = { r: hint.r, c: hint.c };
                     this.hintPlacedCell = { r: hint.r, c: hint.c };
                     if (typeof this.engine.setCellValue === 'function') {

@@ -3,6 +3,8 @@
  * Verwaltet den Kanten-Zustand, Punktegrad, Schleifen-Topologie und Validierung.
  */
 
+import { SlitherlinkSolver } from './solver.js';
+
 export class SlitherlinkEngine {
     constructor(size = 5) {
         this.size = size;
@@ -321,6 +323,177 @@ export class SlitherlinkEngine {
 
         // Es müssen alle Linienkanten in dieser einen Schleife enthalten sein
         return loopEdgeCount === totalLineEdges && visitedVertices.size === activeVertices;
+    }
+
+    /**
+     * Gibt die Lösung des Rätsels zurück oder berechnet sie bei Bedarf dynamisch.
+     */
+    getSolution() {
+        if (this.solution) return this.solution;
+        if (typeof SlitherlinkSolver !== 'undefined' && typeof SlitherlinkSolver.solve === 'function') {
+            const sols = SlitherlinkSolver.solve(this.clues, 1);
+            if (sols && sols.length > 0) {
+                this.solution = sols[0];
+                return this.solution;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Prüft auf Fehler (abweichende Kanten gegenüber der Gesamtlösung oder Regelverletzungen).
+     * Liefert ein direkt über den Hinweisbutton behebbares Fehler-Objekt zurück oder null, falls fehlerfrei.
+     */
+    findMistakes() {
+        const sol = this.getSolution();
+
+        // 1. Abweichungen gegenüber der Lösung priorisieren (präzise Kanten-Korrektur)
+        if (sol) {
+            if (sol.hEdges) {
+                for (let r = 0; r <= this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const curVal = this.hEdges[r][c];
+                        const solVal = sol.hEdges[r][c];
+                        if (curVal === 1 && solVal !== 1) {
+                            return {
+                                type: 'error',
+                                isMistake: true,
+                                errorSubtype: 'error_wrong_edge',
+                                edgeType: 'h',
+                                r, c,
+                                value: 2, // Falsche Linie durch Kreuz ersetzen bzw. entfernen
+                                expectedVal: 2,
+                                title: 'Fehlerhafte Linie korrigieren',
+                                strategy: 'Fehler korrigieren',
+                                message: `Die horizontale Kante bei (${r + 1}, ${c + 1}) ist kein Teil der Lösungsschleife. Entferne sie oder setze ein Kreuz (✕).`
+                            };
+                        } else if (curVal === 2 && solVal === 1) {
+                            return {
+                                type: 'error',
+                                isMistake: true,
+                                errorSubtype: 'error_wrong_cross',
+                                edgeType: 'h',
+                                r, c,
+                                value: 1, // Kante muss Teil der Schleife sein
+                                expectedVal: 1,
+                                title: 'Fehlerhaftes Kreuz korrigieren',
+                                strategy: 'Fehler korrigieren',
+                                message: `Die horizontale Kante bei (${r + 1}, ${c + 1}) wurde fälschlicherweise durchkreuzt, ist aber Teil der Lösungsschleife.`
+                            };
+                        }
+                    }
+                }
+            }
+
+            if (sol.vEdges) {
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c <= this.cols; c++) {
+                        const curVal = this.vEdges[r][c];
+                        const solVal = sol.vEdges[r][c];
+                        if (curVal === 1 && solVal !== 1) {
+                            return {
+                                type: 'error',
+                                isMistake: true,
+                                errorSubtype: 'error_wrong_edge',
+                                edgeType: 'v',
+                                r, c,
+                                value: 2,
+                                expectedVal: 2,
+                                title: 'Fehlerhafte Linie korrigieren',
+                                strategy: 'Fehler korrigieren',
+                                message: `Die vertikale Kante bei (${r + 1}, ${c + 1}) ist kein Teil der Lösungsschleife. Entferne sie oder setze ein Kreuz (✕).`
+                            };
+                        } else if (curVal === 2 && solVal === 1) {
+                            return {
+                                type: 'error',
+                                isMistake: true,
+                                errorSubtype: 'error_wrong_cross',
+                                edgeType: 'v',
+                                r, c,
+                                value: 1,
+                                expectedVal: 1,
+                                title: 'Fehlerhaftes Kreuz korrigieren',
+                                strategy: 'Fehler korrigieren',
+                                message: `Die vertikale Kante bei (${r + 1}, ${c + 1}) wurde fälschlicherweise durchkreuzt, ist aber Teil der Lösungsschleife.`
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Regelverletzungen prüfen, falls keine Lösung vorliegt oder keine Kanten abweichen
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const clue = this.clues[r][c];
+                if (clue !== null && clue !== undefined) {
+                    const lines = this.getCellEdgeCount(r, c);
+                    if (lines > clue) {
+                        const cellEdges = this.getCellEdges(r, c);
+                        const firstLine = cellEdges.find(e => e.val === 1);
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorSubtype: 'error_too_many_lines',
+                            edgeType: firstLine ? firstLine.type : undefined,
+                            r: firstLine ? firstLine.r : r,
+                            c: firstLine ? firstLine.c : c,
+                            cell: { r, c },
+                            value: 2,
+                            expectedVal: 2,
+                            title: 'Zu viele Linien',
+                            strategy: 'Regelverletzung',
+                            message: `Die Zelle (${r + 1}, ${c + 1}) hat bereits ${lines} Linien, darf aber nur ${clue} haben.`
+                        };
+                    }
+                    const crosses = this.getCellCrossCount(r, c);
+                    if (4 - crosses < clue) {
+                        const cellEdges = this.getCellEdges(r, c);
+                        const firstCross = cellEdges.find(e => e.val === 2);
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorSubtype: 'error_not_enough_edges',
+                            edgeType: firstCross ? firstCross.type : undefined,
+                            r: firstCross ? firstCross.r : r,
+                            c: firstCross ? firstCross.c : c,
+                            cell: { r, c },
+                            value: 0,
+                            expectedVal: 0,
+                            title: 'Zahl unerreichbar',
+                            strategy: 'Regelverletzung',
+                            message: `Die Zelle (${r + 1}, ${c + 1}) kann die geforderte Zahl ${clue} durch zu viele Kreuze nicht mehr erreichen.`
+                        };
+                    }
+                }
+            }
+        }
+
+        for (let vr = 0; vr <= this.rows; vr++) {
+            for (let vc = 0; vc <= this.cols; vc++) {
+                const deg = this.getVertexDegree(vr, vc);
+                if (deg > 2) {
+                    const vEdges = this.getVertexEdges(vr, vc);
+                    const firstLine = vEdges.find(e => e.val === 1);
+                    return {
+                        type: 'error',
+                        isMistake: true,
+                        errorSubtype: 'error_vertex_branch',
+                        edgeType: firstLine ? firstLine.type : undefined,
+                        r: firstLine ? firstLine.r : vr,
+                        c: firstLine ? firstLine.c : vc,
+                        vertex: { vr, vc },
+                        value: 2,
+                        expectedVal: 2,
+                        title: 'Unerlaubte Verzweigung',
+                        strategy: 'Regelverletzung',
+                        message: `Am Punkt (${vr + 1}, ${vc + 1}) treffen ${deg} Linien zusammen. Es sind maximal genau 2 Linien erlaubt.`
+                    };
+                }
+            }
+        }
+
+        return null;
     }
 }
 
