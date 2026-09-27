@@ -1,9 +1,9 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 21.09.2026 (Release-Audit v2.5.0)  
+**Audit Datum:** 27.09.2026 (Release-Audit v2.5.1)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
-**Version:** 2.5.0 (versionCode 39)  
-**APK SHA-256:** `e1b0ccfe86c7870f49a8c058e67d17544a16f853ace5228217eb60fdb3afb619`  
+**Version:** 2.5.1 (versionCode 40)  
+**APK SHA-256:** `5cbea5285bfbf062b3f8caf676bd165922c834a9a11494fd7d2c69af7c14742f`  
 **Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---
@@ -57,7 +57,7 @@ Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip (Minimalprinzip
 * **`android:allowBackup="false"`**: Verhindert unberechtigtes Auslesen von Spieldaten über ADB-Backups.
 * **`android:usesCleartextTraffic="false"`**: Unverschlüsselter Netzwerkverkehr ist systemseitig deaktiviert.
 * **`android:debuggable="false"`**: Keine Debug-Flags im Produktions-Build.
-* **`versionCode="39"` & `versionName="2.5.0"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
+* **`versionCode="40"` & `versionName="2.5.1"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
 
 ---
 
@@ -110,4 +110,4 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ## 🏆 Gesamtbewertung
 
-Die Anwendung **Cortex – Logikrätsel (v2.2.0, versionCode 29)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari und Nonogramm) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
+Die Anwendung **Cortex – Logikrätsel (v2.5.1, versionCode 40)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink und Minesweeper) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.

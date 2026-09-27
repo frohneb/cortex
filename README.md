@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.5.0-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.5.1-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -75,6 +75,12 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.5.1 – 2026-09-27
+* 🚗 **Android Auto Kompatibilitäts-Fix & Manifest-Bereinigung**:
+  * **Template-Konflikt behoben**: Entfernen der irreführenden Metadaten-Deklaration (`<uses name="template" />`) aus dem Android-Manifest, da Cortex ein direktes Spiel (Activity) ist und keinen `CarAppService` benötigt.
+  * **Saubere Launcher-Trennung**: Getrennte `intent-filter` für Smartphone-Launcher (`LAUNCHER`) und Fahrzeug-Infotainment (`CAR_LAUNCHER`).
+  * **Sideload-Anleitung ergänzt**: Detaillierte Schritt-für-Schritt-Anleitung zur Aktivierung von „Unbekannte Quellen“ in den Android-Auto-Entwicklereinstellungen für manuell installierte APKs.
 
 ### v2.5.0 – 2026-09-21
 * 🚗 **Android Auto & Automotive OS Integration („Play While Parked“)**:

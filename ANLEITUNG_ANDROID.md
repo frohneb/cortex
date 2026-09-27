@@ -44,6 +44,29 @@ Falls du eine `.apk`-Datei erstellen möchtest:
 
 ---
 
+## 🚗 Option 3: Cortex in Android Auto nutzen („Play While Parked“)
+
+Da Cortex als native APK manuell installiert wird (Sideloading) und nicht über den Google Play Store stammt, blendet Google die App in Android Auto standardmäßig aus Sicherheitsgründen aus.
+
+### Schritt-für-Schritt Freischaltung auf dem Smartphone:
+1. **Android Auto Einstellungen öffnen:**
+   - Gehe auf deinem Smartphone in die **Einstellungen** und suche nach **Android Auto** (oder unter *Verbundene Geräte -> Android Auto*).
+2. **Entwicklermodus freischalten:**
+   - Scrolle ganz nach unten zum Eintrag **Version** (bzw. *Versions- und Berechtigungsinformationen*).
+   - Tippe **10-mal schnell hintereinander** auf die Versionszeile, bis der Dialog *„Entwicklereinstellungen aktivieren?“* erscheint.
+   - Bestätige mit **OK**.
+3. **Unbekannte Quellen aktivieren:**
+   - Tippe oben rechts auf das **Drei-Punkte-Menü (⋮)** und wähle **Entwicklereinstellungen**.
+   - Setze den Haken bei **„Unbekannte Quellen“** (Unknown sources).
+4. **App-Launcher überprüfen:**
+   - Gehe in den Android Auto Einstellungen auf **„App-Launcher anpassen“**.
+   - Stelle sicher, dass bei **Cortex** ein Haken gesetzt ist.
+5. **Mit dem Auto verbinden:**
+   - Verbinde dein Smartphone per USB oder kabellos mit deinem Auto.
+   - **Wichtig**: Spiele sind als *Parked Apps* konzipiert und werden nur bei **stehendem / geparktem Fahrzeug** (Handbremse angezogen bzw. Getriebestufe P) im Fahrzeug-Display angezeigt (unterstützt ab Android 15).
+
+---
+
 ## 🧪 Automatisierte Regelüberprüfung ausführen
 
 Um die lückenlose Einhaltung aller Tango-Regeln (Keine 3er-Reihen, Balance, Gleichheits- `=` und Gegenteilszeichen `×`, Solver-Eindeutigkeit) zu testen, führe einfach aus:
