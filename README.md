@@ -1,12 +1,12 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.5.1-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.6.0-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
 [![Security](https://img.shields.io/badge/Security-10.0%2F10%20Perfekt-brightgreen.svg)](SECURITY.md)
 
-Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink** und **Minesweeper**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones, Android Auto (Cockpit-Modus) und Web-Browser.
+Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink**, **Minesweeper** und **Crowns**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones, Android Auto (Cockpit-Modus) und Web-Browser.
 
 ---
 
@@ -21,6 +21,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Nonogramm (Picross / Griddlers)**: Größen von 5×5 bis 15×15 mit Zeilen- & Spalten-Zahlenhinweisen, 5er-Block-Trennern und Pixel-Art-Illustrationen (🖼️).
   - **Slitherlink (Loop / Fences)**: Größen von 4×4 bis 10×10 mit Kanten-Hinweiszahlen ($0 \dots 3$), intelligenter Wischgesten-Steuerung (Drag-to-Draw) und Kreuz-Markierungen.
   - **Minesweeper (Minenfeld)**: Größen von 8×8 bis 16×30 mit Zahlen ($0 \dots 8$), kaskadierendem Flood-Fill bei 0-Feldern und Flaggen-Markierung (🚩).
+  - **Crowns (Queens / Kronen)**: Größen von 5×5 bis 9×9 mit bunten Farbregionen, nahtlosem Vektor-Grid, Kronen (👑) und Sperr-Kreuzen (✕).
 - 🎓 **Interaktive Tutorials & Lösungsstrategien**:
   - **Tango**: Grundlagen (6 Schritte), Mathematik (8 Lektionen) und Meister-Muster (14 Lektionen).
   - **Sudoku**: Grundlagen (Reihen, Spalten, Blöcke) und Fortgeschrittene Lektionen (*Naked Pairs*, *Hidden Singles*, Block-Interferenzen).
@@ -28,6 +29,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Nonogramm**: Grundlagen (5 Lektionen: Vollblöcke, Nullzeilen, Überlappungen, Mindestabstände).
   - **Slitherlink**: Grundlagen (6 Lektionen: 0er-Zellen, 3er-Ecken, Grad-2-Regel) und Fortgeschrittene Lektionen (3 Meistermuster & Sub-Loop-Ausschluss).
   - **Minesweeper**: Grundlagen (6 Lektionen: Zahlenhinweise, Long-Press-Flaggen, 0er-Kettenreaktion, Randlogik).
+  - **Crowns**: Grundlagen (7 Lektionen: Zeilen-/Spaltenregeln, Regionen-Monopol, 8er-Nachbarschaftsschutz, Ausschluss-Kreuze).
 - ✏️ **Notizen-Modus (Kandidaten & Entwürfe)**:
   - Ermöglicht das Festhalten von temporären Markierungen und Annahmen direkt auf dem Spielfeld.
 - 💡 **Intelligenter Hinweis-Assistent & Lösungsaufdeckung**:
@@ -72,9 +74,22 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 3. **0er-Kettenreaktion (Flood-Fill)**: Felder ohne Nachbar-Minen (0) decken automatisch die gesamte angrenzende freie Zone auf.
 4. **Flaggen (🚩)**: Verdächtige Minenfelder können per Long-Press mit einer roten Flagge geschützt werden.
 
+### 👑 Crowns (Queens / Kronen)
+1. **Genau eine Krone**: Jede Zeile, jede Spalte und jede Farbregion muss genau eine Krone enthalten.
+2. **Keine Berührung**: Kronen dürfen sich weder horizontal, vertikal noch diagonal berühren (8er-Nachbarschaftsschutz).
+3. **Flächen-Ausschluss (✕)**: Felder, die keine Krone enthalten können, werden mit einem Kreuz gesperrt.
+
 ---
 
 ## 📜 Changelog
+
+### v2.6.0 – 2026-09-30
+* 👑 **Neues Puzzle-Plugin: Crowns (Queens)**: Vollständige Integration des 7. Logikrätsels mit 120 Kampagnen-Leveln in 4 Kapiteln, täglichem synchronen Rätsel und freiem Spiel (5×5 bis 9×9).
+* 📐 **Mathematisch perfektes Vektor-Grid & Nahtlose Kanten**: Umstellung des Spielfelds auf reines CSS-Grid (`display: grid`) mit hochpräzisem SVG-Vektor-Overlay (`vector-effect: non-scaling-stroke`). 100 % gleichmäßige 1 px Innenlinien und stufenfreie 3 px Regionen-Grenzen in allen Themes ohne Subpixel-Overlap-Artefakte.
+* ✨ **Radiant-Gold Glanzeffekt für Kronen**: Atmende Glow-Animation für platzierte Kronen mit radialem Farbverlauf, innerer Gold-Aura und dynamischem Mehrschicht-Schatten analog zu den Himmelskörpern in Tango.
+* ❌ **Kräftige Sperr-Kreuze**: Markant verstärkte Vektorgeometrie und optimierter Kontrast für gesperrte Felder (`✕`).
+* 💡 **Intelligentes Hinweissystem & Fehlererkennung**: Vollwertige `findMistakes()`-Prüfung zur sofortigen Korrektur von Regelverstößen, falschen Kronen und versehentlichen Sperrungen (*False Elimination*) sowie logische Einzelpositions-Ableitungen.
+* 🔒 **Sicherheits- & Datenschutz-Audit**: 85 Unit-Tests und alle 74 automatisierten Deep-Scan-Sicherheitsprüfungen bestanden (100 % werbefrei, offline und DSGVO-konform).
 
 ### v2.5.1 – 2026-09-27
 * 🚗 **Android Auto Kompatibilitäts-Fix & Manifest-Bereinigung**:

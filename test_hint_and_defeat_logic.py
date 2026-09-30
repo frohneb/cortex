@@ -44,6 +44,7 @@ import {{ SudokuPlugin }} from './js/puzzles/sudoku/index.js';
 import {{ AkariPlugin }} from './js/puzzles/akari/index.js';
 import {{ NonogramPlugin }} from './js/puzzles/nonogram/index.js';
 import {{ SlitherlinkPlugin }} from './js/puzzles/slitherlink/index.js';
+import {{ CrownsPlugin }} from './js/puzzles/crowns/index.js';
 
 try {{
     {js_code}
@@ -253,6 +254,7 @@ try {{
         puzzleRegistry.register(AkariPlugin);
         puzzleRegistry.register(NonogramPlugin);
         puzzleRegistry.register(SlitherlinkPlugin);
+        puzzleRegistry.register(CrownsPlugin);
 
         const results = {};
         for (const p of puzzleRegistry.getAll()) {
@@ -270,9 +272,81 @@ try {{
         document.getElementById('output').textContent = JSON.stringify(results);
         """
         result = self.run_browser_eval(js_code)
-        for pid in ['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink']:
+        for pid in ['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'crowns']:
             self.assertIn(pid, result, f"Plugin {pid} muss im Hint-Ergebnis enthalten sein")
             self.assertTrue(result[pid]['hasHint'], f"Plugin {pid} muss einen gültigen Hinweis liefern")
+
+    def test_crowns_hint_logic_and_mistake_detection(self):
+        """Testet das Crowns-Hinweissystem: Initialer Hinweis, Fehlererkennung und fälschliche Sperrungen"""
+        js_code = """
+        const p = CrownsPlugin;
+        const engine = p.createEngine(5);
+        const lvl = p.getCampaignLevel(0);
+        engine.loadPuzzle(lvl);
+
+        // 1. Initialer logischer Hinweis auf leerem Spielfeld
+        const initialHint = p.getHint(engine, {});
+
+        // 2. Falsche Krone platzieren
+        // Finde eine Zelle, die in der Lösung 0 ist
+        let wrongR = -1, wrongC = -1;
+        for (let r = 0; r < engine.size; r++) {
+            for (let c = 0; c < engine.size; c++) {
+                if (lvl.solution[r][c] !== 1) {
+                    wrongR = r; wrongC = c;
+                    break;
+                }
+            }
+            if (wrongR !== -1) break;
+        }
+        engine.setCellValue(wrongR, wrongC, 1);
+        const wrongCrownMistake = engine.findMistakes();
+        const wrongCrownHint = p.getHint(engine, {});
+        engine.setCellValue(wrongR, wrongC, 0); // Zurücksetzen
+
+        // 3. Falsches Kreuz (false elimination) auf Kronenfeld platzieren
+        let crownR = -1, crownC = -1;
+        for (let r = 0; r < engine.size; r++) {
+            for (let c = 0; c < engine.size; c++) {
+                if (lvl.solution[r][c] === 1) {
+                    crownR = r; crownC = c;
+                    break;
+                }
+            }
+            if (crownR !== -1) break;
+        }
+        engine.setCellValue(crownR, crownC, 2); // Setze X wo Krone sein muss
+        const falseElimMistake = engine.findMistakes();
+        const falseElimHint = p.getHint(engine, {});
+
+        document.getElementById('output').textContent = JSON.stringify({
+            hasInitialHint: initialHint !== null,
+            initialHintHasR: initialHint && typeof initialHint.r === 'number',
+            initialHintHasC: initialHint && typeof initialHint.c === 'number',
+            initialHintHasVal: initialHint && typeof initialHint.value === 'number',
+            initialHintMsg: initialHint ? (initialHint.message || initialHint.description) : null,
+
+            wrongCrownDetected: wrongCrownMistake !== null && wrongCrownMistake.r === wrongR && wrongCrownMistake.c === wrongC,
+            wrongCrownHintIsMistake: wrongCrownHint ? (wrongCrownHint.isMistake === true || wrongCrownHint.type === 'error') : false,
+
+            falseElimDetected: falseElimMistake !== null && (falseElimMistake.errorType === 'false_elimination' || falseElimMistake.type === 'false_elimination'),
+            falseElimHintIsMistake: falseElimHint ? (falseElimHint.isMistake === true || falseElimHint.type === 'error') : false,
+            falseElimExpectedVal: falseElimHint ? (falseElimHint.value ?? falseElimHint.expectedVal) : null
+        });
+        """
+        result = self.run_browser_eval(js_code)
+        self.assertTrue(result['hasInitialHint'], "Crowns muss einen initialen Hinweis liefern")
+        self.assertTrue(result['initialHintHasR'], "Initialer Hinweis muss 'r' enthalten")
+        self.assertTrue(result['initialHintHasC'], "Initialer Hinweis muss 'c' enthalten")
+        self.assertTrue(result['initialHintHasVal'], "Initialer Hinweis muss 'value' enthalten")
+        self.assertIsNotNone(result['initialHintMsg'], "Initialer Hinweis muss Nachricht/Erklärung enthalten")
+
+        self.assertTrue(result['wrongCrownDetected'], "Falsch gesetzte Krone muss erkannt werden")
+        self.assertTrue(result['wrongCrownHintIsMistake'], "Hinweis auf falsche Krone muss Fehler-Typ sein")
+
+        self.assertTrue(result['falseElimDetected'], "Falsch gesetztes Kreuz auf Krone muss als false_elimination erkannt werden")
+        self.assertTrue(result['falseElimHintIsMistake'], "Hinweis auf fälschliche Sperre muss Fehler-Typ sein")
+        self.assertEqual(result['falseElimExpectedVal'], 1, "Erwarteter Wert für fälschliche Sperre muss Krone (1) sein")
 
     def test_slitherlink_find_mistakes_detects_wrong_line_and_cross(self):
         """Testet, dass Slitherlink findMistakes sowohl falsche Linien als auch falsche Kreuze zuverlässig erkennt"""

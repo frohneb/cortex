@@ -1052,7 +1052,9 @@ const baseTranslations = {
         free_title: "Freies Spiel konfigurieren",
         free_size: "Gittergröße",
         free_size_4: "4 × 4 (Mini)",
+        free_size_5: "5 × 5 (Kompakt)",
         free_size_6: "6 × 6 (Standard)",
+        free_size_7: "7 × 7 (Fortgeschritten)",
         free_size_8: "8 × 8 (Groß)",
         free_size_9: "9 × 9 (Klassisch)",
         free_size_10: "10 × 10 (Maxi)",
@@ -1077,7 +1079,9 @@ const baseTranslations = {
         stats_best_times: "Bestzeiten",
         stats_best_time: "Beste Gesamtzeit",
         stats_best_time_4: "Bestzeit 4×4",
+        stats_best_time_5: "Bestzeit 5×5",
         stats_best_time_6: "Bestzeit 6×6",
+        stats_best_time_7: "Bestzeit 7×7",
         stats_best_time_8: "Bestzeit 8×8",
         stats_best_time_9: "Bestzeit 9×9",
         stats_best_time_10: "Bestzeit 10×10",
@@ -1244,7 +1248,9 @@ const baseTranslations = {
         free_title: "Configure Free Play",
         free_size: "Grid Size",
         free_size_4: "4 × 4 (Mini)",
+        free_size_5: "5 × 5 (Compact)",
         free_size_6: "6 × 6 (Standard)",
+        free_size_7: "7 × 7 (Advanced)",
         free_size_8: "8 × 8 (Large)",
         free_size_9: "9 × 9 (Classic)",
         free_size_10: "10 × 10 (Maxi)",
@@ -1269,7 +1275,9 @@ const baseTranslations = {
         stats_best_times: "Best Times",
         stats_best_time: "Best Overall Time",
         stats_best_time_4: "Best Time 4×4",
+        stats_best_time_5: "Best Time 5×5",
         stats_best_time_6: "Best Time 6×6",
+        stats_best_time_7: "Best Time 7×7",
         stats_best_time_8: "Best Time 8×8",
         stats_best_time_9: "Best Time 9×9",
         stats_best_time_10: "Best Time 10×10",
@@ -3432,6 +3440,1834 @@ const AkariPlugin = {
     }),
 
     getI18nStrings: (lang) => AKARI_I18N[lang] || {}
+};
+
+// === Source: js\puzzles\crowns\engine.js ===
+/**
+ * Crowns (Queens) Puzzle Engine
+ * Verwaltet das Spielfeld mit Farbregionen, Kronen-Platzierung,
+ * X-Markierungen (Eliminierung), Validierung und Undo/Redo.
+ */
+
+const CROWNS_EMPTY = 0;
+const CROWNS_CROWN = 1;  // 👑
+const CROWNS_X     = 2;  // ✕ (Eliminierung)
+
+class CrownsEngine {
+    constructor(size = 5) {
+        this.size = size;
+        this.grid = Array.from({ length: size }, () => Array(size).fill(CROWNS_EMPTY));
+        this.initialGrid = Array.from({ length: size }, () => Array(size).fill(CROWNS_EMPTY));
+        this.locked = Array.from({ length: size }, () => Array(size).fill(false));
+        this.regions = Array.from({ length: size }, () => Array(size).fill(0));
+        this.regionColors = [];
+        this.solution = null;
+        this.notes = Array.from({ length: size }, () => Array.from({ length: size }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Lädt ein Puzzle mit Regionsdefinition
+     */
+    loadPuzzle({ size, regions, regionColors, solution, initialGrid, locked }) {
+        this.size = size;
+        this.grid = initialGrid ? initialGrid.map(row => [...row]) : Array.from({ length: size }, () => Array(size).fill(CROWNS_EMPTY));
+        this.initialGrid = initialGrid ? initialGrid.map(row => [...row]) : Array.from({ length: size }, () => Array(size).fill(CROWNS_EMPTY));
+        this.locked = locked ? locked.map(row => [...row]) : (initialGrid ? initialGrid.map(row => row.map(v => v !== CROWNS_EMPTY)) : Array.from({ length: size }, () => Array(size).fill(false)));
+        this.notes = Array.from({ length: size }, () => Array.from({ length: size }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+
+        this.regions = regions ? regions.map(row => [...row]) : Array.from({ length: size }, () => Array(size).fill(0));
+        this.regionColors = regionColors ? [...regionColors] : [];
+        this.solution = solution ? solution.map(row => [...row]) : null;
+    }
+
+    /**
+     * Setzt das Spielfeld auf die Ausgangsbelegung zurück
+     */
+    restart() {
+        this.grid = this.initialGrid.map(row => [...row]);
+        this.notes = Array.from({ length: this.size }, () => Array.from({ length: this.size }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Gibt die Lösung des aktuellen Puzzles zurück
+     */
+    getSolution() {
+        return this.solution;
+    }
+
+    /**
+     * Gibt alle Zellen einer bestimmten Region zurück
+     */
+    getRegionCells(regionId) {
+        const cells = [];
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.regions[r][c] === regionId) {
+                    cells.push({ r, c });
+                }
+            }
+        }
+        return cells;
+    }
+
+    /**
+     * Gibt alle 8 Nachbarn einer Zelle zurück (orthogonal + diagonal)
+     */
+    getNeighbors8(r, c) {
+        const neighbors = [];
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                const nr = r + dr;
+                const nc = c + dc;
+                if (nr >= 0 && nr < this.size && nc >= 0 && nc < this.size) {
+                    neighbors.push({ r: nr, c: nc });
+                }
+            }
+        }
+        return neighbors;
+    }
+
+    /**
+     * Zählt die Kronen in einer Zeile
+     */
+    getCrownsInRow(r) {
+        const cols = [];
+        for (let c = 0; c < this.size; c++) {
+            if (this.grid[r][c] === CROWNS_CROWN) cols.push(c);
+        }
+        return cols;
+    }
+
+    /**
+     * Zählt die Kronen in einer Spalte
+     */
+    getCrownsInCol(c) {
+        const rows = [];
+        for (let r = 0; r < this.size; r++) {
+            if (this.grid[r][c] === CROWNS_CROWN) rows.push(r);
+        }
+        return rows;
+    }
+
+    /**
+     * Zählt die Kronen in einer Region
+     */
+    getCrownsInRegion(regionId) {
+        const cells = [];
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.regions[r][c] === regionId && this.grid[r][c] === CROWNS_CROWN) {
+                    cells.push({ r, c });
+                }
+            }
+        }
+        return cells;
+    }
+
+    /**
+     * Setzt den Wert einer Zelle mit Undo-Unterstützung
+     */
+    setCellValue(r, c, val, isNote = false) {
+        if (this.locked[r][c]) return false;
+
+        if (isNote) {
+            const cellNotes = this.notes[r][c];
+            const prevNotes = new Set(cellNotes);
+            if (cellNotes.has(val)) {
+                cellNotes.delete(val);
+            } else {
+                cellNotes.add(val);
+            }
+            this.undoStack.push({
+                type: 'note',
+                r, c,
+                prevNotes,
+                nextNotes: new Set(cellNotes)
+            });
+            this.redoStack = [];
+            return true;
+        }
+
+        const prevVal = this.grid[r][c];
+        const prevNotes = new Set(this.notes[r][c]);
+
+        if (prevVal === val && prevNotes.size === 0) return false;
+
+        this.undoStack.push({
+            type: 'cell',
+            r, c,
+            prevVal,
+            nextVal: val,
+            prevNotes
+        });
+        this.redoStack = [];
+
+        this.grid[r][c] = val;
+        this.notes[r][c].clear();
+        return true;
+    }
+
+    /**
+     * Schaltet den Wert einer Zelle durch: EMPTY → CROWN → X → EMPTY
+     */
+    cycleCellValue(r, c) {
+        if (this.locked[r][c]) return null;
+        const current = this.grid[r][c];
+        let next;
+        if (current === CROWNS_EMPTY) next = CROWNS_CROWN;
+        else if (current === CROWNS_CROWN) next = CROWNS_X;
+        else next = CROWNS_EMPTY;
+        this.setCellValue(r, c, next);
+        return next;
+    }
+
+    /**
+     * Schaltet Notizen einer Zelle durch
+     */
+    cycleNoteValue(r, c) {
+        if (this.locked[r][c]) return null;
+
+        if (this.grid[r][c] !== CROWNS_EMPTY) {
+            this.setCellValue(r, c, CROWNS_EMPTY);
+        }
+
+        const cellNotes = this.notes[r][c];
+        const prevNotes = new Set(cellNotes);
+        const hasCrown = cellNotes.has(CROWNS_CROWN);
+
+        let nextNotes = new Set();
+        if (!hasCrown) {
+            nextNotes.add(CROWNS_CROWN);
+        }
+        // Toggle: hat Krone → leer, hat keine → Krone
+
+        this.notes[r][c] = new Set(nextNotes);
+        this.undoStack.push({
+            type: 'note',
+            r, c,
+            prevNotes,
+            nextNotes: new Set(nextNotes)
+        });
+        this.redoStack = [];
+        return nextNotes;
+    }
+
+    undo() {
+        if (this.undoStack.length === 0) return null;
+        const action = this.undoStack.pop();
+        this.redoStack.push(action);
+
+        if (action.type === 'cell') {
+            this.grid[action.r][action.c] = action.prevVal;
+            this.notes[action.r][action.c] = new Set(action.prevNotes);
+        } else if (action.type === 'note') {
+            this.notes[action.r][action.c] = new Set(action.prevNotes);
+        }
+        return action;
+    }
+
+    redo() {
+        if (this.redoStack.length === 0) return null;
+        const action = this.redoStack.pop();
+        this.undoStack.push(action);
+
+        if (action.type === 'cell') {
+            this.grid[action.r][action.c] = action.nextVal;
+        } else if (action.type === 'note') {
+            this.notes[action.r][action.c] = new Set(action.nextNotes);
+        }
+        return action;
+    }
+
+    /**
+     * Prüft alle Regeln und gibt Fehlerliste + Konfliktzellen zurück
+     */
+    validateRules() {
+        const errors = [];
+        const conflictCells = new Set();
+
+        // 1. Zeilenregel: max. 1 Krone pro Zeile
+        for (let r = 0; r < this.size; r++) {
+            const crownCols = this.getCrownsInRow(r);
+            if (crownCols.length > 1) {
+                crownCols.forEach(c => conflictCells.add(`${r},${c}`));
+                errors.push({
+                    rule: 'row_duplicate',
+                    row: r,
+                    cols: crownCols,
+                    message: `Mehr als eine Krone in Zeile ${r + 1}`
+                });
+            }
+        }
+
+        // 2. Spaltenregel: max. 1 Krone pro Spalte
+        for (let c = 0; c < this.size; c++) {
+            const crownRows = this.getCrownsInCol(c);
+            if (crownRows.length > 1) {
+                crownRows.forEach(r => conflictCells.add(`${r},${c}`));
+                errors.push({
+                    rule: 'col_duplicate',
+                    col: c,
+                    rows: crownRows,
+                    message: `Mehr als eine Krone in Spalte ${c + 1}`
+                });
+            }
+        }
+
+        // 3. Regionregel: max. 1 Krone pro Region
+        for (let regionId = 0; regionId < this.size; regionId++) {
+            const crownCells = this.getCrownsInRegion(regionId);
+            if (crownCells.length > 1) {
+                crownCells.forEach(({ r, c }) => conflictCells.add(`${r},${c}`));
+                errors.push({
+                    rule: 'region_duplicate',
+                    regionId,
+                    cells: crownCells,
+                    message: `Mehr als eine Krone in Farbregion ${regionId + 1}`
+                });
+            }
+        }
+
+        // 4. Berührungsregel: keine 8er-Nachbarn
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.grid[r][c] !== CROWNS_CROWN) continue;
+                for (const n of this.getNeighbors8(r, c)) {
+                    if (this.grid[n.r][n.c] === CROWNS_CROWN) {
+                        conflictCells.add(`${r},${c}`);
+                        conflictCells.add(`${n.r},${n.c}`);
+                        errors.push({
+                            rule: 'adjacent',
+                            cells: [{ r, c }, { r: n.r, c: n.c }],
+                            message: `Kronen bei (${r + 1},${c + 1}) und (${n.r + 1},${n.c + 1}) berühren sich`
+                        });
+                    }
+                }
+            }
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors,
+            conflictCells
+        };
+    }
+
+    /**
+     * Findet Fehler im bisherigen Lösungsweg des Spielers
+     */
+    findMistakes() {
+        const sol = this.getSolution();
+        const ruleCheck = this.validateRules();
+
+        // 1. Regelverletzungen
+        if (!ruleCheck.isValid && ruleCheck.errors.length > 0) {
+            const firstErr = ruleCheck.errors[0];
+            const conflictArr = Array.from(ruleCheck.conflictCells || []).map(str => {
+                const [r, c] = str.split(',').map(Number);
+                return { r, c };
+            });
+
+            let targetCell = conflictArr.find(pos => !this.locked[pos.r][pos.c]) || conflictArr[0];
+            const r = targetCell ? targetCell.r : 0;
+            const c = targetCell ? targetCell.c : 0;
+            const expectedVal = sol ? sol[r][c] : CROWNS_EMPTY;
+
+            return {
+                type: 'error',
+                isMistake: true,
+                errorType: 'rule_violation',
+                strategy: 'Regelverstoß korrigieren',
+                title: 'Regelverstoß korrigieren',
+                r, c,
+                currentVal: this.grid[r][c],
+                value: expectedVal,
+                expectedVal,
+                highlightCells: conflictArr.length > 0 ? conflictArr : [{ r, c }],
+                message: `Regelverstoß: ${firstErr.message}. Bitte korrigiere die Krone an Position (${r + 1},${c + 1}).`
+            };
+        }
+
+        // 2. Vom Spieler gesetzte Kronen, die nicht zur Lösung passen
+        if (sol) {
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    const current = this.grid[r][c];
+                    if (current === CROWNS_CROWN && sol[r][c] !== CROWNS_CROWN) {
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorType: 'solution_mismatch',
+                            strategy: 'Falsch platzierte Krone',
+                            title: 'Falsch platzierte Krone',
+                            r, c,
+                            currentVal: current,
+                            value: CROWNS_EMPTY,
+                            expectedVal: CROWNS_EMPTY,
+                            highlightCells: [{ r, c }],
+                            message: `Fehler: An Position (${r + 1},${c + 1}) ist fälschlicherweise eine Krone gesetzt. Laut der Logik gehört dort keine Krone hin.`
+                        };
+                    }
+                    if (current === CROWNS_X && sol[r][c] === CROWNS_CROWN) {
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorType: 'false_elimination',
+                            strategy: 'Falsch gesetztes Kreuz',
+                            title: 'Falsch gesetztes Kreuz',
+                            r, c,
+                            currentVal: current,
+                            value: CROWNS_CROWN,
+                            expectedVal: CROWNS_CROWN,
+                            highlightCells: [{ r, c }],
+                            message: `Fehler: An Position (${r + 1},${c + 1}) wurde fälschlicherweise ein Kreuz gesetzt. Hier gehört eine Krone hin.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Prüft, ob das Board vollständig und fehlerfrei gelöst ist
+     */
+    isCompleted() {
+        // Genau N Kronen müssen platziert sein
+        let crownCount = 0;
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.grid[r][c] === CROWNS_CROWN) crownCount++;
+            }
+        }
+        if (crownCount !== this.size) return false;
+
+        const val = this.validateRules();
+        return val.isValid;
+    }
+
+    getFilledCount() {
+        let count = 0;
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.grid[r][c] === CROWNS_CROWN) count++;
+            }
+        }
+        return count;
+    }
+
+    getTotalCells() {
+        return this.size;
+    }
+}
+
+// === Source: js\puzzles\crowns\solver.js ===
+/**
+ * Crowns (Queens) Puzzle Solver
+ * Logischer Solver mit 7 Prioritätsregeln + Backtracking-Fallback.
+ * Hint-System gibt strukturierte, nachvollziehbare Hinweise zurück.
+ */
+
+
+
+class CrownsSolver {
+    /**
+     * Löst das Puzzle und gibt bis zu maxSolutions Lösungen zurück.
+     * Jede Lösung ist ein N×N Array mit CROWNS_CROWN oder CROWNS_EMPTY.
+     */
+    static solve(engine, maxSolutions = 1) {
+        const size = engine.size;
+        const regions = engine.regions;
+        const solutions = [];
+
+        const usedCols = new Array(size).fill(false);
+        const usedRegs = new Array(size).fill(false);
+        const crownCol = new Array(size).fill(-1);
+
+        let hasConflict = false;
+        const fixedRow = new Array(size).fill(-1);
+        const forbidden = Array.from({ length: size }, () => Array(size).fill(false));
+
+        if (engine.grid) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (engine.grid[r][c] === CROWNS_CROWN) {
+                        if (fixedRow[r] !== -1) hasConflict = true;
+                        fixedRow[r] = c;
+                    } else if (engine.grid[r][c] === CROWNS_X) {
+                        forbidden[r][c] = true;
+                    }
+                }
+            }
+        }
+        if (hasConflict) return [];
+
+        function backtrack(row) {
+            if (solutions.length >= maxSolutions) return;
+            if (row === size) {
+                const sol = Array.from({ length: size }, (_, r) =>
+                    Array.from({ length: size }, (_, c) => crownCol[r] === c ? CROWNS_CROWN : CROWNS_EMPTY)
+                );
+                solutions.push(sol);
+                return;
+            }
+
+            const prevCol = row > 0 ? crownCol[row - 1] : -99;
+
+            if (fixedRow[row] !== -1) {
+                const c = fixedRow[row];
+                const reg = regions[row][c];
+                if (usedCols[c] || Math.abs(c - prevCol) <= 1 || usedRegs[reg]) return;
+                usedCols[c] = true;
+                usedRegs[reg] = true;
+                crownCol[row] = c;
+
+                backtrack(row + 1);
+
+                usedCols[c] = false;
+                usedRegs[reg] = false;
+                crownCol[row] = -1;
+                return;
+            }
+
+            for (let c = 0; c < size; c++) {
+                if (forbidden[row][c] || usedCols[c] || Math.abs(c - prevCol) <= 1) continue;
+                const reg = regions[row][c];
+                if (usedRegs[reg]) continue;
+
+                usedCols[c] = true;
+                usedRegs[reg] = true;
+                crownCol[row] = c;
+
+                backtrack(row + 1);
+
+                usedCols[c] = false;
+                usedRegs[reg] = false;
+                crownCol[row] = -1;
+            }
+        }
+
+        backtrack(0);
+        return solutions;
+    }
+
+    /**
+     * Findet einen logischen Hinweis für den nächsten Schritt.
+     * Erfüllt den Cortex Hint-Contract: { strategy, title, r, c, value, expectedVal, message, description, highlightCells }
+     */
+    static findLogicalHint(engine, options = {}) {
+        // 1. FEHLER-ERKENNUNG ZUERST (Kollisionen, unzulässige Kronen, falsche Kreuze)
+        const mistake = engine.findMistakes ? engine.findMistakes() : null;
+        if (mistake) return mistake;
+
+        const size = engine.size;
+        const grid = engine.grid;
+        const regions = engine.regions;
+        const focusCell = options.focusCell || null;
+
+        // Berechne verfügbare Zellen pro Zeile, Spalte und Farbregion
+        const availableInRow = Array.from({ length: size }, () => []);
+        const availableInCol = Array.from({ length: size }, () => []);
+        const availableInRegion = Array.from({ length: size }, () => []);
+
+        const hasCrownInRow = new Array(size).fill(false);
+        const hasCrownInCol = new Array(size).fill(false);
+        const hasCrownInRegion = new Array(size).fill(false);
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (grid[r][c] === CROWNS_CROWN) {
+                    hasCrownInRow[r] = true;
+                    hasCrownInCol[c] = true;
+                    hasCrownInRegion[regions[r][c]] = true;
+                }
+            }
+        }
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (grid[r][c] !== CROWNS_EMPTY) continue;
+                if (hasCrownInRow[r] || hasCrownInCol[c] || hasCrownInRegion[regions[r][c]]) continue;
+
+                // Prüfe ob Zelle durch benachbarte Krone blockiert ist
+                let blocked = false;
+                for (const n of engine.getNeighbors8(r, c)) {
+                    if (grid[n.r][n.c] === CROWNS_CROWN) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (blocked) continue;
+
+                const pos = { r, c };
+                availableInRow[r].push(pos);
+                availableInCol[c].push(pos);
+                availableInRegion[regions[r][c]].push(pos);
+            }
+        }
+
+        const candidates = [];
+
+        // 2. KRONEN-PLATZIERUNG: Einzige freie Stelle in Farbregion
+        for (let reg = 0; reg < size; reg++) {
+            if (hasCrownInRegion[reg]) continue;
+            if (availableInRegion[reg].length === 1) {
+                const cell = availableInRegion[reg][0];
+                candidates.push({
+                    priority: 10,
+                    type: 'place_crown',
+                    strategy: 'Krone in Farbregion platzieren',
+                    title: 'Krone in Farbregion platzieren',
+                    r: cell.r,
+                    c: cell.c,
+                    value: CROWNS_CROWN,
+                    expectedVal: CROWNS_CROWN,
+                    message: `In Farbregion ${reg + 1} gibt es nur noch ein einziges freies Feld (${cell.r + 1}, ${cell.c + 1}). Hier muss eine Krone 👑 stehen.`,
+                    description: `In Farbregion ${reg + 1} gibt es nur noch ein einziges freies Feld (${cell.r + 1}, ${cell.c + 1}). Hier muss eine Krone 👑 stehen.`,
+                    highlightCells: [cell]
+                });
+            }
+        }
+
+        // 3. KRONEN-PLATZIERUNG: Einzige freie Stelle in Zeile
+        for (let r = 0; r < size; r++) {
+            if (hasCrownInRow[r]) continue;
+            if (availableInRow[r].length === 1) {
+                const cell = availableInRow[r][0];
+                candidates.push({
+                    priority: 9,
+                    type: 'place_crown',
+                    strategy: 'Krone in Zeile platzieren',
+                    title: 'Krone in Zeile platzieren',
+                    r: cell.r,
+                    c: cell.c,
+                    value: CROWNS_CROWN,
+                    expectedVal: CROWNS_CROWN,
+                    message: `In Zeile ${r + 1} gibt es nur noch ein einziges freies Feld (${cell.r + 1}, ${cell.c + 1}). Hier muss eine Krone 👑 stehen.`,
+                    description: `In Zeile ${r + 1} gibt es nur noch ein einziges freies Feld (${cell.r + 1}, ${cell.c + 1}). Hier muss eine Krone 👑 stehen.`,
+                    highlightCells: [cell]
+                });
+            }
+        }
+
+        // 4. KRONEN-PLATZIERUNG: Einzige freie Stelle in Spalte
+        for (let c = 0; c < size; c++) {
+            if (hasCrownInCol[c]) continue;
+            if (availableInCol[c].length === 1) {
+                const cell = availableInCol[c][0];
+                candidates.push({
+                    priority: 9,
+                    type: 'place_crown',
+                    strategy: 'Krone in Spalte platzieren',
+                    title: 'Krone in Spalte platzieren',
+                    r: cell.r,
+                    c: cell.c,
+                    value: CROWNS_CROWN,
+                    expectedVal: CROWNS_CROWN,
+                    message: `In Spalte ${c + 1} gibt es nur noch ein einziges freies Feld (${cell.r + 1}, ${cell.c + 1}). Hier muss eine Krone 👑 stehen.`,
+                    description: `In Spalte ${c + 1} gibt es nur noch ein einziges freies Feld (${cell.r + 1}, ${cell.c + 1}). Hier muss eine Krone 👑 stehen.`,
+                    highlightCells: [cell]
+                });
+            }
+        }
+
+        // 5. NACHBAR-AUSSCHLUSS: 8er-Schutzring um gesetzte Kronen
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (grid[r][c] !== CROWNS_CROWN) continue;
+                for (const n of engine.getNeighbors8(r, c)) {
+                    if (grid[n.r][n.c] === CROWNS_EMPTY) {
+                        candidates.push({
+                            priority: 8,
+                            type: 'eliminate',
+                            strategy: 'Feld ausschließen: Kronen-Schutzring',
+                            title: 'Feld ausschließen: Kronen-Schutzring',
+                            r: n.r,
+                            c: n.c,
+                            value: CROWNS_X,
+                            expectedVal: CROWNS_X,
+                            message: `Kronen dürfen sich nicht berühren (auch nicht diagonal). Feld (${n.r + 1}, ${n.c + 1}) grenzt an die Krone bei (${r + 1}, ${c + 1}) und wird mit ✕ markiert.`,
+                            description: `Kronen dürfen sich nicht berühren (auch nicht diagonal). Feld (${n.r + 1}, ${n.c + 1}) grenzt an die Krone bei (${r + 1}, ${c + 1}) und wird mit ✕ markiert.`,
+                            highlightCells: [{ r, c }, { r: n.r, c: n.c }]
+                        });
+                    }
+                }
+            }
+        }
+
+        // 6. ZEILEN-, SPALTEN- UND REGIONEN-SÄTTIGUNG: Bereits platzierte Krone schließt Rest aus
+        for (let r = 0; r < size; r++) {
+            if (!hasCrownInRow[r]) continue;
+            for (let c = 0; c < size; c++) {
+                if (grid[r][c] === CROWNS_EMPTY) {
+                    candidates.push({
+                        priority: 7,
+                        type: 'eliminate',
+                        strategy: 'Feld ausschließen: Zeile besetzt',
+                        title: 'Feld ausschließen: Zeile besetzt',
+                        r, c,
+                        value: CROWNS_X,
+                        expectedVal: CROWNS_X,
+                        message: `In Zeile ${r + 1} steht bereits eine Krone. Feld (${r + 1}, ${c + 1}) kann keine Krone mehr enthalten und wird mit ✕ markiert.`,
+                        description: `In Zeile ${r + 1} steht bereits eine Krone. Feld (${r + 1}, ${c + 1}) kann keine Krone mehr enthalten und wird mit ✕ markiert.`,
+                        highlightCells: [{ r, c }]
+                    });
+                }
+            }
+        }
+
+        for (let c = 0; c < size; c++) {
+            if (!hasCrownInCol[c]) continue;
+            for (let r = 0; r < size; r++) {
+                if (grid[r][c] === CROWNS_EMPTY) {
+                    candidates.push({
+                        priority: 7,
+                        type: 'eliminate',
+                        strategy: 'Feld ausschließen: Spalte besetzt',
+                        title: 'Feld ausschließen: Spalte besetzt',
+                        r, c,
+                        value: CROWNS_X,
+                        expectedVal: CROWNS_X,
+                        message: `In Spalte ${c + 1} steht bereits eine Krone. Feld (${r + 1}, ${c + 1}) kann keine Krone mehr enthalten und wird mit ✕ markiert.`,
+                        description: `In Spalte ${c + 1} steht bereits eine Krone. Feld (${r + 1}, ${c + 1}) kann keine Krone mehr enthalten und wird mit ✕ markiert.`,
+                        highlightCells: [{ r, c }]
+                    });
+                }
+            }
+        }
+
+        for (let reg = 0; reg < size; reg++) {
+            if (!hasCrownInRegion[reg]) continue;
+            for (const { r, c } of engine.getRegionCells(reg)) {
+                if (grid[r][c] === CROWNS_EMPTY) {
+                    candidates.push({
+                        priority: 7,
+                        type: 'eliminate',
+                        strategy: 'Feld ausschließen: Farbregion besetzt',
+                        title: 'Feld ausschließen: Farbregion besetzt',
+                        r, c,
+                        value: CROWNS_X,
+                        expectedVal: CROWNS_X,
+                        message: `Farbregion ${reg + 1} hat bereits eine Krone. Feld (${r + 1}, ${c + 1}) kann keine Krone mehr enthalten und wird mit ✕ markiert.`,
+                        description: `Farbregion ${reg + 1} hat bereits eine Krone. Feld (${r + 1}, ${c + 1}) kann keine Krone mehr enthalten und wird mit ✕ markiert.`,
+                        highlightCells: [{ r, c }]
+                    });
+                }
+            }
+        }
+
+        // 7. REGION-ZEILEN-/SPALTEN-EINENGUNG (Pointing)
+        for (let reg = 0; reg < size; reg++) {
+            if (hasCrownInRegion[reg]) continue;
+            const avail = availableInRegion[reg];
+            if (avail.length < 2) continue;
+
+            const rows = new Set(avail.map(p => p.r));
+            if (rows.size === 1) {
+                const row = avail[0].r;
+                for (let c = 0; c < size; c++) {
+                    if (grid[row][c] === CROWNS_EMPTY && regions[row][c] !== reg) {
+                        candidates.push({
+                            priority: 6,
+                            type: 'eliminate',
+                            strategy: 'Logischer Ausschluss: Farbregion-Bindung',
+                            title: 'Logischer Ausschluss: Farbregion-Bindung',
+                            r: row,
+                            c,
+                            value: CROWNS_X,
+                            expectedVal: CROWNS_X,
+                            message: `Alle verbleibenden Möglichkeiten für Farbregion ${reg + 1} liegen in Zeile ${row + 1}. Feld (${row + 1}, ${c + 1}) kann daher keine Krone enthalten (✕).`,
+                            description: `Alle verbleibenden Möglichkeiten für Farbregion ${reg + 1} liegen in Zeile ${row + 1}. Feld (${row + 1}, ${c + 1}) kann daher keine Krone enthalten (✕).`,
+                            highlightCells: avail.concat([{ r: row, c }])
+                        });
+                    }
+                }
+            }
+
+            const cols = new Set(avail.map(p => p.c));
+            if (cols.size === 1) {
+                const col = avail[0].c;
+                for (let r = 0; r < size; r++) {
+                    if (grid[r][col] === CROWNS_EMPTY && regions[r][col] !== reg) {
+                        candidates.push({
+                            priority: 6,
+                            type: 'eliminate',
+                            strategy: 'Logischer Ausschluss: Farbregion-Bindung',
+                            title: 'Logischer Ausschluss: Farbregion-Bindung',
+                            r,
+                            c: col,
+                            value: CROWNS_X,
+                            expectedVal: CROWNS_X,
+                            message: `Alle verbleibenden Möglichkeiten für Farbregion ${reg + 1} liegen in Spalte ${col + 1}. Feld (${r + 1}, ${col + 1}) kann daher keine Krone enthalten (✕).`,
+                            description: `Alle verbleibenden Möglichkeiten für Farbregion ${reg + 1} liegen in Spalte ${col + 1}. Feld (${r + 1}, ${col + 1}) kann daher keine Krone enthalten (✕).`,
+                            highlightCells: avail.concat([{ r, c: col }])
+                        });
+                    }
+                }
+            }
+        }
+
+        // Falls Kandidaten gefunden wurden: Priorisiere focusCell, sonst höchste Priorität
+        if (candidates.length > 0) {
+            if (focusCell) {
+                const focused = candidates.find(c => c.r === focusCell.r && c.c === focusCell.c);
+                if (focused) return focused;
+            }
+            candidates.sort((a, b) => b.priority - a.priority);
+            return candidates[0];
+        }
+
+        // 8. FALLBACK ZUR LÖSUNG: Finde den nächsten korrekten Kronen-Zug
+        const sol = engine.getSolution ? engine.getSolution() : engine.solution;
+        if (sol) {
+            // Zuerst nach einer unbesetzten Krone suchen
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === CROWNS_EMPTY && sol[r][c] === CROWNS_CROWN) {
+                        const reg = regions[r][c];
+                        return {
+                            type: 'place_crown',
+                            strategy: 'Logische Deduktion: Krone erzwungen',
+                            title: 'Logische Deduktion: Krone erzwungen',
+                            r, c,
+                            value: CROWNS_CROWN,
+                            expectedVal: CROWNS_CROWN,
+                            message: `Durch logische Kombination der Regions- und Zeilenausschlüsse muss an Position (${r + 1}, ${c + 1}) in Farbregion ${reg + 1} eine Krone 👑 platziert werden.`,
+                            description: `Durch logische Kombination der Regions- und Zeilenausschlüsse muss an Position (${r + 1}, ${c + 1}) in Farbregion ${reg + 1} eine Krone 👑 platziert werden.`,
+                            highlightCells: [{ r, c }]
+                        };
+                    }
+                }
+            }
+
+            // Falls alle Kronen bereits gesetzt sind, leere Felder mit ✕ füllen
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === CROWNS_EMPTY) {
+                        return {
+                            type: 'eliminate',
+                            strategy: 'Feld ausschließen: Leeres Feld',
+                            title: 'Feld ausschließen: Leeres Feld',
+                            r, c,
+                            value: CROWNS_X,
+                            expectedVal: CROWNS_X,
+                            message: `Feld (${r + 1}, ${c + 1}) kann keine Krone mehr enthalten und wird mit ✕ markiert.`,
+                            description: `Feld (${r + 1}, ${c + 1}) kann keine Krone mehr enthalten und wird mit ✕ markiert.`,
+                            highlightCells: [{ r, c }]
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+// === Source: js\puzzles\crowns\generator.js ===
+/**
+ * Crowns (Queens) Puzzle Generator
+ * Erzeugt deterministisch eindeutig lösbare Crowns-Rätsel
+ * mit zusammenhängenden Farbregionen in verschiedenen Schwierigkeitsgraden.
+ */
+
+
+
+
+class CrownsGenerator {
+    /**
+     * Deterministischer PRNG (Mulberry32 — bessere Verteilung als LCG)
+     */
+    static seededRandom(seed) {
+        let s = seed | 0;
+        return function() {
+            s = (s + 0x6D2B79F5) | 0;
+            let t = Math.imul(s ^ (s >>> 15), 1 | s);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    /**
+     * Fisher-Yates-Shuffle mit externem RNG
+     */
+    static shuffle(arr, rng) {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    /**
+     * Generiert N gültige Kronenpositionen auf einem N×N Grid.
+     * Jede Zeile und Spalte hat genau 1 Krone, keine 8er-Nachbarschaft.
+     */
+    static generateCrownPositions(size, rng) {
+        const result = [];
+
+        function backtrack(row, usedCols) {
+            if (row === size) return true;
+
+            const candidates = CrownsGenerator.shuffle(
+                Array.from({ length: size }, (_, i) => i).filter(c => !usedCols.has(c)),
+                rng
+            );
+
+            for (const c of candidates) {
+                // 8er-Nachbarschafts-Check mit vorherigen Kronen
+                let valid = true;
+                for (const prev of result) {
+                    if (Math.abs(prev.r - row) <= 1 && Math.abs(prev.c - c) <= 1) {
+                        valid = false;
+                        break;
+                    }
+                }
+                if (!valid) continue;
+
+                result.push({ r: row, c });
+                usedCols.add(c);
+
+                if (backtrack(row + 1, usedCols)) return true;
+
+                result.pop();
+                usedCols.delete(c);
+            }
+            return false;
+        }
+
+        backtrack(0, new Set());
+        return result;
+    }
+
+    /**
+     * Generiert zusammenhängende Regionen per Competitive Flood-Fill
+     */
+    static generateRegions(size, crownPositions, rng) {
+        const regions = Array.from({ length: size }, () => Array(size).fill(-1));
+
+        // Seeds setzen
+        crownPositions.forEach(({ r, c }, i) => {
+            regions[r][c] = i;
+        });
+
+        // Frontier-Queues pro Region
+        const queues = crownPositions.map(({ r, c }) => [{ r, c }]);
+        let unassigned = size * size - size;
+
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+        // Competitive Flood-Fill: Regionen expandieren abwechselnd
+        let safetyCounter = 0;
+        const maxIterations = size * size * 10;
+
+        while (unassigned > 0 && safetyCounter < maxIterations) {
+            safetyCounter++;
+            let anyExpanded = false;
+
+            // Reihenfolge der Regionen shufflen für Fairness
+            const order = CrownsGenerator.shuffle(Array.from({ length: size }, (_, i) => i), rng);
+
+            for (const i of order) {
+                if (queues[i].length === 0) continue;
+
+                // Sammle alle unbesetzten Nachbarn der Frontier
+                const frontierNeighbors = [];
+                for (const cell of queues[i]) {
+                    for (const [dr, dc] of dirs) {
+                        const nr = cell.r + dr;
+                        const nc = cell.c + dc;
+                        if (nr >= 0 && nr < size && nc >= 0 && nc < size && regions[nr][nc] === -1) {
+                            if (!frontierNeighbors.some(f => f.r === nr && f.c === nc)) {
+                                frontierNeighbors.push({ r: nr, c: nc });
+                            }
+                        }
+                    }
+                }
+
+                if (frontierNeighbors.length === 0) continue;
+
+                // Zufällige Nachbarzelle expandieren
+                const pick = frontierNeighbors[Math.floor(rng() * frontierNeighbors.length)];
+                regions[pick.r][pick.c] = i;
+                queues[i].push(pick);
+                unassigned--;
+                anyExpanded = true;
+            }
+
+            if (!anyExpanded) break;
+        }
+
+        // Sicherheit: Falls noch unbesetzte Zellen, ordne sie der nächsten Region zu
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (regions[r][c] === -1) {
+                    for (const [dr, dc] of dirs) {
+                        const nr = r + dr;
+                        const nc = c + dc;
+                        if (nr >= 0 && nr < size && nc >= 0 && nc < size && regions[nr][nc] !== -1) {
+                            regions[r][c] = regions[nr][nc];
+                            break;
+                        }
+                    }
+                    if (regions[r][c] === -1) regions[r][c] = 0;
+                }
+            }
+        }
+
+        return regions;
+    }
+
+    /**
+     * Prüft, ob eine Menge von Zellen 4-fach zusammenhängend ist
+     */
+    static isRegionConnected(cells) {
+        if (!cells || cells.length === 0) return false;
+        const set = new Set(cells.map(c => `${c.r},${c.c}`));
+        const visited = new Set();
+        const queue = [cells[0]];
+        visited.add(`${cells[0].r},${cells[0].c}`);
+
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        while (queue.length > 0) {
+            const curr = queue.shift();
+            for (const [dr, dc] of dirs) {
+                const nr = curr.r + dr;
+                const nc = curr.c + dc;
+                const key = `${nr},${nc}`;
+                if (set.has(key) && !visited.has(key)) {
+                    visited.add(key);
+                    queue.push({ r: nr, c: nc });
+                }
+            }
+        }
+        return visited.size === cells.length;
+    }
+
+    /**
+     * Eliminiert alternative Lösungen durch gezielte Randzellen-Verschiebungen
+     */
+    static makeUnique(size, crownPositions, regions, rng, maxSteps = 120) {
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        const targetCrownsSet = new Set(crownPositions.map(p => `${p.r},${p.c}`));
+        const regCells = Array.from({ length: size }, () => []);
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                regCells[regions[r][c]].push({ r, c });
+            }
+        }
+
+        const testEngine = new CrownsEngine(size);
+
+        for (let step = 0; step < maxSteps; step++) {
+            testEngine.loadPuzzle({ size, regions });
+            const sols = CrownsSolver.solve(testEngine, 2);
+            if (sols.length === 1) return regions;
+
+            const targetGrid = Array.from({ length: size }, (_, r) =>
+                Array.from({ length: size }, (_, c) => targetCrownsSet.has(`${r},${c}`) ? CROWNS_CROWN : CROWNS_EMPTY)
+            );
+            const isFirstTarget = sols[0].every((row, r) => row.every((val, c) => val === targetGrid[r][c]));
+            const altSol = isFirstTarget ? sols[1] : sols[0];
+
+            const altCrowns = [];
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (altSol[r][c] === CROWNS_CROWN) {
+                        altCrowns.push({ r, c });
+                    }
+                }
+            }
+            const altCrownsSet = new Set(altCrowns.map(p => `${p.r},${p.c}`));
+
+            let moved = false;
+            const nonTargetAlts = CrownsGenerator.shuffle(
+                altCrowns.filter(p => !targetCrownsSet.has(`${p.r},${p.c}`)),
+                rng
+            );
+
+            for (const { r, c } of nonTargetAlts) {
+                const currReg = regions[r][c];
+                const remaining = regCells[currReg].filter(p => !(p.r === r && p.c === c));
+                if (!CrownsGenerator.isRegionConnected(remaining)) continue;
+
+                for (const [dr, dc] of dirs) {
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (nr >= 0 && nr < size && nc >= 0 && nc < size && regions[nr][nc] !== currReg) {
+                        const adjReg = regions[nr][nc];
+                        if (regCells[adjReg].some(p => altCrownsSet.has(`${p.r},${p.c}`))) {
+                            regCells[currReg] = remaining;
+                            regCells[adjReg].push({ r, c });
+                            regions[r][c] = adjReg;
+                            moved = true;
+                            break;
+                        }
+                    }
+                }
+                if (moved) break;
+            }
+
+            if (!moved) {
+                const allNonTarget = [];
+                for (let r = 0; r < size; r++) {
+                    for (let c = 0; c < size; c++) {
+                        if (!targetCrownsSet.has(`${r},${c}`)) allNonTarget.push({ r, c });
+                    }
+                }
+                const shuffled = CrownsGenerator.shuffle(allNonTarget, rng);
+                for (const { r, c } of shuffled) {
+                    const currReg = regions[r][c];
+                    const remaining = regCells[currReg].filter(p => !(p.r === r && p.c === c));
+                    if (!CrownsGenerator.isRegionConnected(remaining)) continue;
+
+                    for (const [dr, dc] of dirs) {
+                        const nr = r + dr;
+                        const nc = c + dc;
+                        if (nr >= 0 && nr < size && nc >= 0 && nc < size && regions[nr][nc] !== currReg) {
+                            const adjReg = regions[nr][nc];
+                            regCells[currReg] = remaining;
+                            regCells[adjReg].push({ r, c });
+                            regions[r][c] = adjReg;
+                            moved = true;
+                            break;
+                        }
+                    }
+                    if (moved) break;
+                }
+            }
+
+            if (!moved) break;
+        }
+
+        testEngine.loadPuzzle({ size, regions });
+        if (CrownsSolver.solve(testEngine, 2).length === 1) return regions;
+        return null;
+    }
+
+    /**
+     * Farbpaletten für Regionen (visuell distinkt, angenehm)
+     */
+    static getRegionPalette(size) {
+        const palettes = {
+            3: ['#FF6B6B', '#4ECDC4', '#45B7D1'],
+            4: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E'],
+            5: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E', '#A29BFE'],
+            6: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E', '#A29BFE', '#FF85A1'],
+            7: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E', '#A29BFE', '#FF85A1', '#6BCB77'],
+            8: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E', '#A29BFE', '#FF85A1', '#6BCB77', '#FFB347'],
+            9: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E', '#A29BFE', '#FF85A1', '#6BCB77', '#FFB347', '#D4A5A5']
+        };
+        return palettes[size] || palettes[5];
+    }
+
+    /**
+     * Erzeugt ein Crowns-Puzzle mit eindeutiger Lösung
+     * @param {Object} opts - { size: number, difficulty: 'easy'|'medium'|'hard', seed?: number }
+     */
+    static generatePuzzle(opts = {}) {
+        const size = opts.size || 5;
+        const difficulty = opts.difficulty || 'medium';
+        const seed = opts.seed !== undefined ? opts.seed : Math.floor(Math.random() * 10000000);
+
+        for (let seedOffset = 0; seedOffset < 100; seedOffset++) {
+            const currentSeed = seed + seedOffset * 7919;
+            const rng = CrownsGenerator.seededRandom(currentSeed);
+
+            const crownPositions = CrownsGenerator.generateCrownPositions(size, rng);
+            if (crownPositions.length !== size) continue;
+
+            const regions = CrownsGenerator.generateRegions(size, crownPositions, rng);
+            const uniqueRegions = CrownsGenerator.makeUnique(size, crownPositions, regions, rng);
+            if (!uniqueRegions) continue;
+
+            const solution = Array.from({ length: size }, () => Array(size).fill(CROWNS_EMPTY));
+            for (const { r, c } of crownPositions) {
+                solution[r][c] = CROWNS_CROWN;
+            }
+
+            return {
+                size,
+                regions: uniqueRegions,
+                regionColors: CrownsGenerator.getRegionPalette(size),
+                solution,
+                difficulty,
+                seed: currentSeed
+            };
+        }
+
+        throw new Error(`CrownsGenerator: Konnte kein eindeutiges Puzzle für size=${size} mit seed=${seed} erzeugen`);
+    }
+}
+
+// === Source: js\puzzles\crowns\renderer.js ===
+/**
+ * Crowns (Queens) Visual Renderer
+ * Zeichnet das farbige Regionsgitter, Kronen, X-Markierungen,
+ * Tutorial-Ghosts, Keypad und Regeltext.
+ */
+
+
+
+
+function getCrownSvg(extraClass = '') {
+    return `<svg class="crowns-symbol crowns-crown-icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 19h19l-2-8-3.5 3.5L12 8l-4 6.5L4.5 11l-2 8z" fill="currentColor"/><rect x="2.5" y="19" width="19" height="2.5" rx="0.5" fill="currentColor"/><circle cx="4.5" cy="9.5" r="1.5" fill="currentColor"/><circle cx="12" cy="6" r="1.5" fill="currentColor"/><circle cx="19.5" cy="9.5" r="1.5" fill="currentColor"/></svg>`;
+}
+
+function getXSvg(extraClass = '') {
+    return `<svg class="crowns-symbol crowns-x-icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true"><line x1="5.5" y1="5.5" x2="18.5" y2="18.5" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/><line x1="18.5" y1="5.5" x2="5.5" y2="18.5" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg>`;
+}
+
+class CrownsRenderer {
+    static getSymbolSvg(val, extraClass = '') {
+        if (val === CROWNS_CROWN) return getCrownSvg(extraClass);
+        if (val === CROWNS_X) return getXSvg(extraClass);
+        return '';
+    }
+
+    static renderBoard(container, engine, state, onCellInteraction) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+        const size = engine.size;
+
+        const gridEl = document.createElement('div');
+        gridEl.className = `crowns-grid size-${size}`;
+        gridEl.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
+        gridEl.style.gridTemplateRows = `repeat(${size}, minmax(0, 1fr))`;
+        gridEl.style.setProperty('--grid-size', size);
+
+        const validation = state.autoCheck ? engine.validateRules() : { conflictCells: new Set() };
+        const solution = state.solutionRevealed ? engine.getSolution() : null;
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                const cellEl = document.createElement('div');
+                cellEl.className = 'grid-cell crowns-cell';
+                cellEl.dataset.r = r;
+                cellEl.dataset.c = c;
+
+                // Region-Farbe als Hintergrund
+                const regionId = engine.regions[r][c];
+                const regionColor = engine.regionColors[regionId] || '#888';
+                cellEl.style.setProperty('--region-color', regionColor);
+                cellEl.classList.add(`region-${regionId}`);
+
+                const val = engine.grid[r][c];
+                const isConflict = !state.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
+                const isSelected = !state.solutionRevealed && state.selectedCell && state.selectedCell.r === r && state.selectedCell.c === c;
+                const isHintShimmer = !state.solutionRevealed && state.hintPlacedCell && state.hintPlacedCell.r === r && state.hintPlacedCell.c === c;
+                const isHintHighlight = !state.solutionRevealed && state.currentHint?.highlightCells?.some(h => h.r === r && h.c === c);
+
+                if (isConflict) cellEl.classList.add('conflict');
+                if (isSelected) cellEl.classList.add('selected');
+                if (isHintShimmer) cellEl.classList.add('hint-shimmer');
+                if (isHintHighlight) cellEl.classList.add('hint-highlight');
+
+                if (state.solutionRevealed && solution) {
+                    const solVal = solution[r][c];
+                    if (solVal === CROWNS_CROWN) {
+                        if (val === CROWNS_CROWN) {
+                            cellEl.classList.add('cell-revealed-correct');
+                            cellEl.innerHTML = `<span class="icon-crown">${getCrownSvg('cell-crown')}</span>`;
+                        } else {
+                            cellEl.classList.add('cell-revealed-solution');
+                            cellEl.innerHTML = `<span class="revealed-ghost ghost-crown">${getCrownSvg('ghost-icon')}</span>`;
+                        }
+                    } else if (val === CROWNS_CROWN) {
+                        cellEl.classList.add('cell-revealed-error');
+                        cellEl.innerHTML = `<span class="wrong-marker-cross">✕</span><span class="icon-crown">${getCrownSvg('cell-crown')}</span>`;
+                    }
+                } else if (val === CROWNS_CROWN) {
+                    cellEl.classList.add('val-crown');
+                    cellEl.innerHTML = `<span class="icon-crown">${getCrownSvg('cell-crown')}</span>`;
+                } else if (val === CROWNS_X) {
+                    cellEl.classList.add('val-x');
+                    cellEl.innerHTML = `<span class="icon-x">${getXSvg('cell-x')}</span>`;
+                } else {
+                    // Leere Zelle - Tutorial-Ghost oder Notizen
+                    let tutStep = null;
+                    if (state.currentMode === 'tutorial' || state.currentMode === 'tutorial_crowns') {
+                        tutStep = CROWNS_TUTORIAL_STEPS[state.tutorialStepIndex];
+                    }
+
+                    const targetCellInfo = (tutStep && tutStep.targetCells) ? tutStep.targetCells.find(t => t.r === r && t.c === c) : null;
+                    if (targetCellInfo) {
+                        cellEl.classList.add('tutorial-target');
+                        const ghostEl = document.createElement('span');
+                        ghostEl.className = 'target-ghost ghost-crown';
+                        ghostEl.innerHTML = targetCellInfo.val === CROWNS_CROWN ? getCrownSvg('ghost-icon') : getXSvg('ghost-icon');
+                        cellEl.appendChild(ghostEl);
+                    } else {
+                        // Notizen
+                        const notes = engine.notes[r][c];
+                        if (notes && notes.size > 0) {
+                            const noteEl = document.createElement('div');
+                            noteEl.className = 'cell-notes';
+                            if (notes.has(CROWNS_CROWN)) noteEl.innerHTML += `<span class="mini-crown">${getCrownSvg('mini-icon')}</span>`;
+                            cellEl.appendChild(noteEl);
+                        }
+                    }
+                }
+
+                // Event Listener
+                if (typeof onCellInteraction === 'function') {
+                    onCellInteraction(cellEl, r, c);
+                }
+
+                gridEl.appendChild(cellEl);
+            }
+        }
+
+        // SVG Overlay für 100% gleichmäßige Rasterlinien und Regionen-Grenzen
+        let linesSvg = '';
+        for (let i = 1; i < size; i++) {
+            const pos = i * 100;
+            linesSvg += `<line x1="${pos}" y1="0" x2="${pos}" y2="${size * 100}" class="crowns-grid-line" />`;
+            linesSvg += `<line x1="0" y1="${pos}" x2="${size * 100}" y2="${pos}" class="crowns-grid-line" />`;
+        }
+
+        let pathD = '';
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size - 1; c++) {
+                if (engine.regions[r][c] !== engine.regions[r][c + 1]) {
+                    const x = (c + 1) * 100;
+                    pathD += `M ${x} ${r * 100} L ${x} ${(r + 1) * 100} `;
+                }
+            }
+        }
+        for (let r = 0; r < size - 1; r++) {
+            for (let c = 0; c < size; c++) {
+                if (engine.regions[r][c] !== engine.regions[r + 1][c]) {
+                    const y = (r + 1) * 100;
+                    pathD += `M ${c * 100} ${y} L ${(c + 1) * 100} ${y} `;
+                }
+            }
+        }
+
+        const borderPathSvg = pathD.trim() ? `<path d="${pathD.trim()}" class="crowns-region-borders" />` : '';
+
+        const overlayWrapper = document.createElement('div');
+        overlayWrapper.innerHTML = `<svg class="crowns-grid-overlay" viewBox="0 0 ${size * 100} ${size * 100}" preserveAspectRatio="none" aria-hidden="true"><g class="crowns-grid-lines">${linesSvg}</g>${borderPathSvg}</svg>`;
+        gridEl.appendChild(overlayWrapper.firstElementChild);
+
+        container.appendChild(gridEl);
+    }
+
+    static renderKeypad(container, engine, state, onKeyInput) {
+        if (!container) return;
+        container.innerHTML = '';
+
+        const keypad = document.createElement('div');
+        keypad.className = 'game-keypad crowns-keypad';
+        keypad.id = 'gameKeypad';
+
+        const btnCrown = document.createElement('button');
+        btnCrown.className = 'keypad-btn';
+        btnCrown.id = 'keypadCrown';
+        btnCrown.setAttribute('aria-label', 'Krone');
+        btnCrown.innerHTML = getCrownSvg('keypad-crown');
+        btnCrown.addEventListener('click', () => onKeyInput && onKeyInput(CROWNS_CROWN));
+
+        const btnX = document.createElement('button');
+        btnX.className = 'keypad-btn';
+        btnX.id = 'keypadX';
+        btnX.setAttribute('aria-label', 'Eliminieren');
+        btnX.innerHTML = getXSvg('keypad-x');
+        btnX.addEventListener('click', () => onKeyInput && onKeyInput(CROWNS_X));
+
+        const btnClear = document.createElement('button');
+        btnClear.className = 'keypad-btn';
+        btnClear.id = 'keypadClear';
+        btnClear.setAttribute('aria-label', 'Löschen');
+        btnClear.textContent = '⌫';
+        btnClear.addEventListener('click', () => onKeyInput && onKeyInput(CROWNS_EMPTY));
+
+        keypad.appendChild(btnCrown);
+        keypad.appendChild(btnX);
+        keypad.appendChild(btnClear);
+
+        container.appendChild(keypad);
+    }
+
+    static getRulesHtml(lang = 'de') {
+        if (lang === 'en') {
+            return `
+                <div class="rules-container">
+                    <div class="rule-box">
+                        <div class="rule-badge">1</div>
+                        <div class="rule-content">
+                            <strong>One crown per row</strong>
+                            <p>Each row must contain exactly one crown 👑.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">2</div>
+                        <div class="rule-content">
+                            <strong>One crown per column</strong>
+                            <p>Each column must contain exactly one crown 👑.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">3</div>
+                        <div class="rule-content">
+                            <strong>One crown per color region</strong>
+                            <p>Each colored region must contain exactly one crown 👑.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">4</div>
+                        <div class="rule-content">
+                            <strong>No touching</strong>
+                            <p>Crowns may not be placed in adjacent cells — neither horizontally, vertically, nor diagonally.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="rules-container">
+                <div class="rule-box">
+                    <div class="rule-badge">1</div>
+                    <div class="rule-content">
+                        <strong>Eine Krone pro Zeile</strong>
+                        <p>Jede Zeile muss genau eine Krone 👑 enthalten.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">2</div>
+                    <div class="rule-content">
+                        <strong>Eine Krone pro Spalte</strong>
+                        <p>Jede Spalte muss genau eine Krone 👑 enthalten.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">3</div>
+                    <div class="rule-content">
+                        <strong>Eine Krone pro Farbregion</strong>
+                        <p>Jede farbige Region muss genau eine Krone 👑 enthalten.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">4</div>
+                    <div class="rule-content">
+                        <strong>Keine Berührung</strong>
+                        <p>Kronen dürfen sich weder waagerecht, senkrecht noch diagonal berühren.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// === Source: js\puzzles\crowns\data\i18n.js ===
+/**
+ * Crowns i18n Strings
+ */
+
+const CROWNS_I18N = {
+    de: {
+        crowns_name: 'Crowns',
+        crowns_desc: 'Platziere Kronen in farbigen Regionen',
+        crowns_rule_1: 'Eine Krone pro Zeile',
+        crowns_rule_2: 'Eine Krone pro Spalte',
+        crowns_rule_3: 'Eine Krone pro Farbregion',
+        crowns_rule_4: 'Keine Berührung (auch nicht diagonal)',
+        crowns_crown: 'Krone',
+        crowns_eliminate: 'Eliminieren',
+        crowns_region: 'Farbregion'
+    },
+    en: {
+        crowns_name: 'Crowns',
+        crowns_desc: 'Place crowns in colored regions',
+        crowns_rule_1: 'One crown per row',
+        crowns_rule_2: 'One crown per column',
+        crowns_rule_3: 'One crown per color region',
+        crowns_rule_4: 'No touching (including diagonals)',
+        crowns_crown: 'Crown',
+        crowns_eliminate: 'Eliminate',
+        crowns_region: 'Color Region'
+    }
+};
+
+// === Source: js\puzzles\crowns\data\levels.js ===
+/**
+ * Crowns Level & Tagesrätsel-Generierung
+ */
+
+
+
+function getCrownsCampaignLevel(levelIndex) {
+    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (120 Level in 4 Kapiteln)
+    let size, difficulty;
+    if (levelIndex < 10) {
+        // Kapitel 1: Level 1–10 (5×5 Einfach)
+        size = 5;
+        difficulty = 'easy';
+    } else if (levelIndex < 20) {
+        // Kapitel 1: Level 11–20 (5×5 Mittel)
+        size = 5;
+        difficulty = 'medium';
+    } else if (levelIndex < 30) {
+        // Kapitel 1: Level 21–30 (6×6 Einfach)
+        size = 6;
+        difficulty = 'easy';
+    } else if (levelIndex < 45) {
+        // Kapitel 2: Level 31–45 (6×6 Mittel)
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 60) {
+        // Kapitel 2: Level 46–60 (6×6 Schwer)
+        size = 6;
+        difficulty = 'hard';
+    } else if (levelIndex < 75) {
+        // Kapitel 3: Level 61–75 (7×7 Mittel)
+        size = 7;
+        difficulty = 'medium';
+    } else if (levelIndex < 90) {
+        // Kapitel 3: Level 76–90 (7×7 Schwer)
+        size = 7;
+        difficulty = 'hard';
+    } else if (levelIndex < 105) {
+        // Kapitel 4: Level 91–105 (8×8 Schwer)
+        size = 8;
+        difficulty = 'hard';
+    } else {
+        // Kapitel 4: Level 106–120 (9×9 Schwer)
+        size = 9;
+        difficulty = 'hard';
+    }
+
+    // Deterministischer Seed pro Level
+    const seed = 70000 + (levelIndex + 1) * 137;
+    const generated = CrownsGenerator.generatePuzzle({ size, difficulty, seed });
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1}`,
+        ...generated
+    };
+}
+
+/**
+ * Erzeugt das synchrone Tagesrätsel basierend auf dem Datum (JJJJ-MM-TT)
+ */
+function getCrownsDailyPuzzle(dateStr) {
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10);
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+    const size = isWeekend ? 7 : 5;
+    const difficulty = isWeekend ? 'hard' : 'medium';
+
+    const generated = CrownsGenerator.generatePuzzle({ size, difficulty, seed });
+    return {
+        id: `daily_${dateStr}`,
+        date: dateStr,
+        name: `Tagesrätsel (${dateStr})`,
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\crowns\data\tutorial.js ===
+/**
+ * Crowns Interaktives Tutorial
+ * 7 aufeinander aufbauende Lektionen (4×4 und 5×5 Puzzles)
+ */
+
+
+
+const CROWNS_TUTORIAL_STEPS = [
+    {
+        id: 1,
+        title: "1. Die Krone 👑",
+        subtitle: "Grundlagen und Steuerung",
+        description: `Willkommen bei **Crowns**!\n\nDein Ziel ist es, in jeder farbigen Region genau eine **Krone (👑)** zu platzieren.\n\n**Bedienung**:\n- **1× Tippen** = **Krone 👑**\n- **2× Tippen** = **X-Markierung ✕** (Eliminierung)\n- **3× Tippen** = **Löschen**\n\n*Aufgabe: Setze eine Krone auf das markierte Feld.*`,
+        size: 4,
+        regions: [
+            [0, 0, 0, 1],
+            [2, 0, 1, 1],
+            [2, 2, 3, 3],
+            [2, 3, 3, 3]
+        ],
+        regionColors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E'],
+        initialGrid: [
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY]
+        ],
+        solution: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY]
+        ],
+        targetCells: [{r: 0, c: 1, val: CROWNS_CROWN}],
+        explanation: "Perfekt! Du hast deine erste Krone platziert."
+    },
+    {
+        id: 2,
+        title: "2. Farbregionen",
+        subtitle: "Jede Region braucht genau eine Krone",
+        description: `Das Gitter ist in **farbige Regionen** unterteilt. In jeder Region muss **genau eine Krone** stehen.\n\nSchau dir die Farben an — jede Farbe ist eine eigene Region.\n\n*Aufgabe: Platziere die Krone in der türkisen (hellblauen) Region.*`,
+        size: 4,
+        regions: [
+            [0, 0, 0, 1],
+            [2, 0, 1, 1],
+            [2, 2, 3, 3],
+            [2, 3, 3, 3]
+        ],
+        regionColors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E'],
+        initialGrid: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY]
+        ],
+        solution: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY]
+        ],
+        targetCells: [{r: 2, c: 0, val: CROWNS_CROWN}],
+        explanation: "Genau! Jede Farbregion bekommt genau eine Krone."
+    },
+    {
+        id: 3,
+        title: "3. Eine pro Zeile",
+        subtitle: "Jede Zeile enthält genau eine Krone",
+        description: `Neben der Regionsregel gilt: **Jede Zeile** darf nur **eine einzige Krone** enthalten.\n\nDas bedeutet: Wenn du in einer Zeile eine Krone platziert hast, können alle anderen Felder dieser Zeile eliminiert werden.\n\n*Aufgabe: Platziere die Krone in Zeile 2 (die einzig mögliche Position).*`,
+        size: 4,
+        regions: [
+            [0, 0, 0, 1],
+            [2, 0, 1, 1],
+            [2, 2, 3, 3],
+            [2, 3, 3, 3]
+        ],
+        regionColors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E'],
+        initialGrid: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY]
+        ],
+        solution: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY]
+        ],
+        targetCells: [{r: 1, c: 3, val: CROWNS_CROWN}],
+        explanation: "Richtig! Nur eine Krone pro Zeile."
+    },
+    {
+        id: 4,
+        title: "4. Eine pro Spalte",
+        subtitle: "Jede Spalte enthält genau eine Krone",
+        description: `Die gleiche Regel gilt auch für **Spalten**: Jede Spalte darf nur **eine einzige Krone** enthalten.\n\nZusammen mit der Zeilenregel bedeutet das: N Kronen auf N×N Feldern.\n\n*Aufgabe: Platziere die fehlende Krone in der richtigen Spalte.*`,
+        size: 4,
+        regions: [
+            [0, 0, 0, 1],
+            [2, 0, 1, 1],
+            [2, 2, 3, 3],
+            [2, 3, 3, 3]
+        ],
+        regionColors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E'],
+        initialGrid: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY]
+        ],
+        solution: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY]
+        ],
+        targetCells: [{r: 3, c: 2, val: CROWNS_CROWN}],
+        explanation: "Super! Du hast die Spaltenregel verstanden."
+    },
+    {
+        id: 5,
+        title: "5. Keine Berührung",
+        subtitle: "Kronen dürfen sich nicht berühren",
+        description: `Kronen dürfen sich **niemals berühren** — weder waagerecht, senkrecht noch **diagonal**!\n\nDas heißt: Rund um jede Krone muss ein **Schutzring** aus leeren oder eliminierten Feldern sein.\n\n*Aufgabe: Platziere die Krone so, dass keine andere Krone berührt wird.*`,
+        size: 5,
+        regions: [
+            [0, 0, 0, 2, 2],
+            [1, 1, 0, 2, 2],
+            [1, 1, 3, 3, 2],
+            [1, 3, 3, 4, 4],
+            [3, 3, 4, 4, 4]
+        ],
+        regionColors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E', '#A29BFE'],
+        initialGrid: [
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY]
+        ],
+        solution: [
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN],
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY]
+        ],
+        targetCells: [{r: 2, c: 4, val: CROWNS_CROWN}],
+        explanation: "Perfekt! Keine Krone berührt eine andere."
+    },
+    {
+        id: 6,
+        title: "6. Eliminieren mit ✕",
+        subtitle: "Schließe unmögliche Felder aus",
+        description: `Ein wichtiges Werkzeug ist die **X-Markierung (✕)**. Damit markierst du Felder, die **keine Krone** haben können.\n\nTipp: Wenn eine Krone gesetzt wird, können alle Nachbarfelder (auch diagonal) sowie alle anderen Felder in derselben Zeile, Spalte und Region eliminiert werden.\n\n*Aufgabe: Markiere die unmöglichen Felder neben der Krone mit X.*`,
+        size: 4,
+        regions: [
+            [0, 0, 0, 1],
+            [2, 0, 1, 1],
+            [2, 2, 3, 3],
+            [2, 3, 3, 3]
+        ],
+        regionColors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E'],
+        initialGrid: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY]
+        ],
+        solution: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY]
+        ],
+        targetCells: [{r: 0, c: 0, val: CROWNS_X}, {r: 0, c: 2, val: CROWNS_X}],
+        explanation: "Genau! Eliminierung ist der Schlüssel zur Lösung."
+    },
+    {
+        id: 7,
+        title: "7. Komplettes Puzzle",
+        subtitle: "Löse ein ganzes Crowns-Rätsel",
+        description: `Jetzt kombiniere alle Regeln und löse ein komplettes Puzzle!\n\n**Zusammenfassung**:\n1. 👑 Eine Krone pro Zeile\n2. 👑 Eine Krone pro Spalte\n3. 👑 Eine Krone pro Farbregion\n4. 🚫 Keine Berührung (auch nicht diagonal)\n\n*Aufgabe: Platziere alle 4 Kronen korrekt.*`,
+        size: 4,
+        regions: [
+            [0, 0, 1, 1],
+            [0, 2, 1, 1],
+            [2, 2, 3, 3],
+            [2, 3, 3, 3]
+        ],
+        regionColors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E'],
+        initialGrid: [
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY]
+        ],
+        solution: [
+            [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN],
+            [CROWNS_CROWN, CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_EMPTY],
+            [CROWNS_EMPTY, CROWNS_EMPTY, CROWNS_CROWN, CROWNS_EMPTY]
+        ],
+        targetCells: [
+            {r: 0, c: 1, val: CROWNS_CROWN},
+            {r: 1, c: 3, val: CROWNS_CROWN},
+            {r: 2, c: 0, val: CROWNS_CROWN},
+            {r: 3, c: 2, val: CROWNS_CROWN}
+        ],
+        explanation: "Hervorragend! Du hast Crowns gemeistert! 🎉"
+    }
+];
+
+// === Source: js\puzzles\crowns\index.js ===
+/**
+ * Crowns (Queens) Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für Crowns (5×5 bis 9×9).
+ */
+
+
+
+
+
+
+
+
+
+const CrownsPlugin = {
+    id: 'crowns',
+    name: 'Crowns',
+    icon: '👑',
+    description: 'Platziere Kronen in farbigen Regionen',
+    badge: 'Neu',
+    cssPath: './css/puzzles/crowns.css',
+
+    getSizes: () => [
+        { id: 5, label: '5 × 5 (Mini)', gridSize: 5 },
+        { id: 6, label: '6 × 6 (Standard)', gridSize: 6 },
+        { id: 7, label: '7 × 7 (Groß)', gridSize: 7 },
+        { id: 8, label: '8 × 8 (Experte)', gridSize: 8 },
+        { id: 9, label: '9 × 9 (Meister)', gridSize: 9 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_X],
+
+    getInputConfig: () => ({
+        type: 'cycle',
+        allowKeypad: true,
+        keys: [CROWNS_EMPTY, CROWNS_CROWN, CROWNS_X]
+    }),
+
+    createEngine: (size = 5) => new CrownsEngine(size),
+    generatePuzzle: (opts) => CrownsGenerator.generatePuzzle(opts),
+    solvePuzzle: (engine, max = 1) => CrownsSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => CrownsRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => CrownsRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass) => CrownsRenderer.getSymbolSvg(val, extraClass),
+
+    getHint: (engine, options) => CrownsSolver.findLogicalHint(engine, options),
+    getRules: (lang) => CrownsRenderer.getRulesHtml(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 120,
+        chapters: [
+            { id: 0, name: 'Krönung', levelRange: [0, 29], desc: '5×5 & 6×6 Grundlagen' },
+            { id: 1, name: 'Königreich', levelRange: [30, 59], desc: '6×6 Fortgeschritten' },
+            { id: 2, name: 'Imperium', levelRange: [60, 89], desc: '7×7 Herausforderung' },
+            { id: 3, name: 'Kronjuwelen', levelRange: [90, 119], desc: '8×8 & 9×9 Meister' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getCrownsCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getCrownsDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: CROWNS_TUTORIAL_STEPS, badge: '7 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => CROWNS_I18N[lang] || {}
 };
 
 // === Source: js\puzzles\minesweeper\engine.js ===
@@ -42252,6 +44088,7 @@ const puzzleRegistry = new PuzzleRegistry();
 
 
 
+
 class CortexApp {
     constructor() {
         // Storage Migration
@@ -42259,6 +44096,7 @@ class CortexApp {
 
         // Plugins registrieren
         puzzleRegistry.register(AkariPlugin);
+        puzzleRegistry.register(CrownsPlugin);
         puzzleRegistry.register(NonogramPlugin);
         puzzleRegistry.register(SlitherlinkPlugin);
         puzzleRegistry.register(SudokuPlugin);
@@ -42398,6 +44236,8 @@ class CortexApp {
                 this.freePlaySize = 6;
             } else if (pluginId === 'minesweeper') {
                 this.freePlaySize = 8;
+            } else if (pluginId === 'crowns') {
+                this.freePlaySize = 6;
             } else {
                 this.freePlaySize = sizes[0].id;
             }
@@ -43146,6 +44986,10 @@ class CortexApp {
                 if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.vibrate(25);
                 else audio.playClear();
+            } else if (this.activePlugin.id === 'crowns') {
+                if (nextVal === 1) audio.playSun();
+                else if (nextVal === 2) audio.vibrate(25);
+                else audio.playClear();
             } else {
                 if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.playMoon();
@@ -43194,6 +45038,14 @@ class CortexApp {
             this.engine.toggleFlag(r, c);
             this.movesCount++;
             audio.vibrate(30);
+        } else if (this.activePlugin.id === 'crowns') {
+            if (this.isNoteMode) {
+                this.engine.setCellValue(r, c, 2, true);
+            } else {
+                this.engine.setCellValue(r, c, 2);
+                this.movesCount++;
+                audio.vibrate(30);
+            }
         }
 
         this.renderGrid();
@@ -43633,6 +45485,9 @@ class CortexApp {
                     } else if (this.activePlugin.id === 'minesweeper') {
                         if (valToSet === 1) audio.playClear();
                         else audio.vibrate(30);
+                    } else if (this.activePlugin.id === 'crowns') {
+                        if (valToSet === 1) audio.playSun();
+                        else audio.vibrate(25);
                     } else {
                         audio.playDigit(valToSet);
                     }
@@ -43834,6 +45689,14 @@ class CortexApp {
                 cols: this.engine.cols,
                 mineCount: this.engine.mineCount,
                 mines: this.engine.mines,
+                initialGrid: this.engine.initialGrid,
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'crowns') {
+            return {
+                size: this.engine.size,
+                regions: this.engine.regions,
+                regionColors: this.engine.regionColors,
                 initialGrid: this.engine.initialGrid,
                 solution: this.engine.solution
             };
@@ -44247,13 +46110,14 @@ class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
         const akariStats = StatsManager.getPuzzleStats('akari');
         const nonogramStats = StatsManager.getPuzzleStats('nonogram');
         const slitherlinkStats = StatsManager.getPuzzleStats('slitherlink');
         const minesweeperStats = StatsManager.getPuzzleStats('minesweeper');
+        const crownsStats = StatsManager.getPuzzleStats('crowns');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -44270,6 +46134,8 @@ class CortexApp {
             displayStats = slitherlinkStats;
         } else if (currentTab === 'minesweeper') {
             displayStats = minesweeperStats;
+        } else if (currentTab === 'crowns') {
+            displayStats = crownsStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -44321,11 +46187,21 @@ class CortexApp {
                     { id: 16, labelKey: 'stats_best_time_16' },
                     { id: 30, labelKey: 'stats_best_time_30' }
                 ];
+            } else if (currentTab === 'crowns') {
+                sizesToShow = [
+                    { id: 5, labelKey: 'stats_best_time_5' },
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 7, labelKey: 'stats_best_time_7' },
+                    { id: 8, labelKey: 'stats_best_time_8' },
+                    { id: 9, labelKey: 'stats_best_time_9' }
+                ];
             } else {
                 // Gesamt-Tab
                 sizesToShow = [
                     { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 5, labelKey: 'stats_best_time_5' },
                     { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 7, labelKey: 'stats_best_time_7' },
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 9, labelKey: 'stats_best_time_9' },
                     { id: 10, labelKey: 'stats_best_time_10' },
@@ -44636,6 +46512,18 @@ if (typeof window !== 'undefined') {
   if (typeof NonogramSolver !== 'undefined') window.NonogramSolver = NonogramSolver;
   if (typeof NonogramGenerator !== 'undefined') window.NonogramGenerator = NonogramGenerator;
   if (typeof NonogramPlugin !== 'undefined') window.NonogramPlugin = NonogramPlugin;
+  if (typeof SlitherlinkEngine !== 'undefined') window.SlitherlinkEngine = SlitherlinkEngine;
+  if (typeof SlitherlinkSolver !== 'undefined') window.SlitherlinkSolver = SlitherlinkSolver;
+  if (typeof SlitherlinkGenerator !== 'undefined') window.SlitherlinkGenerator = SlitherlinkGenerator;
+  if (typeof SlitherlinkPlugin !== 'undefined') window.SlitherlinkPlugin = SlitherlinkPlugin;
+  if (typeof MinesweeperEngine !== 'undefined') window.MinesweeperEngine = MinesweeperEngine;
+  if (typeof MinesweeperSolver !== 'undefined') window.MinesweeperSolver = MinesweeperSolver;
+  if (typeof MinesweeperGenerator !== 'undefined') window.MinesweeperGenerator = MinesweeperGenerator;
+  if (typeof MinesweeperPlugin !== 'undefined') window.MinesweeperPlugin = MinesweeperPlugin;
+  if (typeof CrownsEngine !== 'undefined') window.CrownsEngine = CrownsEngine;
+  if (typeof CrownsSolver !== 'undefined') window.CrownsSolver = CrownsSolver;
+  if (typeof CrownsGenerator !== 'undefined') window.CrownsGenerator = CrownsGenerator;
+  if (typeof CrownsPlugin !== 'undefined') window.CrownsPlugin = CrownsPlugin;
   if (typeof puzzleRegistry !== 'undefined') window.puzzleRegistry = puzzleRegistry;
 }
 

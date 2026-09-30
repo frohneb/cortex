@@ -1,0 +1,394 @@
+/* ==========================================================================
+   Crowns (Queens) Puzzle Specific Stylesheet
+   ========================================================================== */
+
+.crowns-grid {
+    display: grid !important;
+    position: relative !important;
+    width: 100%;
+    height: 100%;
+    max-width: 440px;
+    max-height: 440px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md) !important;
+    box-shadow: 0 10px 30px var(--shadow-color);
+    border: 2.5px solid var(--accent-sun, #FFD700) !important;
+    box-sizing: border-box;
+    padding: 0 !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+}
+
+body.theme-cyberpunk .crowns-grid {
+    border-color: #ff007f !important;
+}
+
+body.theme-minimal .crowns-grid {
+    border-color: var(--border-color) !important;
+}
+
+/* Dynamic Proportional Scaling per Grid Size */
+.crowns-grid.size-3 .grid-cell { font-size: clamp(1.4rem, 5.5vw, 2.2rem); }
+.crowns-grid.size-4 .grid-cell { font-size: clamp(1.2rem, 5vw, 2rem); }
+.crowns-grid.size-5 .grid-cell { font-size: clamp(1.1rem, 4.2vw, 1.7rem); }
+.crowns-grid.size-6 .grid-cell { font-size: clamp(1rem, 3.8vw, 1.5rem); }
+.crowns-grid.size-7 .grid-cell { font-size: clamp(0.85rem, 3.2vw, 1.3rem); }
+.crowns-grid.size-8 .grid-cell { font-size: clamp(0.75rem, 2.8vw, 1.15rem); }
+.crowns-grid.size-9 .grid-cell { font-size: clamp(0.65rem, 2.4vw, 1rem); }
+
+/* Crowns Cell: Perfekte mathematische Kacheln ohne Kantenverformung */
+.crowns-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--region-color, #888);
+    border: none !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
+    transition: background-color 0.2s, transform 0.15s, box-shadow 0.2s;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    overflow: hidden;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    aspect-ratio: 1 / 1;
+    z-index: 1;
+}
+
+body.theme-dark .crowns-cell {
+    background-color: color-mix(in srgb, var(--region-color) 45%, #0f172a 55%);
+}
+
+body.theme-amoled .crowns-cell {
+    background-color: color-mix(in srgb, var(--region-color) 35%, #000000 65%);
+}
+
+body.theme-light .crowns-cell {
+    background-color: color-mix(in srgb, var(--region-color) 35%, #ffffff 65%);
+}
+
+body.theme-wood .crowns-cell {
+    background-color: color-mix(in srgb, var(--region-color) 45%, #291b12 55%);
+}
+
+body.theme-cyberpunk .crowns-cell {
+    background-color: color-mix(in srgb, var(--region-color) 50%, #120326 50%);
+}
+
+/* SVG Overlay: 100% gleichmäßige Kanten & nahtlose Regionen-Grenzen */
+.crowns-grid-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* 1. Dünne, durchgehende Rasterlinien zwischen allen Feldern */
+.crowns-grid-line {
+    stroke: rgba(255, 255, 255, 0.12);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+}
+
+body.theme-light .crowns-grid-line {
+    stroke: rgba(0, 0, 0, 0.12);
+}
+
+body.theme-amoled .crowns-grid-line {
+    stroke: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-wood .crowns-grid-line {
+    stroke: rgba(255, 255, 255, 0.1);
+}
+
+body.theme-cyberpunk .crowns-grid-line {
+    stroke: rgba(255, 0, 127, 0.2);
+}
+
+/* 2. Kräftige Regionen-Grenzen: Glatt, einheitlich dick (3px), keine Versätze */
+.crowns-region-borders {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.85);
+    stroke-width: 3px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+body.theme-light .crowns-region-borders {
+    stroke: rgba(15, 23, 42, 0.85);
+}
+
+body.theme-amoled .crowns-region-borders {
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 3.5px;
+}
+
+body.theme-wood .crowns-region-borders {
+    stroke: rgba(255, 245, 220, 0.9);
+}
+
+body.theme-cyberpunk .crowns-region-borders {
+    stroke: #00fff2;
+    filter: drop-shadow(0 0 3px rgba(0, 255, 242, 0.7));
+}
+
+/* Crown Symbol & Radiant Shine Effect (wie Tango Monde) */
+.crowns-crown-icon {
+    width: 70%;
+    height: 70%;
+    color: #FFD700;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
+    animation: crownPlace 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes crownPlace {
+    0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+    60%  { transform: scale(1.15) rotate(3deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.crowns-cell.val-crown {
+    background: radial-gradient(circle at center, rgba(255, 215, 0, 0.3) 0%, var(--region-color) 80%) !important;
+    box-shadow: inset 0 0 16px rgba(255, 215, 0, 0.35);
+}
+
+body.theme-dark .crowns-cell.val-crown {
+    background: radial-gradient(circle at center, rgba(255, 215, 0, 0.35) 0%, color-mix(in srgb, var(--region-color) 45%, #0f172a 55%) 85%) !important;
+    box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.4);
+}
+
+body.theme-amoled .crowns-cell.val-crown {
+    background: radial-gradient(circle at center, rgba(255, 215, 0, 0.38) 0%, color-mix(in srgb, var(--region-color) 35%, #000000 65%) 85%) !important;
+    box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.45);
+}
+
+body.theme-light .crowns-cell.val-crown {
+    background: radial-gradient(circle at center, rgba(255, 215, 0, 0.45) 0%, color-mix(in srgb, var(--region-color) 35%, #ffffff 65%) 85%) !important;
+    box-shadow: inset 0 0 16px rgba(255, 200, 0, 0.35);
+}
+
+.crowns-cell.val-crown .crowns-crown-icon {
+    width: 72%;
+    height: 72%;
+    color: #FFD700;
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.85)) drop-shadow(0 0 16px rgba(255, 200, 0, 0.5)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+    transform: scale(1.06);
+    animation: crownGlow 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes crownGlow {
+    0% {
+        filter: drop-shadow(0 0 7px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 14px rgba(255, 200, 0, 0.45)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+        transform: scale(1.05);
+    }
+    100% {
+        filter: drop-shadow(0 0 11px rgba(255, 225, 50, 0.95)) drop-shadow(0 0 22px rgba(255, 215, 0, 0.7)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+        transform: scale(1.09);
+    }
+}
+
+.crowns-cell.val-crown .icon-crown {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+/* X Marking — Kräftiger und mit Kontrast */
+.crowns-x-icon {
+    width: 54%;
+    height: 54%;
+    color: rgba(0, 0, 0, 0.7);
+    filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.3));
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+body.theme-dark .crowns-x-icon,
+body.theme-amoled .crowns-x-icon,
+body.theme-cyberpunk .crowns-x-icon,
+body.theme-wood .crowns-x-icon {
+    color: rgba(255, 255, 255, 0.75);
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.65));
+}
+
+body.theme-light .crowns-x-icon {
+    color: rgba(15, 23, 42, 0.7);
+    filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.6));
+}
+
+.crowns-cell.val-x {
+    opacity: 0.94;
+}
+
+.crowns-cell.val-x .icon-x {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+/* Selected Cell */
+.crowns-cell.selected {
+    box-shadow: inset 0 0 0 2.5px rgba(255, 255, 255, 0.9) !important;
+    z-index: 4 !important;
+}
+
+body.theme-light .crowns-cell.selected {
+    box-shadow: inset 0 0 0 2.5px rgba(15, 23, 42, 0.9) !important;
+}
+
+/* Conflict Highlight */
+.crowns-cell.conflict {
+    animation: crownConflictShake 0.4s ease;
+    box-shadow: inset 0 0 0 3px var(--error-color, #ff4444) !important;
+    z-index: 4 !important;
+}
+
+.crowns-cell.conflict .crowns-crown-icon {
+    color: #ff4444;
+}
+
+@keyframes crownConflictShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-3px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+}
+
+/* Hint Shimmer & Hint Highlight */
+.crowns-cell.hint-shimmer {
+    animation: crownHintShimmer 1.2s ease-in-out infinite;
+}
+
+.crowns-cell.hint-highlight {
+    box-shadow: inset 0 0 0 2.5px rgba(251, 191, 36, 0.95), 0 0 14px rgba(251, 191, 36, 0.5) !important;
+    z-index: 4 !important;
+}
+
+@keyframes crownHintShimmer {
+    0%, 100% { box-shadow: inset 0 0 0 2px rgba(255, 215, 0, 0.4); }
+    50% { box-shadow: inset 0 0 0 3px rgba(255, 215, 0, 0.9), 0 0 12px rgba(255, 215, 0, 0.3); }
+}
+
+/* Tutorial Target Ghost */
+.crowns-cell.tutorial-target {
+    background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 4px,
+        rgba(255, 215, 0, 0.15) 4px,
+        rgba(255, 215, 0, 0.15) 8px
+    );
+}
+
+.crowns-cell .target-ghost {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    opacity: 0.3;
+    animation: ghostPulse 2s ease-in-out infinite;
+}
+
+.crowns-cell .target-ghost .crowns-crown-icon {
+    animation: none;
+}
+
+@keyframes ghostPulse {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.55; }
+}
+
+/* Solution Reveal States */
+.crowns-cell.cell-revealed-correct .crowns-crown-icon {
+    color: #00c853;
+    animation: crownWin 0.8s ease infinite alternate;
+}
+
+.crowns-cell.cell-revealed-solution .crowns-crown-icon {
+    color: rgba(255, 215, 0, 0.5);
+    animation: none;
+}
+
+.crowns-cell.cell-revealed-error {
+    background: rgba(255, 0, 0, 0.15) !important;
+}
+
+.crowns-cell.cell-revealed-error .wrong-marker-cross {
+    position: absolute;
+    color: #ff4444;
+    font-size: 1.4em;
+    font-weight: bold;
+    z-index: 3;
+}
+
+@keyframes crownWin {
+    0%   { filter: drop-shadow(0 0 4px #FFD700); }
+    100% { filter: drop-shadow(0 0 12px #FFD700) brightness(1.2); }
+}
+
+/* Notes */
+.crowns-cell .cell-notes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.crowns-cell .cell-notes .mini-crown .crowns-crown-icon {
+    width: 40%;
+    height: 40%;
+    opacity: 0.4;
+    animation: none;
+}
+
+/* Keypad */
+.crowns-keypad {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    padding: 8px 0;
+}
+
+.crowns-keypad .keypad-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.crowns-keypad .keypad-btn:hover {
+    background: var(--bg-hover);
+    transform: scale(1.05);
+}
+
+.crowns-keypad .keypad-btn .crowns-crown-icon {
+    width: 28px;
+    height: 28px;
+    animation: none;
+}
+
+.crowns-keypad .keypad-btn .crowns-x-icon {
+    width: 24px;
+    height: 24px;
+}

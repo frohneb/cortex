@@ -25,6 +25,7 @@ class TestCortexPlugins(unittest.TestCase):
         self.assertIn('puzzleRegistry.register(AkariPlugin)', bundle)
         self.assertIn('puzzleRegistry.register(NonogramPlugin)', bundle)
         self.assertIn('puzzleRegistry.register(MinesweeperPlugin)', bundle)
+        self.assertIn('puzzleRegistry.register(CrownsPlugin)', bundle)
 
     def test_storage_namespacing_and_migration(self):
         """Überprüft, dass die Storage-Namensräume und Migration im Bundle vorhanden sind"""
@@ -55,7 +56,9 @@ class TestCortexPlugins(unittest.TestCase):
         self.assertIn('data-stats-tab="nonogram"', html)
         self.assertIn('data-stats-tab="sudoku"', html)
         self.assertIn('data-stats-tab="tango"', html)
+        self.assertIn('data-stats-tab="slitherlink"', html)
         self.assertIn('data-stats-tab="minesweeper"', html)
+        self.assertIn('data-stats-tab="crowns"', html)
 
     def test_themes_and_timer_classes_in_bundle(self):
         """Überprüft, dass ThemeManager und GameTimer sauber im Bundle existieren"""
@@ -72,6 +75,7 @@ class TestCortexPlugins(unittest.TestCase):
         self.assertIn('cortex-app-v2.', sw)
         self.assertIn('./css/puzzles/sudoku.css', sw)
         self.assertIn('./css/puzzles/minesweeper.css', sw)
+        self.assertIn('./css/puzzles/crowns.css', sw)
     def test_stats_14x14_i18n_and_aggregation(self):
         """Überprüft, dass 14x14 Bestzeit-Übersetzung und Aggregation vorhanden sind"""
         bundle = (BASE_DIR / "js" / "bundle.js").read_text(encoding='utf-8')

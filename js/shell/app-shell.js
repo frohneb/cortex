@@ -19,6 +19,7 @@ import { AkariPlugin } from '../puzzles/akari/index.js';
 import { NonogramPlugin } from '../puzzles/nonogram/index.js';
 import { SlitherlinkPlugin } from '../puzzles/slitherlink/index.js';
 import { MinesweeperPlugin } from '../puzzles/minesweeper/index.js';
+import { CrownsPlugin } from '../puzzles/crowns/index.js';
 import { getSunSvg, getMoonSvg } from '../puzzles/tango/renderer.js';
 
 export { formatTime, calculateStreaks, getSunSvg, getMoonSvg };
@@ -30,6 +31,7 @@ export class CortexApp {
 
         // Plugins registrieren
         puzzleRegistry.register(AkariPlugin);
+        puzzleRegistry.register(CrownsPlugin);
         puzzleRegistry.register(NonogramPlugin);
         puzzleRegistry.register(SlitherlinkPlugin);
         puzzleRegistry.register(SudokuPlugin);
@@ -169,6 +171,8 @@ export class CortexApp {
                 this.freePlaySize = 6;
             } else if (pluginId === 'minesweeper') {
                 this.freePlaySize = 8;
+            } else if (pluginId === 'crowns') {
+                this.freePlaySize = 6;
             } else {
                 this.freePlaySize = sizes[0].id;
             }
@@ -917,6 +921,10 @@ export class CortexApp {
                 if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.vibrate(25);
                 else audio.playClear();
+            } else if (this.activePlugin.id === 'crowns') {
+                if (nextVal === 1) audio.playSun();
+                else if (nextVal === 2) audio.vibrate(25);
+                else audio.playClear();
             } else {
                 if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.playMoon();
@@ -965,6 +973,14 @@ export class CortexApp {
             this.engine.toggleFlag(r, c);
             this.movesCount++;
             audio.vibrate(30);
+        } else if (this.activePlugin.id === 'crowns') {
+            if (this.isNoteMode) {
+                this.engine.setCellValue(r, c, 2, true);
+            } else {
+                this.engine.setCellValue(r, c, 2);
+                this.movesCount++;
+                audio.vibrate(30);
+            }
         }
 
         this.renderGrid();
@@ -1404,6 +1420,9 @@ export class CortexApp {
                     } else if (this.activePlugin.id === 'minesweeper') {
                         if (valToSet === 1) audio.playClear();
                         else audio.vibrate(30);
+                    } else if (this.activePlugin.id === 'crowns') {
+                        if (valToSet === 1) audio.playSun();
+                        else audio.vibrate(25);
                     } else {
                         audio.playDigit(valToSet);
                     }
@@ -1605,6 +1624,14 @@ export class CortexApp {
                 cols: this.engine.cols,
                 mineCount: this.engine.mineCount,
                 mines: this.engine.mines,
+                initialGrid: this.engine.initialGrid,
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'crowns') {
+            return {
+                size: this.engine.size,
+                regions: this.engine.regions,
+                regionColors: this.engine.regionColors,
                 initialGrid: this.engine.initialGrid,
                 solution: this.engine.solution
             };
@@ -2018,13 +2045,14 @@ export class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
         const akariStats = StatsManager.getPuzzleStats('akari');
         const nonogramStats = StatsManager.getPuzzleStats('nonogram');
         const slitherlinkStats = StatsManager.getPuzzleStats('slitherlink');
         const minesweeperStats = StatsManager.getPuzzleStats('minesweeper');
+        const crownsStats = StatsManager.getPuzzleStats('crowns');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -2041,6 +2069,8 @@ export class CortexApp {
             displayStats = slitherlinkStats;
         } else if (currentTab === 'minesweeper') {
             displayStats = minesweeperStats;
+        } else if (currentTab === 'crowns') {
+            displayStats = crownsStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -2092,11 +2122,21 @@ export class CortexApp {
                     { id: 16, labelKey: 'stats_best_time_16' },
                     { id: 30, labelKey: 'stats_best_time_30' }
                 ];
+            } else if (currentTab === 'crowns') {
+                sizesToShow = [
+                    { id: 5, labelKey: 'stats_best_time_5' },
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 7, labelKey: 'stats_best_time_7' },
+                    { id: 8, labelKey: 'stats_best_time_8' },
+                    { id: 9, labelKey: 'stats_best_time_9' }
+                ];
             } else {
                 // Gesamt-Tab
                 sizesToShow = [
                     { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 5, labelKey: 'stats_best_time_5' },
                     { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 7, labelKey: 'stats_best_time_7' },
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 9, labelKey: 'stats_best_time_9' },
                     { id: 10, labelKey: 'stats_best_time_10' },
