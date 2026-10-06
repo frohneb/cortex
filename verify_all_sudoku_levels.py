@@ -1,6 +1,6 @@
 """
 Ultra-Fast Bitmask Sudoku Level Verifier (4x4, 9x9, 16x16 Hexadezimal)
-Überprüft ALLE 120 Kampagnen-Level, alle Tutorial-Lektionen und Tagesrätsel
+Überprüft ALLE 240 Kampagnen-Level, alle Tutorial-Lektionen und Tagesrätsel
 auf Regelkonformität, Lösbarkeit und strikte EINDEUTIGKEIT (genau 1 Lösung).
 """
 
@@ -251,25 +251,30 @@ def verify_all():
         else:
             tut_errors.append(f"Tutorial Pro {step['id']} ({step['title']}): Mehrdeutige Lösung ({sol_count} Lösungen)!")
 
-    # 3. Kampagne: Alle 120 Level
-    print("\n--- 3. Kampagne: Alle 120 Level ---", flush=True)
+    # 3. Kampagne: Alle 240 Level
+    print("\n--- 3. Kampagne: Alle 240 Level ---", flush=True)
     campaign_errors = []
     
-    for level_idx in range(120):
-        if level_idx < 15:
+    for level_idx in range(240):
+        if level_idx < 25:
             size, difficulty = 4, 'easy'
-        elif level_idx < 25:
+        elif level_idx < 45:
             size, difficulty = 4, 'medium'
-        elif level_idx < 30:
-            size, difficulty = 4, 'hard'
         elif level_idx < 60:
+            size, difficulty = 4, 'hard'
+        elif level_idx < 90:
             size, difficulty = 9, 'easy'
-        elif level_idx < 75:
+        elif level_idx < 120:
             size, difficulty = 9, 'medium'
-        elif level_idx < 105:
+        elif level_idx < 150:
+            size, difficulty = 9, 'medium'
+        elif level_idx < 180:
+            size, difficulty = 9, 'hard'
+        elif level_idx < 210:
             size, difficulty = 9, 'hard'
         else:
-            size, difficulty = 16, ('easy' if level_idx < 112 else ('medium' if level_idx < 117 else 'hard'))
+            size = 16
+            difficulty = 'easy' if level_idx < 222 else ('medium' if level_idx < 232 else 'hard')
 
         seed = 9000 + (level_idx + 1) * 137
         grid, solution = SudokuGenerator.generate(size, difficulty, seed)
@@ -284,7 +289,7 @@ def verify_all():
             campaign_errors.append(f"Level {level_idx + 1} ({size}x{size} {difficulty}): {sol_count} Lösungen!")
         else:
             clues = sum(1 for r in range(size) for c in range(size) if grid[r][c] != 0)
-            if (level_idx + 1) % 15 == 0 or level_idx == 0 or level_idx >= 105:
+            if (level_idx + 1) % 30 == 0 or level_idx == 0 or level_idx >= 210:
                 print(f"  [PASS] Level {level_idx + 1:3d} ({size:2d}×{size:2d} {difficulty:6s}, {clues:3d} Vorgaben) -> Eindeutig lösbar", flush=True)
 
     # 4. Tagesrätsel für 30 Tage
@@ -320,7 +325,7 @@ def verify_all():
             print("  [ERROR]", err, flush=True)
         sys.exit(1)
     else:
-        print("[ERFOLG] ALLE 120 Kampagnen-Level, ALLE 18 Tutorial-Lektionen", flush=True)
+        print("[ERFOLG] ALLE 240 Kampagnen-Level, ALLE 18 Tutorial-Lektionen", flush=True)
         print("und alle Tagesrätsel sind fehlerfrei und strikt EINDEUTIG lösbar!", flush=True)
         sys.exit(0)
 

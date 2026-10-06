@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.6.0-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.6.1-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -82,6 +82,21 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.6.1 – 2026-10-06
+* 🏆 **Kampagnen-Erweiterung auf 240 Level pro Puzzle-Plugin**:
+  * Verdopplung des Kampagnen-Umfangs über alle 7 Logikrätsel (**Tango**, **Sudoku**, **Akari**, **Nonogramm**, **Slitherlink**, **Minesweeper** und **Crowns**) von 120 auf **240 handgefertigte & prozedurale Level**.
+  * **Kapitel-Strukturierung (4 Kapitel à 60 Level)**:
+    * **Kapitel 1 (Level 1–60)**: Einstieg & Grundlagen
+    * **Kapitel 2 (Level 61–120)**: Pfadfinder & Fortgeschritten
+    * **Kapitel 3 (Level 121–180)**: Labyrinth & Experten
+    * **Kapitel 4 (Level 181–240)**: Meister-Zirkel & Großmeister (inkl. Hexadezimal-Sudoku 16×16, 14×14 Akari, 10×10 Slitherlink, 16×30 Minesweeper, 9×9 Crowns, 10×10 Tango und 15×15 Nonogramm)
+* 🧠 **100 % garantierte eindeutige Lösbarkeit**:
+  * Alle neuen Kampagnen-Level (Level 121–240) aller 7 Puzzle-Plugins wurden durch mathematische Constraint-Solver automatisiert auf strikte Eindeutigkeit (genau 1 Lösung) und logische Konsistenz validiert.
+* 📱 **UI & App-Shell Optimierung für 240 Level**:
+  * Dynamische Level-Navigation und Fortschrittsanzeige in `AppShell` für variable `totalLevels` (Standard 240).
+  * Optimierte Kapitel-Reiter (1–60, 61–120, 121–180, 181–240) mit responsivem Grid-Layout auf allen Bildschirmgrößen.
+  * Lokalisierte Beschreibungstexte (DE/EN) auf 240 Level aktualisiert.
 
 ### v2.6.0 – 2026-09-30
 * 👑 **Neues Puzzle-Plugin: Crowns (Queens)**: Vollständige Integration des 7. Logikrätsels mit 120 Kampagnen-Leveln in 4 Kapiteln, täglichem synchronen Rätsel und freiem Spiel (5×5 bis 9×9).

@@ -45,7 +45,7 @@ export const baseTranslations = {
         chapter_2: "Kapitel 2",
         chapter_3: "Kapitel 3",
         chapter_4: "Kapitel 4",
-        campaign_desc: "120 handgefertigte Level",
+        campaign_desc: "240 handgefertigte Level",
         daily_desc: "Täglich wechselnde Herausforderung",
         free_desc: "Individuelle Größe & Stufe",
 
@@ -241,7 +241,7 @@ export const baseTranslations = {
         chapter_2: "Chapter 2",
         chapter_3: "Chapter 3",
         chapter_4: "Chapter 4",
-        campaign_desc: "120 handcrafted levels",
+        campaign_desc: "240 handcrafted levels",
         daily_desc: "Daily changing challenge",
         free_desc: "Custom size & difficulty",
 

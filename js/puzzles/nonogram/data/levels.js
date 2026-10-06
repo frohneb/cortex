@@ -1,6 +1,6 @@
 /**
  * Nonogram Level & Tagesrätsel-Generierung
- * 120 handgefertigte & prozedurale Kampagnen-Level in 4 Kapiteln (5×5, 10×10, 15×15)
+ * 240 handgefertigte & prozedurale Kampagnen-Level in 4 Kapiteln (5×5, 10×10, 15×15)
  * und synchrones tägliches Rätsel (Werktags 10×10, Wochenende 15×15 Meister).
  */
 
@@ -75,11 +75,11 @@ const PREDEFINED_5X5 = [
 ];
 
 export function getNonogramCampaignLevel(levelIndex) {
-    // 120 Level in 4 Kapiteln:
-    // Kapitel 1 (0–29): Einsteiger 5×5 (Level 1–30)
-    // Kapitel 2 (30–59): Galerie I 10×10 (Level 31–60)
-    // Kapitel 3 (60–89): Komplexe Kunst (Level 61–75: 10×10, Level 76–90: 15×15)
-    // Kapitel 4 (90–119): Meister-Galerie 15×15 (Level 91–120)
+    // 240 Level in 4 Kapiteln:
+    // Kapitel 1 (0–59): Einsteiger 5×5 (Level 1–30: Grundlagen & Pixel-Art, Level 31–60: Knifflig)
+    // Kapitel 2 (60–119): Galerie I 10×10 (Level 61–90: Easy, Level 91–120: Medium)
+    // Kapitel 3 (120–179): Komplexe Kunst (Level 121–150: 10×10 Hard, Level 151–180: 15×15 Medium)
+    // Kapitel 4 (180–239): Meister-Galerie 15×15 (Level 181–240: Großformate & Meisterwerke)
 
     let size, difficulty;
 
@@ -122,17 +122,23 @@ export function getNonogramCampaignLevel(levelIndex) {
             };
         }
     } else if (levelIndex < 60) {
-        size = 10;
-        difficulty = levelIndex < 45 ? 'easy' : 'medium';
-    } else if (levelIndex < 75) {
-        size = 10;
+        size = 5;
         difficulty = 'hard';
     } else if (levelIndex < 90) {
+        size = 10;
+        difficulty = 'easy';
+    } else if (levelIndex < 120) {
+        size = 10;
+        difficulty = 'medium';
+    } else if (levelIndex < 150) {
+        size = 10;
+        difficulty = 'hard';
+    } else if (levelIndex < 180) {
         size = 15;
         difficulty = 'medium';
     } else {
         size = 15;
-        difficulty = levelIndex < 105 ? 'medium' : 'hard';
+        difficulty = 'hard';
     }
 
     const seed = 50000 + (levelIndex + 1) * 739;

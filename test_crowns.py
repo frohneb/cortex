@@ -665,31 +665,31 @@ class TestCrownsTutorial(unittest.TestCase):
 
 
 class TestCrownsCampaign(unittest.TestCase):
-    """Prüft alle 120 Kampagne-Level auf eindeutige Lösung"""
+    """Prüft alle 240 Kampagne-Level auf eindeutige Lösung"""
 
     def _get_campaign_params(self, level_index):
-        if level_index < 10:
+        if level_index < 20:
             return 5, 'easy'
-        elif level_index < 20:
+        elif level_index < 40:
             return 5, 'medium'
-        elif level_index < 30:
-            return 6, 'easy'
-        elif level_index < 45:
-            return 6, 'medium'
         elif level_index < 60:
-            return 6, 'hard'
-        elif level_index < 75:
-            return 7, 'medium'
+            return 6, 'easy'
         elif level_index < 90:
+            return 6, 'medium'
+        elif level_index < 120:
+            return 6, 'hard'
+        elif level_index < 150:
+            return 7, 'medium'
+        elif level_index < 180:
             return 7, 'hard'
-        elif level_index < 105:
+        elif level_index < 210:
             return 8, 'hard'
         else:
             return 9, 'hard'
 
-    def test_all_120_campaign_levels_unique(self):
+    def test_all_240_campaign_levels_unique(self):
         failed = []
-        for level_idx in range(120):
+        for level_idx in range(240):
             size, difficulty = self._get_campaign_params(level_idx)
             seed = 70000 + (level_idx + 1) * 137
 

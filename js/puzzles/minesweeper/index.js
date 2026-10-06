@@ -72,12 +72,12 @@ export const MinesweeperPlugin = {
     getRules: (lang) => MinesweeperRenderer.getRulesHtml(lang),
 
     getCampaignConfig: () => ({
-        totalLevels: 120,
+        totalLevels: 240,
         chapters: [
-            { id: 0, name: 'Rekrut (8×8)', levelRange: [0, 29], desc: '8×8 Grundlagen & Einstieg' },
-            { id: 1, name: 'Pionier (12×12)', levelRange: [30, 59], desc: '12×12 Mittlere Minenfelder' },
-            { id: 2, name: 'Experte (16×16)', levelRange: [60, 89], desc: '16×16 Große Herausforderungen' },
-            { id: 3, name: 'Meister (16×30)', levelRange: [90, 119], desc: '16×30 Das ultimative Minenfeld' }
+            { id: 0, name: 'Rekrut (8×8)', levelRange: [0, 59], desc: '8×8 Grundlagen & Einstieg' },
+            { id: 1, name: 'Pionier (12×12)', levelRange: [60, 119], desc: '12×12 Mittlere Minenfelder' },
+            { id: 2, name: 'Experte (16×16)', levelRange: [120, 179], desc: '16×16 Große Herausforderungen' },
+            { id: 3, name: 'Meister (16×30)', levelRange: [180, 239], desc: '16×30 Das ultimative Minenfeld' }
         ]
     }),
 

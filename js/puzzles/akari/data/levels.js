@@ -1,41 +1,41 @@
 /**
  * Akari Level & Tagesrätsel-Generierung
- * 120 deterministisch generierte Kampagnen-Level in 4 Kapiteln (6×6, 8×8, 10×10, 12×12/14×14)
+ * 240 deterministisch generierte Kampagnen-Level in 4 Kapiteln (6×6, 8×8, 10×10, 12×12/14×14)
  * und synchrones Tagesrätsel.
  */
 
 import { AkariGenerator } from '../generator.js';
 
 export function getAkariCampaignLevel(levelIndex) {
-    // 120 Level in 4 Kapiteln:
-    // Kapitel 1 (0–29): Glühwürmchen (Level 1–15: 6×6 Easy, Level 16–25: 6×6 Medium, Level 26–30: 7×7 Easy)
-    // Kapitel 2 (30–59): Laternenstadt (Level 31–45: 8×8 Easy, Level 46–60: 8×8 Medium)
-    // Kapitel 3 (60–89): Lichtkuppel (Level 61–75: 10×10 Medium, Level 76–90: 10×10 Hard)
-    // Kapitel 4 (90–119): Photonen-Palast (Level 91–105: 12×12 Medium, Level 106–120: 14×14 Hard)
+    // 240 Level in 4 Kapiteln:
+    // Kapitel 1 (0–59): Glühwürmchen (Level 1–25: 6×6 Easy, Level 26–45: 6×6 Medium, Level 46–60: 7×7 Easy)
+    // Kapitel 2 (60–119): Laternenstadt (Level 61–90: 8×8 Easy, Level 91–120: 8×8 Medium)
+    // Kapitel 3 (120–179): Lichtkuppel (Level 121–150: 10×10 Medium, Level 151–180: 10×10 Hard)
+    // Kapitel 4 (180–239): Photonen-Palast (Level 181–210: 12×12 Medium, Level 211–240: 14×14 Hard)
 
     let size, difficulty;
-    if (levelIndex < 15) {
+    if (levelIndex < 25) {
         size = 6;
-        difficulty = 'easy';
-    } else if (levelIndex < 25) {
-        size = 6;
-        difficulty = 'medium';
-    } else if (levelIndex < 30) {
-        size = 7;
         difficulty = 'easy';
     } else if (levelIndex < 45) {
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 60) {
+        size = 7;
+        difficulty = 'easy';
+    } else if (levelIndex < 90) {
         size = 8;
         difficulty = 'easy';
-    } else if (levelIndex < 60) {
+    } else if (levelIndex < 120) {
         size = 8;
         difficulty = 'medium';
-    } else if (levelIndex < 75) {
+    } else if (levelIndex < 150) {
         size = 10;
         difficulty = 'medium';
-    } else if (levelIndex < 90) {
+    } else if (levelIndex < 180) {
         size = 10;
         difficulty = 'hard';
-    } else if (levelIndex < 105) {
+    } else if (levelIndex < 210) {
         size = 12;
         difficulty = 'medium';
     } else {

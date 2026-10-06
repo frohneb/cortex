@@ -4,7 +4,7 @@ Test-Suite für das Minesweeper-Plugin in Cortex
 1. Engine: Spiellogik, Reveal, Flood-Fill, Flaggen, Undo/Redo, Niederlage & Sieg
 2. Generator: Determinismus, korrekte Dimensionen und Minenzahlen
 3. Solver & Hints: Konsistenzprüfung, logische Hinweise
-4. Eindeutigkeits- & Konsistenz-Prüfung aller 120 Kampagnen-Level
+4. Eindeutigkeits- & Konsistenz-Prüfung aller 240 Kampagnen-Level
 5. Eindeutigkeits- & Konsistenz-Prüfung aller Tutorial-Lektionen
 """
 
@@ -130,24 +130,24 @@ class TestMinesweeperCore(unittest.TestCase):
         self.assertEqual(len(revealed), 8)
         self.assertNotIn((0, 0), revealed)
 
-    def test_all_120_campaign_levels_consistency(self):
-        """Überprüft alle 120 Kampagnen-Level auf mathematische Konsistenz und eindeutige Minenplatzierung"""
-        for lvl in range(120):
-            if lvl < 10:
+    def test_all_240_campaign_levels_consistency(self):
+        """Überprüft alle 240 Kampagnen-Level auf mathematische Konsistenz und eindeutige Minenplatzierung"""
+        for lvl in range(240):
+            if lvl < 20:
                 rows, cols, diff = 8, 8, 'easy'
-            elif lvl < 20:
+            elif lvl < 40:
                 rows, cols, diff = 8, 8, 'medium'
-            elif lvl < 30:
-                rows, cols, diff = 8, 8, 'hard'
-            elif lvl < 45:
-                rows, cols, diff = 12, 12, 'medium'
             elif lvl < 60:
-                rows, cols, diff = 12, 12, 'hard'
-            elif lvl < 75:
-                rows, cols, diff = 16, 16, 'medium'
+                rows, cols, diff = 8, 8, 'hard'
             elif lvl < 90:
+                rows, cols, diff = 12, 12, 'medium'
+            elif lvl < 120:
+                rows, cols, diff = 12, 12, 'hard'
+            elif lvl < 150:
+                rows, cols, diff = 16, 16, 'medium'
+            elif lvl < 180:
                 rows, cols, diff = 16, 16, 'hard'
-            elif lvl < 105:
+            elif lvl < 210:
                 rows, cols, diff = 16, 30, 'medium'
             else:
                 rows, cols, diff = 16, 30, 'hard'

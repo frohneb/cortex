@@ -44,7 +44,7 @@ class TestSlitherlinkPlugin(unittest.TestCase):
         levels_json = content[start:end]
         levels = json.loads(levels_json)
 
-        self.assertEqual(len(levels), 120, "Es müssen exakt 120 Kampagnen-Level vorhanden sein")
+        self.assertEqual(len(levels), 240, "Es müssen exakt 240 Kampagnen-Level vorhanden sein")
 
         for idx, lvl in enumerate(levels):
             self.assertEqual(lvl['id'], idx + 1, f"Level {idx+1} muss ID {idx+1} haben")
@@ -96,8 +96,8 @@ class TestSlitherlinkPlugin(unittest.TestCase):
         self.assertIn('[2, 1, 2]', tut_content)
         self.assertIn('[1, 0, 1]', tut_content)
 
-    def test_all_120_levels_uniqueness_and_solvability(self):
-        """Überprüft, dass alle 120 Kampagnen-Level mathematisch valide Lösungen besitzen"""
+    def test_all_240_levels_uniqueness_and_solvability(self):
+        """Überprüft, dass alle 240 Kampagnen-Level mathematisch valide Lösungen besitzen"""
         content = self.levels_path.read_text(encoding='utf-8')
         start = content.find('export const SLITHERLINK_LEVELS = [') + len('export const SLITHERLINK_LEVELS = ')
         end = content.find(';\n\nexport function getSlitherlinkCampaignLevel')

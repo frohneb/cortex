@@ -52,12 +52,12 @@ export const TangoPlugin = {
     getRules: (lang) => TangoRenderer.getRulesHtml(lang),
 
     getCampaignConfig: () => ({
-        totalLevels: 120,
+        totalLevels: 240,
         chapters: [
-            { id: 0, name: 'Kapitel 1', levelRange: [0, 29], desc: '4×4 & 6×6 Grundlagen' },
-            { id: 1, name: 'Kapitel 2', levelRange: [30, 59], desc: '6×6 Fortgeschritten' },
-            { id: 2, name: 'Kapitel 3', levelRange: [60, 89], desc: '8×8 Herausforderung' },
-            { id: 3, name: 'Kapitel 4', levelRange: [90, 119], desc: '8×8 & 10×10 Meister' }
+            { id: 0, name: 'Kapitel 1', levelRange: [0, 59], desc: '4×4 & 6×6 Grundlagen & Einstieg' },
+            { id: 1, name: 'Kapitel 2', levelRange: [60, 119], desc: '6×6 & 8×8 Fortgeschritten' },
+            { id: 2, name: 'Kapitel 3', levelRange: [120, 179], desc: '8×8 Herausforderung' },
+            { id: 3, name: 'Kapitel 4', levelRange: [180, 239], desc: '8×8 & 10×10 Meister' }
         ]
     }),
 

@@ -50,12 +50,12 @@ export const NonogramPlugin = {
     getRules: (lang) => NonogramRenderer.getRulesHtml(lang),
 
     getCampaignConfig: () => ({
-        totalLevels: 120,
+        totalLevels: 240,
         chapters: [
-            { id: 0, name: 'Einsteiger (5×5)', levelRange: [0, 29], desc: '5×5 Mini-Formate & Grundlagen' },
-            { id: 1, name: 'Galerie I (10×10)', levelRange: [30, 59], desc: '10×10 Klassische Pixel-Art' },
-            { id: 2, name: 'Komplexe Kunst', levelRange: [60, 89], desc: '10×10 & 15×15 Meistermotive' },
-            { id: 3, name: 'Meister-Galerie', levelRange: [90, 119], desc: '15×15 Großformate & Meisterwerke' }
+            { id: 0, name: 'Einsteiger (5×5)', levelRange: [0, 59], desc: '5×5 Mini-Formate & Grundlagen' },
+            { id: 1, name: 'Galerie I (10×10)', levelRange: [60, 119], desc: '10×10 Klassische Pixel-Art' },
+            { id: 2, name: 'Komplexe Kunst', levelRange: [120, 179], desc: '10×10 & 15×15 Meistermotive' },
+            { id: 3, name: 'Meister-Galerie', levelRange: [180, 239], desc: '15×15 Großformate & Meisterwerke' }
         ]
     }),
 

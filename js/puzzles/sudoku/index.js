@@ -51,12 +51,12 @@ export const SudokuPlugin = {
     getRules: (lang) => SudokuRenderer.getRulesHtml(lang),
 
     getCampaignConfig: () => ({
-        totalLevels: 120,
+        totalLevels: 240,
         chapters: [
-            { id: 0, name: 'Einsteiger', levelRange: [0, 29], desc: '4×4 Mini Grundlagen' },
-            { id: 1, name: 'Klassisch Leicht', levelRange: [30, 59], desc: '9×9 Einstieg & Entspannung' },
-            { id: 2, name: 'Klassisch Meister', levelRange: [60, 89], desc: '9×9 Fortgeschrittene Deduktion' },
-            { id: 3, name: 'Hexadezimal', levelRange: [90, 119], desc: '9×9 Meister & 16×16 Hex-Giganten' }
+            { id: 0, name: 'Einsteiger', levelRange: [0, 59], desc: '4×4 Mini & 9×9 Grundlagen' },
+            { id: 1, name: 'Klassisch Leicht', levelRange: [60, 119], desc: '9×9 Einstieg & Entspannung' },
+            { id: 2, name: 'Klassisch Meister', levelRange: [120, 179], desc: '9×9 Fortgeschrittene Deduktion' },
+            { id: 3, name: 'Hexadezimal', levelRange: [180, 239], desc: '9×9 Meister & 16×16 Hex-Giganten' }
         ]
     }),
 

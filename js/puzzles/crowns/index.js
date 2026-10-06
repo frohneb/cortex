@@ -53,12 +53,12 @@ export const CrownsPlugin = {
     getRules: (lang) => CrownsRenderer.getRulesHtml(lang),
 
     getCampaignConfig: () => ({
-        totalLevels: 120,
+        totalLevels: 240,
         chapters: [
-            { id: 0, name: 'Krönung', levelRange: [0, 29], desc: '5×5 & 6×6 Grundlagen' },
-            { id: 1, name: 'Königreich', levelRange: [30, 59], desc: '6×6 Fortgeschritten' },
-            { id: 2, name: 'Imperium', levelRange: [60, 89], desc: '7×7 Herausforderung' },
-            { id: 3, name: 'Kronjuwelen', levelRange: [90, 119], desc: '8×8 & 9×9 Meister' }
+            { id: 0, name: 'Krönung', levelRange: [0, 59], desc: '5×5 & 6×6 Grundlagen' },
+            { id: 1, name: 'Königreich', levelRange: [60, 119], desc: '6×6 & 7×7 Fortgeschritten' },
+            { id: 2, name: 'Imperium', levelRange: [120, 179], desc: '7×7 & 8×8 Herausforderung' },
+            { id: 3, name: 'Kronjuwelen', levelRange: [180, 239], desc: '8×8 & 9×9 Meister' }
         ]
     }),
 

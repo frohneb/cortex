@@ -52,12 +52,12 @@ export const SlitherlinkPlugin = {
     getRules: (lang) => SlitherlinkRenderer.getRulesHtml(lang),
 
     getCampaignConfig: () => ({
-        totalLevels: 120,
+        totalLevels: 240,
         chapters: [
-            { id: 0, name: 'Einstieg (4×4 & 5×5)', levelRange: [0, 29], desc: 'Grundlagen, 0er & Eck-3er' },
-            { id: 1, name: 'Pfadfinder (6×6 & 7×7)', levelRange: [30, 59], desc: 'Punktgrad & Linienfortführung' },
-            { id: 2, name: 'Labyrinth (8×8)', levelRange: [60, 89], desc: 'Verzweigungen & Sub-Loop-Ausschluss' },
-            { id: 3, name: 'Meister-Zirkel (10×10)', levelRange: [90, 119], desc: 'Große Schleifen & Paritätslogik' }
+            { id: 0, name: 'Einstieg (4×4 & 5×5)', levelRange: [0, 59], desc: 'Grundlagen, 0er & Eck-3er' },
+            { id: 1, name: 'Pfadfinder (6×6 & 7×7)', levelRange: [60, 119], desc: 'Punktgrad & Linienfortführung' },
+            { id: 2, name: 'Labyrinth (8×8)', levelRange: [120, 179], desc: 'Verzweigungen & Sub-Loop-Ausschluss' },
+            { id: 3, name: 'Meister-Zirkel (10×10)', levelRange: [180, 239], desc: 'Große Schleifen & Paritätslogik' }
         ]
     }),
 

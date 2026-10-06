@@ -127,8 +127,8 @@ export class CortexApp {
         const restored = this.restoreActiveGameState();
         if (!restored) {
             // Starte Spielstand im Hintergrund vorbereitet
-            const completed = this.getCompletedLevels();
-            this.prepareCampaignLevel(completed.length < 120 ? completed.length : 0);
+            const totalLevels = this.activePlugin?.getCampaignConfig ? (this.activePlugin.getCampaignConfig().totalLevels || 240) : 240;
+            this.prepareCampaignLevel(completed.length < totalLevels ? completed.length : 0);
 
             // Beim Start sofort die "Alle Rätsel" Übersicht als Startseite öffnen
             this.openPuzzleSelectModal();
@@ -186,7 +186,8 @@ export class CortexApp {
 
         // Bereite Kampagnen-Level des gewählten Puzzles im Hintergrund vor
         const completed = this.getCompletedLevels();
-        this.prepareCampaignLevel(completed.length < 120 ? completed.length : 0);
+        const totalLevels = this.activePlugin?.getCampaignConfig ? (this.activePlugin.getCampaignConfig().totalLevels || 240) : 240;
+        this.prepareCampaignLevel(completed.length < totalLevels ? completed.length : 0);
     }
 
     restoreSelectedPlugin() {
@@ -416,7 +417,8 @@ export class CortexApp {
             } else if (this.currentMode === 'daily') {
                 this.restoreSelectedPlugin();
                 const completed = this.getCompletedLevels();
-                this.startCampaignLevel(completed.length < 120 ? completed.length : 0);
+                const totalLevels = this.activePlugin?.getCampaignConfig ? (this.activePlugin.getCampaignConfig().totalLevels || 240) : 240;
+                this.startCampaignLevel(completed.length < totalLevels ? completed.length : 0);
             } else {
                 this.restoreSelectedPlugin();
                 this.openMenuTab('play');
@@ -1840,7 +1842,7 @@ export class CortexApp {
     openLevelSelectModal() {
         this.restoreSelectedPlugin();
         if (typeof this.campaignLevelIndex === 'number' && this.campaignLevelIndex >= 0) {
-            this.selectedCampaignChapter = Math.min(3, Math.max(0, Math.floor(this.campaignLevelIndex / 30)));
+            this.selectedCampaignChapter = Math.min(3, Math.max(0, Math.floor(this.campaignLevelIndex / 60)));
         }
         this.renderCampaignLevelGrid();
         this.toggleModal('levelSelectModal', true);
@@ -1864,8 +1866,16 @@ export class CortexApp {
         list.innerHTML = '';
 
         const completed = this.getCompletedLevels();
-        const startLvl = this.selectedCampaignChapter * 30;
-        const endLvl = startLvl + 30;
+        const config = this.activePlugin.getCampaignConfig ? this.activePlugin.getCampaignConfig() : null;
+        let startLvl = this.selectedCampaignChapter * 60;
+        let endLvl = startLvl + 60;
+        if (config && config.chapters && config.chapters[this.selectedCampaignChapter]) {
+            const range = config.chapters[this.selectedCampaignChapter].levelRange;
+            if (range && range.length === 2) {
+                startLvl = range[0];
+                endLvl = range[1] + 1;
+            }
+        }
 
         for (let i = startLvl; i < endLvl; i++) {
             const btn = document.createElement('button');

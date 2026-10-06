@@ -6,42 +6,50 @@ import { EMPTY, SUN, MOON, EDGE_NONE, EDGE_EQUAL, EDGE_OPPOSITE } from '../engin
 import { TangoGenerator } from '../generator.js';
 
 export function getTangoCampaignLevel(levelIndex) {
-    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (120 Level in 4 Kapiteln)
+    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (240 Level in 4 Kapiteln)
     let size, difficulty;
-    if (levelIndex < 10) {
-        // Kapitel 1: Level 1–10 (4×4 Einfach)
+    if (levelIndex < 15) {
+        // Kapitel 1: Level 1–15 (4×4 Einfach)
         size = 4;
         difficulty = 'easy';
-    } else if (levelIndex < 20) {
-        // Kapitel 1: Level 11–20 (6×6 Einfach)
+    } else if (levelIndex < 30) {
+        // Kapitel 1: Level 16–30 (6×6 Einfach)
         size = 6;
         difficulty = 'easy';
-    } else if (levelIndex < 30) {
-        // Kapitel 1: Level 21–30 (6×6 Mittel)
-        size = 6;
-        difficulty = 'medium';
     } else if (levelIndex < 45) {
-        // Kapitel 2: Level 31–45 (6×6 Mittel)
+        // Kapitel 1: Level 31–45 (6×6 Mittel)
         size = 6;
         difficulty = 'medium';
     } else if (levelIndex < 60) {
-        // Kapitel 2: Level 46–60 (6×6 Schwer)
+        // Kapitel 1: Level 46–60 (6×6 Schwer)
         size = 6;
         difficulty = 'hard';
-    } else if (levelIndex < 75) {
-        // Kapitel 3: Level 61–75 (8×8 Mittel)
+    } else if (levelIndex < 80) {
+        // Kapitel 2: Level 61–80 (6×6 Schwer)
+        size = 6;
+        difficulty = 'hard';
+    } else if (levelIndex < 100) {
+        // Kapitel 2: Level 81–100 (8×8 Einfach)
+        size = 8;
+        difficulty = 'easy';
+    } else if (levelIndex < 120) {
+        // Kapitel 2: Level 101–120 (8×8 Mittel)
         size = 8;
         difficulty = 'medium';
-    } else if (levelIndex < 90) {
-        // Kapitel 3: Level 76–90 (8×8 Schwer)
+    } else if (levelIndex < 150) {
+        // Kapitel 3: Level 121–150 (8×8 Mittel)
+        size = 8;
+        difficulty = 'medium';
+    } else if (levelIndex < 180) {
+        // Kapitel 3: Level 151–180 (8×8 Schwer)
         size = 8;
         difficulty = 'hard';
-    } else if (levelIndex < 105) {
-        // Kapitel 4: Level 91–105 (8×8 Meister)
+    } else if (levelIndex < 210) {
+        // Kapitel 4: Level 181–210 (8×8 Meister)
         size = 8;
         difficulty = 'hard';
     } else {
-        // Kapitel 4: Level 106–120 (10×10 Meister)
+        // Kapitel 4: Level 211–240 (10×10 Großmeister)
         size = 10;
         difficulty = 'hard';
     }

@@ -52,12 +52,12 @@ export const AkariPlugin = {
     getRules: (lang) => AkariRenderer.getRulesHtml(lang),
 
     getCampaignConfig: () => ({
-        totalLevels: 120,
+        totalLevels: 240,
         chapters: [
-            { id: 0, name: 'Glühwürmchen', levelRange: [0, 29], desc: '6×6 & 7×7 Grundlagen' },
-            { id: 1, name: 'Laternenstadt', levelRange: [30, 59], desc: '8×8 Klassische Straßen' },
-            { id: 2, name: 'Lichtkuppel', levelRange: [60, 89], desc: '10×10 Meister-Architektur' },
-            { id: 3, name: 'Photonen-Palast', levelRange: [90, 119], desc: '12×12 & 14×14 Giganten' }
+            { id: 0, name: 'Glühwürmchen', levelRange: [0, 59], desc: '6×6 & 7×7 Grundlagen' },
+            { id: 1, name: 'Laternenstadt', levelRange: [60, 119], desc: '8×8 Klassische Straßen' },
+            { id: 2, name: 'Lichtkuppel', levelRange: [120, 179], desc: '10×10 Meister-Architektur' },
+            { id: 3, name: 'Photonen-Palast', levelRange: [180, 239], desc: '12×12 & 14×14 Giganten' }
         ]
     }),
 

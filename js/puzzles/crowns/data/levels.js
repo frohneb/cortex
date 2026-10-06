@@ -5,42 +5,42 @@
 import { CrownsGenerator } from '../generator.js';
 
 export function getCrownsCampaignLevel(levelIndex) {
-    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (120 Level in 4 Kapiteln)
+    // Bestimme Gittergröße und Schwierigkeitsgrad nach Level-Fortschritt (240 Level in 4 Kapiteln)
     let size, difficulty;
-    if (levelIndex < 10) {
-        // Kapitel 1: Level 1–10 (5×5 Einfach)
+    if (levelIndex < 20) {
+        // Kapitel 1: Level 1–20 (5×5 Einfach)
         size = 5;
         difficulty = 'easy';
-    } else if (levelIndex < 20) {
-        // Kapitel 1: Level 11–20 (5×5 Mittel)
+    } else if (levelIndex < 40) {
+        // Kapitel 1: Level 21–40 (5×5 Mittel)
         size = 5;
-        difficulty = 'medium';
-    } else if (levelIndex < 30) {
-        // Kapitel 1: Level 21–30 (6×6 Einfach)
-        size = 6;
-        difficulty = 'easy';
-    } else if (levelIndex < 45) {
-        // Kapitel 2: Level 31–45 (6×6 Mittel)
-        size = 6;
         difficulty = 'medium';
     } else if (levelIndex < 60) {
-        // Kapitel 2: Level 46–60 (6×6 Schwer)
+        // Kapitel 1: Level 41–60 (6×6 Einfach)
+        size = 6;
+        difficulty = 'easy';
+    } else if (levelIndex < 90) {
+        // Kapitel 2: Level 61–90 (6×6 Mittel)
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 120) {
+        // Kapitel 2: Level 91–120 (6×6 Schwer)
         size = 6;
         difficulty = 'hard';
-    } else if (levelIndex < 75) {
-        // Kapitel 3: Level 61–75 (7×7 Mittel)
+    } else if (levelIndex < 150) {
+        // Kapitel 3: Level 121–150 (7×7 Mittel)
         size = 7;
         difficulty = 'medium';
-    } else if (levelIndex < 90) {
-        // Kapitel 3: Level 76–90 (7×7 Schwer)
+    } else if (levelIndex < 180) {
+        // Kapitel 3: Level 151–180 (7×7 Schwer)
         size = 7;
         difficulty = 'hard';
-    } else if (levelIndex < 105) {
-        // Kapitel 4: Level 91–105 (8×8 Schwer)
+    } else if (levelIndex < 210) {
+        // Kapitel 4: Level 181–210 (8×8 Schwer)
         size = 8;
         difficulty = 'hard';
     } else {
-        // Kapitel 4: Level 106–120 (9×9 Schwer)
+        // Kapitel 4: Level 211–240 (9×9 Meister)
         size = 9;
         difficulty = 'hard';
     }

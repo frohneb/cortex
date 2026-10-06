@@ -1,41 +1,47 @@
 /**
  * Sudoku Level & Tagesrätsel-Generierung
- * 120 prozedural generierte Kampagnen-Level in 4 Kapiteln (4×4, 9×9, 16×16 Hexadezimal)
+ * 240 prozedural generierte Kampagnen-Level in 4 Kapiteln (4×4, 9×9, 16×16 Hexadezimal)
  * und synchrones Tagesrätsel (Werktags 9×9, Wochenende 16×16 Hexadezimal).
  */
 
 import { SudokuGenerator } from '../generator.js';
 
 export function getSudokuCampaignLevel(levelIndex) {
-    // 120 Level in 4 Kapiteln:
-    // Kapitel 1 (0–29): Einsteiger 4×4 (Level 1–15: Easy, Level 16–25: Medium, Level 26–30: Hard)
-    // Kapitel 2 (30–59): Klassisch Leicht 9×9 (Level 31–60: Easy)
-    // Kapitel 3 (60–89): Klassisch Anspruchsvoll 9×9 (Level 61–75: Medium, Level 76–90: Hard)
-    // Kapitel 4 (90–119): Meister & Hexadezimal (Level 91–105: 9×9 Meister, Level 106–120: 16×16 Hexadezimal)
+    // 240 Level in 4 Kapiteln:
+    // Kapitel 1 (0–59): Einsteiger 4×4 (Level 1–25: Easy, Level 26–45: Medium, Level 46–60: Hard)
+    // Kapitel 2 (60–119): Klassisch Leicht 9×9 (Level 61–90: Easy, Level 91–120: Medium)
+    // Kapitel 3 (120–179): Klassisch Meister 9×9 (Level 121–150: Medium, Level 151–180: Hard)
+    // Kapitel 4 (180–239): Meister & Hexadezimal (Level 181–210: 9×9 Meister, Level 211–240: 16×16 Hexadezimal)
 
     let size, difficulty;
-    if (levelIndex < 15) {
+    if (levelIndex < 25) {
         size = 4;
         difficulty = 'easy';
-    } else if (levelIndex < 25) {
+    } else if (levelIndex < 45) {
         size = 4;
         difficulty = 'medium';
-    } else if (levelIndex < 30) {
+    } else if (levelIndex < 60) {
         size = 4;
         difficulty = 'hard';
-    } else if (levelIndex < 60) {
+    } else if (levelIndex < 90) {
         size = 9;
         difficulty = 'easy';
-    } else if (levelIndex < 75) {
+    } else if (levelIndex < 120) {
         size = 9;
         difficulty = 'medium';
-    } else if (levelIndex < 105) {
+    } else if (levelIndex < 150) {
+        size = 9;
+        difficulty = 'medium';
+    } else if (levelIndex < 180) {
+        size = 9;
+        difficulty = 'hard';
+    } else if (levelIndex < 210) {
         size = 9;
         difficulty = 'hard';
     } else {
-        // Level 106–120: 16×16 Hexadezimal Meister
+        // Level 211–240: 16×16 Hexadezimal Meister
         size = 16;
-        difficulty = levelIndex < 112 ? 'easy' : (levelIndex < 117 ? 'medium' : 'hard');
+        difficulty = levelIndex < 222 ? 'easy' : (levelIndex < 232 ? 'medium' : 'hard');
     }
 
     const seed = 9000 + (levelIndex + 1) * 137;
