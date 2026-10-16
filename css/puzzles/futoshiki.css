@@ -1,0 +1,283 @@
+/* ==========================================================================
+   Futoshiki Stylesheet
+   ========================================================================== */
+
+.futoshiki-board-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+.futoshiki-grid {
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+/* 1. Ziffernzellen */
+.futoshiki-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card, #2b3035);
+    border: 2px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    border-radius: 10px;
+    font-size: clamp(18px, 5vw, 28px);
+    font-weight: 700;
+    color: var(--accent-primary, #4dabf7);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.futoshiki-cell:hover {
+    border-color: var(--accent-primary, #4dabf7);
+    transform: scale(1.02);
+}
+
+.futoshiki-cell:active {
+    transform: scale(0.96);
+}
+
+/* Fixierte Startziffern */
+.futoshiki-cell.cell-locked {
+    background: var(--cell-locked-bg, rgba(255, 255, 255, 0.05));
+    color: var(--text-primary, #f8f9fa);
+    font-weight: 900;
+}
+
+/* Ausgewählte Zelle */
+.futoshiki-cell.selected {
+    border-color: var(--accent-primary, #4dabf7);
+    box-shadow: 0 0 0 3px rgba(77, 171, 247, 0.35);
+    background: rgba(77, 171, 247, 0.15);
+    transform: scale(1.03);
+    z-index: 2;
+}
+
+/* Zeile/Spalte Fadenkreuz */
+.futoshiki-cell.highlight-related {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Gleiche Zahl Hervorhebung */
+.futoshiki-cell.highlight-same-val {
+    background: rgba(255, 212, 59, 0.15);
+    border-color: rgba(255, 212, 59, 0.5);
+}
+
+/* Konflikt (Duplikat) */
+.futoshiki-cell.conflict {
+    border-color: #ff6b6b !important;
+    background: rgba(255, 107, 107, 0.2) !important;
+    color: #ff6b6b !important;
+    animation: futoshiki-shake 0.35s ease;
+}
+
+/* Hint-Ziel */
+.futoshiki-cell.hint-target {
+    border-color: #ff922b !important;
+    box-shadow: 0 0 12px rgba(255, 146, 43, 0.6) !important;
+    animation: futoshiki-pulse 1.2s infinite;
+}
+
+/* 2. Constraint-Slots & Pfeile */
+.futoshiki-constraint-h {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    color: var(--text-secondary, #adb5bd);
+    transition: color 0.2s ease;
+}
+
+.futoshiki-constraint-v {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    color: var(--text-secondary, #adb5bd);
+    transition: color 0.2s ease;
+}
+
+.futoshiki-corner-slot {
+    width: 20px;
+    height: 20px;
+}
+
+.futoshiki-arrow-icon {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+/* Verletzter Constraint (Rot) */
+.futoshiki-constraint-h.violated,
+.futoshiki-constraint-v.violated {
+    color: #ff6b6b !important;
+    filter: drop-shadow(0 0 4px rgba(255, 107, 107, 0.8));
+    animation: futoshiki-shake 0.35s ease;
+}
+
+/* 3. Notizen-Minigrid */
+.futoshiki-note-grid {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    padding: 3px;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.futoshiki-note-grid.grid-4 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+.futoshiki-note-grid.grid-5,
+.futoshiki-note-grid.grid-6,
+.futoshiki-note-grid.grid-7 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+
+.note-digit {
+    font-size: clamp(8px, 1.8vw, 11px);
+    font-weight: 600;
+    color: var(--text-muted, #868e96);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 4. Lösungsaufdeckung */
+.cell-revealed-correct {
+    border-color: #51cf66 !important;
+    background: rgba(81, 207, 102, 0.15) !important;
+    color: #51cf66 !important;
+}
+
+.cell-revealed-solution {
+    border-color: #ffd43b !important;
+    background: rgba(255, 212, 59, 0.15) !important;
+}
+
+.cell-revealed-error {
+    border-color: #ff6b6b !important;
+    background: rgba(255, 107, 107, 0.2) !important;
+}
+
+.wrong-val {
+    color: #ff6b6b;
+    text-decoration: line-through;
+    font-size: 0.8em;
+}
+
+.correct-sub {
+    color: #51cf66;
+    font-size: 0.9em;
+    font-weight: 800;
+    margin-left: 2px;
+}
+
+/* 5. Keypad */
+.futoshiki-keypad {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    max-width: 440px;
+    margin: 12px auto 0;
+    padding: 0 4px;
+    box-sizing: border-box;
+}
+
+.futoshiki-key {
+    flex: 1;
+    min-width: 0;
+    aspect-ratio: 1.1;
+    background: var(--bg-card, #2b3035);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 4px;
+    color: var(--text-primary, #f8f9fa);
+}
+
+.futoshiki-key:hover {
+    border-color: var(--accent-primary, #4dabf7);
+    background: rgba(77, 171, 247, 0.12);
+}
+
+.futoshiki-key:active {
+    transform: scale(0.94);
+}
+
+.futoshiki-key .key-digit {
+    font-size: clamp(16px, 4vw, 22px);
+    font-weight: 700;
+}
+
+.futoshiki-key .key-remaining {
+    font-size: 10px;
+    color: var(--text-secondary, #adb5bd);
+    font-weight: 600;
+}
+
+.futoshiki-key.completed-digit {
+    opacity: 0.35;
+}
+
+.futoshiki-key.key-clear {
+    color: #ff6b6b;
+}
+
+/* 6. Theme-Anpassungen */
+.theme-amoled .futoshiki-cell {
+    background: #000000;
+    border-color: #222;
+}
+
+.theme-neon .futoshiki-cell.selected {
+    box-shadow: 0 0 14px #00f0ff;
+    border-color: #00f0ff;
+}
+
+.theme-neon .futoshiki-constraint-h,
+.theme-neon .futoshiki-constraint-v {
+    color: #00f0ff;
+}
+
+.theme-wood .futoshiki-cell {
+    background: #dfc8a5;
+    border-color: #5c3a21;
+    color: #3b2314;
+}
+
+.theme-wood .futoshiki-constraint-h,
+.theme-wood .futoshiki-constraint-v {
+    color: #5c3a21;
+}
+
+/* 7. Keyframes */
+@keyframes futoshiki-shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-4px); }
+    40%, 80% { transform: translateX(4px); }
+}
+
+@keyframes futoshiki-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}

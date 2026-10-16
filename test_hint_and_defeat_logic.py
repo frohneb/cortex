@@ -37,7 +37,6 @@ class TestHintAndDefeatLogic(unittest.TestCase):
 import {{ TangoEngine, SUN, MOON, EMPTY }} from './js/core/engine.js';
 import {{ TangoSolver }} from './js/core/solver.js';
 import {{ getCampaignLevel }} from './js/data/levels.js';
-import {{ TangoApp }} from './js/ui/app.js';
 import {{ puzzleRegistry }} from './js/shell/puzzle-registry.js';
 import {{ TangoPlugin }} from './js/puzzles/tango/index.js';
 import {{ SudokuPlugin }} from './js/puzzles/sudoku/index.js';
@@ -45,6 +44,8 @@ import {{ AkariPlugin }} from './js/puzzles/akari/index.js';
 import {{ NonogramPlugin }} from './js/puzzles/nonogram/index.js';
 import {{ SlitherlinkPlugin }} from './js/puzzles/slitherlink/index.js';
 import {{ CrownsPlugin }} from './js/puzzles/crowns/index.js';
+import {{ HashiPlugin }} from './js/puzzles/hashi/index.js';
+import {{ FutoshikiPlugin }} from './js/puzzles/futoshiki/index.js';
 
 try {{
     {js_code}
@@ -58,13 +59,17 @@ try {{
         test_file.write_text(test_html, encoding='utf-8')
 
         chrome_path = r'C:\Program Files\Google\Chrome\Application\chrome.exe'
+        profile_dir = BASE_DIR / ".chrome_eval_profile"
+        ts = time.time()
         cmd = [
             chrome_path,
             '--headless=new',
             '--disable-gpu',
-            '--virtual-time-budget=12000',
+            '--disable-http-cache',
+            f'--user-data-dir={profile_dir}',
+            '--virtual-time-budget=3000',
             '--dump-dom',
-            'http://127.0.0.1:8977/test_eval_temp.html'
+            f'http://127.0.0.1:8977/test_eval_temp.html?t={ts}'
         ]
         res = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         if test_file.exists():
@@ -255,12 +260,14 @@ try {{
         puzzleRegistry.register(NonogramPlugin);
         puzzleRegistry.register(SlitherlinkPlugin);
         puzzleRegistry.register(CrownsPlugin);
+        puzzleRegistry.register(HashiPlugin);
+        puzzleRegistry.register(FutoshikiPlugin);
 
         const results = {};
         for (const p of puzzleRegistry.getAll()) {
-            const size = p.id === 'sudoku' ? 9 : (p.id === 'nonogram' ? 10 : (p.id === 'tango' ? 6 : 5));
-            const engine = p.createEngine(size);
             const lvl = p.getCampaignLevel(0);
+            const size = lvl.size || lvl.rows || 5;
+            const engine = p.createEngine(size);
             engine.loadPuzzle(lvl);
             const hint = p.getHint(engine, {});
             results[p.id] = {
@@ -272,7 +279,7 @@ try {{
         document.getElementById('output').textContent = JSON.stringify(results);
         """
         result = self.run_browser_eval(js_code)
-        for pid in ['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'crowns']:
+        for pid in ['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'crowns', 'hashi', 'futoshiki']:
             self.assertIn(pid, result, f"Plugin {pid} muss im Hint-Ergebnis enthalten sein")
             self.assertTrue(result[pid]['hasHint'], f"Plugin {pid} muss einen gültigen Hinweis liefern")
 

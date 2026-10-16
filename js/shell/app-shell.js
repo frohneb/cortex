@@ -20,6 +20,8 @@ import { NonogramPlugin } from '../puzzles/nonogram/index.js';
 import { SlitherlinkPlugin } from '../puzzles/slitherlink/index.js';
 import { MinesweeperPlugin } from '../puzzles/minesweeper/index.js';
 import { CrownsPlugin } from '../puzzles/crowns/index.js';
+import { HashiPlugin } from '../puzzles/hashi/index.js';
+import { FutoshikiPlugin } from '../puzzles/futoshiki/index.js';
 import { getSunSvg, getMoonSvg } from '../puzzles/tango/renderer.js';
 
 export { formatTime, calculateStreaks, getSunSvg, getMoonSvg };
@@ -32,6 +34,8 @@ export class CortexApp {
         // Plugins registrieren
         puzzleRegistry.register(AkariPlugin);
         puzzleRegistry.register(CrownsPlugin);
+        puzzleRegistry.register(FutoshikiPlugin);
+        puzzleRegistry.register(HashiPlugin);
         puzzleRegistry.register(NonogramPlugin);
         puzzleRegistry.register(SlitherlinkPlugin);
         puzzleRegistry.register(SudokuPlugin);
@@ -173,6 +177,10 @@ export class CortexApp {
                 this.freePlaySize = 8;
             } else if (pluginId === 'crowns') {
                 this.freePlaySize = 6;
+            } else if (pluginId === 'hashi') {
+                this.freePlaySize = 7;
+            } else if (pluginId === 'futoshiki') {
+                this.freePlaySize = 5;
             } else {
                 this.freePlaySize = sizes[0].id;
             }
@@ -1376,7 +1384,7 @@ export class CortexApp {
         if (descEl) descEl.textContent = hint.message || hint.description || '';
 
         if (btnApply) {
-            const hasMove = (hint.value !== undefined || hint.expectedVal !== undefined);
+            const hasMove = (hint.value !== undefined || hint.expectedVal !== undefined || hint.edgeKey !== undefined || hint.count !== undefined);
             btnApply.style.display = hasMove ? 'block' : 'none';
             btnApply.onclick = () => {
                 audio.vibrate(25);
@@ -1384,7 +1392,21 @@ export class CortexApp {
 
                 const valToSet = hint.value !== undefined ? hint.value : hint.expectedVal;
 
-                if (hint.edgeType !== undefined && hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
+                if (hint.edgeKey !== undefined && typeof this.engine.setBridge === 'function') {
+                    // Hashi Brücken-Hinweis
+                    const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(hint.edgeKey);
+                    const bridgeCount = hint.count !== undefined ? hint.count : (this.engine.getBridgeCount(r1, c1, r2, c2) + 1);
+                    this.engine.setBridge(r1, c1, r2, c2, bridgeCount);
+                    this.movesCount++;
+                    if (bridgeCount > 0) {
+                        if (audio.playSun) audio.playSun(); else audio.playClear();
+                    } else {
+                        audio.playClear();
+                    }
+                    this.renderGrid();
+                    this.checkCompletion();
+                    this.saveActiveGameState();
+                } else if (hint.edgeType !== undefined && hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
                     // Slitherlink Kanten-Hinweis
                     this.hintPlacedEdge = { type: hint.edgeType, r: hint.r, c: hint.c };
                     this.hintPlacedCell = null;
@@ -1637,6 +1659,22 @@ export class CortexApp {
                 initialGrid: this.engine.initialGrid,
                 solution: this.engine.solution
             };
+        } else if (this.activePlugin.id === 'hashi') {
+            return {
+                size: this.engine.size,
+                rows: this.engine.rows,
+                cols: this.engine.cols,
+                islands: typeof this.engine.getIslandsList === 'function' ? this.engine.getIslandsList() : [],
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'futoshiki') {
+            return {
+                size: this.engine.size,
+                initialGrid: this.engine.initialGrid,
+                hConstraints: this.engine.hConstraints,
+                vConstraints: this.engine.vConstraints,
+                solution: this.engine.solution
+            };
         }
         return null;
     }
@@ -1659,7 +1697,9 @@ export class CortexApp {
             puzzleData: puzzleData,
             engineState: {
                 grid: this.engine.grid ? this.engine.grid.map(row => [...row]) : null,
-                notes: this.engine.notes ? this.engine.notes.map(row => row.map(set => Array.from(set || []))) : null,
+                notes: this.engine.notes && Array.isArray(this.engine.notes) ? this.engine.notes.map(row => row.map(set => Array.from(set || []))) : null,
+                hashiBridges: (this.engine.bridges instanceof Map) ? Array.from(this.engine.bridges.entries()) : null,
+                hashiNotes: (this.engine.notes instanceof Map) ? Array.from(this.engine.notes.entries()).map(([k, s]) => [k, Array.from(s || [])]) : null,
                 hEdges: this.engine.hEdges ? this.engine.hEdges.map(row => [...row]) : null,
                 vEdges: this.engine.vEdges ? this.engine.vEdges.map(row => [...row]) : null,
                 hNotes: this.engine.hNotes ? this.engine.hNotes.map(row => row.map(set => Array.from(set || []))) : null,
@@ -1720,6 +1760,12 @@ export class CortexApp {
         }
         if (session.engineState?.vNotes && Array.isArray(session.engineState.vNotes)) {
             this.engine.vNotes = session.engineState.vNotes.map(row => row.map(arr => new Set(arr || [])));
+        }
+        if (Array.isArray(session.engineState?.hashiBridges) && this.engine.bridges instanceof Map) {
+            this.engine.bridges = new Map(session.engineState.hashiBridges);
+        }
+        if (Array.isArray(session.engineState?.hashiNotes) && this.engine.notes instanceof Map) {
+            this.engine.notes = new Map(session.engineState.hashiNotes.map(([k, arr]) => [k, new Set(arr || [])]));
         }
         if (Array.isArray(session.engineState?.undoStack)) {
             this.engine.undoStack = session.engineState.undoStack;
@@ -2055,7 +2101,7 @@ export class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns', 'hashi', 'futoshiki']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
         const akariStats = StatsManager.getPuzzleStats('akari');
@@ -2063,6 +2109,8 @@ export class CortexApp {
         const slitherlinkStats = StatsManager.getPuzzleStats('slitherlink');
         const minesweeperStats = StatsManager.getPuzzleStats('minesweeper');
         const crownsStats = StatsManager.getPuzzleStats('crowns');
+        const hashiStats = StatsManager.getPuzzleStats('hashi');
+        const futoshikiStats = StatsManager.getPuzzleStats('futoshiki');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -2081,6 +2129,10 @@ export class CortexApp {
             displayStats = minesweeperStats;
         } else if (currentTab === 'crowns') {
             displayStats = crownsStats;
+        } else if (currentTab === 'hashi') {
+            displayStats = hashiStats;
+        } else if (currentTab === 'futoshiki') {
+            displayStats = futoshikiStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -2140,6 +2192,19 @@ export class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 9, labelKey: 'stats_best_time_9' }
                 ];
+            } else if (currentTab === 'hashi') {
+                sizesToShow = [
+                    { id: 7, labelKey: 'stats_best_time_7' },
+                    { id: 9, labelKey: 'stats_best_time_9' },
+                    { id: 11, labelKey: 'stats_best_time_11' }
+                ];
+            } else if (currentTab === 'futoshiki') {
+                sizesToShow = [
+                    { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 5, labelKey: 'stats_best_time_5' },
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 7, labelKey: 'stats_best_time_7' }
+                ];
             } else {
                 // Gesamt-Tab
                 sizesToShow = [
@@ -2150,6 +2215,7 @@ export class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 9, labelKey: 'stats_best_time_9' },
                     { id: 10, labelKey: 'stats_best_time_10' },
+                    { id: 11, labelKey: 'stats_best_time_11' },
                     { id: 14, labelKey: 'stats_best_time_14' },
                     { id: 16, labelKey: 'stats_best_time_16' }
                 ];

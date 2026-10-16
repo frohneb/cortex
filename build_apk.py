@@ -88,6 +88,8 @@ def build_apk():
             'css/puzzles/slitherlink.css',
             'css/puzzles/minesweeper.css',
             'css/puzzles/crowns.css',
+            'css/puzzles/hashi.css',
+            'css/puzzles/futoshiki.css',
             'js/bundle.js',
             'assets/favicon.svg',
             'assets/favicon.png',

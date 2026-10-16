@@ -333,11 +333,11 @@ if os.path.exists(APK_PATH):
         check("Keine versteckten Dateien in APK", len(hidden) == 0,
               f"Versteckt: {hidden}", "warn")
 
-        # Gesamtgroesse der Assets pruefen
+        # Gesamtgroesse der Assets pruefen (Limit 3 MB fuer 9 vollwertige Puzzle-Plugins)
         total_asset_size = sum(z.getinfo(n).file_size for n in names if n.startswith('assets/'))
         check(f"Asset-Groesse plausibel ({total_asset_size/1024:.0f} KB)",
-              total_asset_size < 2 * 1024 * 1024,
-              f"Assets sind {total_asset_size / 1024 / 1024:.1f} MB gross")
+              total_asset_size < 3 * 1024 * 1024,
+              f"Assets sind {total_asset_size / 1024 / 1024:.1f} MB gross (Limit: 3 MB)")
 
         print(f"    APK enthaelt {len(names)} Dateien, {total_asset_size/1024:.0f} KB Assets")
 

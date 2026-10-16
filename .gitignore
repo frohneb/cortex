@@ -12,3 +12,6 @@ Cortex.apk
 *.idsig
 android/.gradle/
 .vscode/
+.chrome_eval_profile/
+chrome_temp/
+test_*_temp.html

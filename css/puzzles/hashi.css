@@ -1,0 +1,227 @@
+/* ==========================================================================
+   Hashiwokakero (Bridges / Brücken) Stylesheet
+   ========================================================================== */
+
+.hashi-board-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 540px;
+    margin: 0 auto;
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+.hashi-svg {
+    width: 100%;
+    height: auto;
+    max-height: 65vh;
+    display: block;
+    overflow: visible;
+}
+
+/* 1. Gitter-Hintergrundpunkte */
+.hashi-grid-dot {
+    fill: var(--text-secondary, #6c757d);
+    opacity: 0.25;
+    transition: opacity 0.2s ease;
+}
+
+/* 2. Brückenlinien */
+.hashi-bridge-line {
+    stroke: var(--accent-primary, #4dabf7);
+    stroke-linecap: round;
+    transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.hashi-bridge-line.single {
+    stroke-width: 3.5px;
+}
+
+.hashi-bridge-line.double {
+    stroke-width: 3px;
+}
+
+.hint-highlight-edge .hashi-bridge-line {
+    stroke: #ff922b !important;
+    filter: drop-shadow(0 0 6px rgba(255, 146, 43, 0.8));
+    animation: hashi-pulse-edge 1s infinite alternate;
+}
+
+/* 3. Insel-Kreise */
+.hashi-island-group {
+    transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.hashi-island-group:hover {
+    transform: scale(1.08);
+}
+
+.hashi-island-group:active {
+    transform: scale(0.96);
+}
+
+.hashi-island-circle {
+    fill: var(--bg-card, #2b3035);
+    stroke: var(--accent-primary, #4dabf7);
+    stroke-width: 2.5px;
+    transition: all 0.25s ease;
+}
+
+.hashi-island-text {
+    fill: var(--text-primary, #f8f9fa);
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* 4. Insel-Zustände */
+/* Erfüllt: Grüner Glow-Effekt */
+.hashi-island-group.satisfied .hashi-island-circle {
+    stroke: #51cf66;
+    fill: rgba(81, 207, 102, 0.18);
+}
+
+.hashi-island-group.satisfied .hashi-island-text {
+    fill: #51cf66;
+}
+
+.hashi-island-glow-ring {
+    fill: none;
+    stroke: #51cf66;
+    stroke-width: 2px;
+    opacity: 0.6;
+    animation: hashi-glow-spin 4s linear infinite;
+}
+
+/* Überbelegt: Roter Alarm */
+.hashi-island-group.overfilled .hashi-island-circle {
+    stroke: #ff6b6b;
+    fill: rgba(255, 107, 107, 0.25);
+    animation: hashi-shake 0.4s ease;
+}
+
+.hashi-island-group.overfilled .hashi-island-text {
+    fill: #ff6b6b;
+}
+
+/* Ausgewählt: Akzent-Farbe & Skalierung */
+.hashi-island-group.selected {
+    transform: scale(1.12);
+}
+
+.hashi-island-group.selected .hashi-island-circle {
+    stroke: #ffd43b;
+    fill: rgba(255, 212, 59, 0.25);
+    stroke-width: 3.5px;
+}
+
+.hashi-island-group.selected .hashi-island-glow-ring {
+    stroke: #ffd43b;
+    stroke-width: 2.5px;
+    opacity: 0.8;
+}
+
+/* Hint-Ziel */
+.hashi-island-group.hint-target .hashi-island-circle {
+    stroke: #ff922b;
+    filter: drop-shadow(0 0 8px rgba(255, 146, 43, 0.8));
+    animation: hashi-pulse-island 1.2s infinite;
+}
+
+/* 5. Action Bar (Keypad Slot) */
+.hashi-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg-card, #2b3035);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    border-radius: 12px;
+    margin: 8px auto 0;
+    max-width: 500px;
+    width: 100%;
+}
+
+.hashi-action-info {
+    font-size: 13px;
+    color: var(--text-secondary, #adb5bd);
+    font-weight: 500;
+}
+
+.hashi-deselect-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary, #fff);
+    border: none;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.15s ease;
+}
+
+.hashi-deselect-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* 6. Theme-Anpassungen */
+.theme-amoled .hashi-island-circle {
+    fill: #000000;
+}
+
+.theme-neon .hashi-bridge-line {
+    stroke: #00f0ff;
+    filter: drop-shadow(0 0 4px #00f0ff);
+}
+
+.theme-neon .hashi-island-circle {
+    stroke: #00f0ff;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.theme-neon .hashi-island-group.satisfied .hashi-island-circle {
+    stroke: #39ff14;
+    filter: drop-shadow(0 0 6px #39ff14);
+}
+
+.theme-wood .hashi-bridge-line {
+    stroke: #8b5a2b;
+}
+
+.theme-wood .hashi-island-circle {
+    fill: #dfc8a5;
+    stroke: #5c3a21;
+}
+
+.theme-wood .hashi-island-text {
+    fill: #3b2314;
+}
+
+/* 7. Keyframes */
+@keyframes hashi-glow-spin {
+    0% { transform-origin: center; transform: rotate(0deg); }
+    100% { transform-origin: center; transform: rotate(360deg); }
+}
+
+@keyframes hashi-pulse-edge {
+    0% { opacity: 0.6; }
+    100% { opacity: 1.0; }
+}
+
+@keyframes hashi-pulse-island {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+@keyframes hashi-shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-3px); }
+    40%, 80% { transform: translateX(3px); }
+}

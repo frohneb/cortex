@@ -1085,6 +1085,7 @@ const baseTranslations = {
         stats_best_time_8: "Bestzeit 8×8",
         stats_best_time_9: "Bestzeit 9×9",
         stats_best_time_10: "Bestzeit 10×10",
+        stats_best_time_11: "Bestzeit 11×11",
         stats_best_time_12: "Bestzeit 12×12",
         stats_best_time_14: "Bestzeit 14×14",
         stats_best_time_16: "Bestzeit 16×16",
@@ -1281,6 +1282,7 @@ const baseTranslations = {
         stats_best_time_8: "Best Time 8×8",
         stats_best_time_9: "Best Time 9×9",
         stats_best_time_10: "Best Time 10×10",
+        stats_best_time_11: "Best Time 11×11",
         stats_best_time_12: "Best Time 12×12",
         stats_best_time_14: "Best Time 14×14",
         stats_best_time_16: "Best Time 16×16",
@@ -5268,6 +5270,4119 @@ const CrownsPlugin = {
     }),
 
     getI18nStrings: (lang) => CROWNS_I18N[lang] || {}
+};
+
+// === Source: js\puzzles\futoshiki\engine.js ===
+/**
+ * Futoshiki Puzzle Engine
+ * Repräsentiert das Lateinische Quadrat (N×N) mit Ungleichungs-Constraints (</>),
+ * Zellwerten, Notizen, Konfliktprüfung, Validierung und Undo/Redo.
+ */
+
+const FUTOSHIKI_EMPTY = 0;
+
+const CONSTRAINT_NONE = '';
+const CONSTRAINT_LT = '<'; // kleiner als
+const CONSTRAINT_GT = '>'; // größer als
+
+class FutoshikiEngine {
+    constructor(size = 5) {
+        this.size = size;
+        this.maxValue = size;
+
+        this.grid = Array.from({ length: size }, () => Array(size).fill(FUTOSHIKI_EMPTY));
+        this.initialGrid = Array.from({ length: size }, () => Array(size).fill(FUTOSHIKI_EMPTY));
+        this.locked = Array.from({ length: size }, () => Array(size).fill(false));
+
+        // Horizontale Constraints: size × (size - 1)
+        // hConstraints[r][c] gilt zwischen (r, c) und (r, c + 1)
+        this.hConstraints = Array.from({ length: size }, () => Array(size - 1).fill(CONSTRAINT_NONE));
+
+        // Vertikale Constraints: (size - 1) × size
+        // vConstraints[r][c] gilt zwischen (r, c) und (r + 1, c)
+        // '<' oder '^' = oben < unten; '>' oder 'v' = oben > unten
+        this.vConstraints = Array.from({ length: size - 1 }, () => Array(size).fill(CONSTRAINT_NONE));
+
+        // Kandidaten-Notizen pro Zelle
+        this.notes = Array.from({ length: size }, () => Array.from({ length: size }, () => new Set()));
+
+        this.solution = null;
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Lädt ein Puzzle
+     * @param {Object} config
+     *   size: number (4..7)
+     *   initialGrid: number[][]
+     *   hConstraints: string[][]
+     *   vConstraints: string[][]
+     *   solution: number[][] (optional)
+     *   locked: boolean[][] (optional)
+     */
+    loadPuzzle({ size = 5, initialGrid = null, hConstraints = null, vConstraints = null, solution = null, locked = null }) {
+        this.size = size;
+        this.maxValue = size;
+
+        this.grid = Array.from({ length: size }, () => Array(size).fill(FUTOSHIKI_EMPTY));
+        this.initialGrid = Array.from({ length: size }, () => Array(size).fill(FUTOSHIKI_EMPTY));
+        this.locked = Array.from({ length: size }, () => Array(size).fill(false));
+
+        if (initialGrid) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const val = initialGrid[r] ? (initialGrid[r][c] || FUTOSHIKI_EMPTY) : FUTOSHIKI_EMPTY;
+                    this.grid[r][c] = val;
+                    this.initialGrid[r][c] = val;
+                    this.locked[r][c] = val !== FUTOSHIKI_EMPTY;
+                }
+            }
+        }
+
+        if (locked) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (locked[r] && locked[r][c] !== undefined) {
+                        this.locked[r][c] = !!locked[r][c];
+                    }
+                }
+            }
+        }
+
+        // Horizontale Constraints kopieren und normalisieren
+        this.hConstraints = Array.from({ length: size }, () => Array(size - 1).fill(CONSTRAINT_NONE));
+        if (hConstraints) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size - 1; c++) {
+                    const raw = hConstraints[r] ? hConstraints[r][c] : '';
+                    if (raw === '<' || raw === '>') {
+                        this.hConstraints[r][c] = raw;
+                    }
+                }
+            }
+        }
+
+        // Vertikale Constraints kopieren und normalisieren ('^' -> '<', 'v' -> '>')
+        this.vConstraints = Array.from({ length: size - 1 }, () => Array(size).fill(CONSTRAINT_NONE));
+        if (vConstraints) {
+            for (let r = 0; r < size - 1; r++) {
+                for (let c = 0; c < size; c++) {
+                    const raw = vConstraints[r] ? vConstraints[r][c] : '';
+                    if (raw === '<' || raw === '^') {
+                        this.vConstraints[r][c] = CONSTRAINT_LT;
+                    } else if (raw === '>' || raw === 'v') {
+                        this.vConstraints[r][c] = CONSTRAINT_GT;
+                    }
+                }
+            }
+        }
+
+        this.solution = solution ? solution.map(row => [...row]) : null;
+        this.notes = Array.from({ length: size }, () => Array.from({ length: size }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Setzt das Spielfeld auf die Ausgangsbelegung zurück
+     */
+    restart() {
+        this.grid = this.initialGrid.map(row => [...row]);
+        this.notes = Array.from({ length: this.size }, () => Array.from({ length: this.size }, () => new Set()));
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    getCell(r, c) {
+        if (r < 0 || r >= this.size || c < 0 || c >= this.size) return FUTOSHIKI_EMPTY;
+        return this.grid[r][c];
+    }
+
+    isLocked(r, c) {
+        if (r < 0 || r >= this.size || c < 0 || c >= this.size) return false;
+        return this.locked[r][c];
+    }
+
+    getSolution() {
+        return this.solution;
+    }
+
+    getConstraintH(r, c) {
+        if (r < 0 || r >= this.size || c < 0 || c >= this.size - 1) return CONSTRAINT_NONE;
+        return this.hConstraints[r][c];
+    }
+
+    getConstraintV(r, c) {
+        if (r < 0 || r >= this.size - 1 || c < 0 || c >= this.size) return CONSTRAINT_NONE;
+        return this.vConstraints[r][c];
+    }
+
+    /**
+     * Setzt den Wert einer Zelle oder schaltet eine Notiz um
+     */
+    setCell(r, c, val, isNote = false) {
+        if (r < 0 || r >= this.size || c < 0 || c >= this.size) return false;
+        if (this.locked[r][c]) return false;
+
+        const numVal = Number(val);
+        if (isNaN(numVal) || numVal < 0 || numVal > this.maxValue) return false;
+
+        if (isNote) {
+            if (numVal === FUTOSHIKI_EMPTY) return false;
+            const cellNotes = this.notes[r][c];
+            const oldNotes = new Set(cellNotes);
+
+            if (cellNotes.has(numVal)) {
+                cellNotes.delete(numVal);
+            } else {
+                cellNotes.add(numVal);
+            }
+
+            this.undoStack.push({
+                type: 'note',
+                r, c,
+                oldNotes,
+                newNotes: new Set(cellNotes)
+            });
+            this.redoStack = [];
+            return true;
+        }
+
+        const oldVal = this.grid[r][c];
+        const oldNotes = new Set(this.notes[r][c]);
+
+        if (oldVal === numVal) return true;
+
+        this.undoStack.push({
+            type: 'value',
+            r, c,
+            oldVal,
+            newVal: numVal,
+            oldNotes,
+            newNotes: numVal !== FUTOSHIKI_EMPTY ? new Set() : new Set(oldNotes)
+        });
+        this.redoStack = [];
+
+        this.grid[r][c] = numVal;
+        if (numVal !== FUTOSHIKI_EMPTY) {
+            this.notes[r][c].clear();
+        }
+
+        return true;
+    }
+
+    clearCell(r, c) {
+        return this.setCell(r, c, FUTOSHIKI_EMPTY, false);
+    }
+
+    toggleNote(r, c, val) {
+        return this.setCell(r, c, val, true);
+    }
+
+    getNotes(r, c) {
+        if (r < 0 || r >= this.size || c < 0 || c >= this.size) return new Set();
+        return this.notes[r][c];
+    }
+
+    /**
+     * Prüft auf Duplikate in einer Zeile
+     * @returns {Array<number>} Spalten-Indizes mit Duplikaten
+     */
+    checkRowConflict(r) {
+        const counts = new Map();
+        for (let c = 0; c < this.size; c++) {
+            const v = this.grid[r][c];
+            if (v !== FUTOSHIKI_EMPTY) {
+                counts.set(v, (counts.get(v) || 0) + 1);
+            }
+        }
+        const duplicateCols = [];
+        for (let c = 0; c < this.size; c++) {
+            const v = this.grid[r][c];
+            if (v !== FUTOSHIKI_EMPTY && counts.get(v) > 1) {
+                duplicateCols.push(c);
+            }
+        }
+        return duplicateCols;
+    }
+
+    /**
+     * Prüft auf Duplikate in einer Spalte
+     * @returns {Array<number>} Zeilen-Indizes mit Duplikaten
+     */
+    checkColConflict(c) {
+        const counts = new Map();
+        for (let r = 0; r < this.size; r++) {
+            const v = this.grid[r][c];
+            if (v !== FUTOSHIKI_EMPTY) {
+                counts.set(v, (counts.get(v) || 0) + 1);
+            }
+        }
+        const duplicateRows = [];
+        for (let r = 0; r < this.size; r++) {
+            const v = this.grid[r][c];
+            if (v !== FUTOSHIKI_EMPTY && counts.get(v) > 1) {
+                duplicateRows.push(r);
+            }
+        }
+        return duplicateRows;
+    }
+
+    /**
+     * Prüft alle Ungleichungs-Constraints auf Verstöße
+     * @returns {Array<Object>} Liste aller verletzten Constraints
+     */
+    checkConstraints() {
+        const violations = [];
+
+        // 1. Horizontale Constraints prüfen
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size - 1; c++) {
+                const rel = this.hConstraints[r][c];
+                if (!rel) continue;
+
+                const v1 = this.grid[r][c];
+                const v2 = this.grid[r][c + 1];
+                if (v1 === FUTOSHIKI_EMPTY || v2 === FUTOSHIKI_EMPTY) continue;
+
+                if (rel === CONSTRAINT_LT && !(v1 < v2)) {
+                    violations.push({
+                        type: 'horizontal',
+                        r1: r, c1: c,
+                        r2: r, c2: c + 1,
+                        relation: rel,
+                        val1: v1, val2: v2,
+                        message: `Ungleichung verletzt: Feld (${r + 1},${c + 1}) [${v1}] muss kleiner sein als Feld (${r + 1},${c + 2}) [${v2}].`
+                    });
+                } else if (rel === CONSTRAINT_GT && !(v1 > v2)) {
+                    violations.push({
+                        type: 'horizontal',
+                        r1: r, c1: c,
+                        r2: r, c2: c + 1,
+                        relation: rel,
+                        val1: v1, val2: v2,
+                        message: `Ungleichung verletzt: Feld (${r + 1},${c + 1}) [${v1}] muss größer sein als Feld (${r + 1},${c + 2}) [${v2}].`
+                    });
+                }
+            }
+        }
+
+        // 2. Vertikale Constraints prüfen
+        for (let r = 0; r < this.size - 1; r++) {
+            for (let c = 0; c < this.size; c++) {
+                const rel = this.vConstraints[r][c];
+                if (!rel) continue;
+
+                const v1 = this.grid[r][c];
+                const v2 = this.grid[r + 1][c];
+                if (v1 === FUTOSHIKI_EMPTY || v2 === FUTOSHIKI_EMPTY) continue;
+
+                if (rel === CONSTRAINT_LT && !(v1 < v2)) {
+                    violations.push({
+                        type: 'vertical',
+                        r1: r, c1: c,
+                        r2: r + 1, c2: c,
+                        relation: rel,
+                        val1: v1, val2: v2,
+                        message: `Ungleichung verletzt: Feld (${r + 1},${c + 1}) [${v1}] muss kleiner sein als Feld (${r + 2},${c + 1}) [${v2}].`
+                    });
+                } else if (rel === CONSTRAINT_GT && !(v1 > v2)) {
+                    violations.push({
+                        type: 'vertical',
+                        r1: r, c1: c,
+                        r2: r + 1, c2: c,
+                        relation: rel,
+                        val1: v1, val2: v2,
+                        message: `Ungleichung verletzt: Feld (${r + 1},${c + 1}) [${v1}] muss größer sein als Feld (${r + 2},${c + 1}) [${v2}].`
+                    });
+                }
+            }
+        }
+
+        return violations;
+    }
+
+    /**
+     * Ermittelt die direkten logischen Kandidaten für eine Zelle (unter Ausschluss
+     * bereits belegter Zeilen/Spalten-Ziffern und direkter Ungleichungen mit belegten Nachbarn).
+     */
+    getCandidates(r, c) {
+        if (this.grid[r][c] !== FUTOSHIKI_EMPTY) {
+            return new Set([this.grid[r][c]]);
+        }
+
+        const candidates = new Set();
+        for (let v = 1; v <= this.maxValue; v++) {
+            candidates.add(v);
+        }
+
+        // Zeilen-Elimination
+        for (let col = 0; col < this.size; col++) {
+            if (col !== c && this.grid[r][col] !== FUTOSHIKI_EMPTY) {
+                candidates.delete(this.grid[r][col]);
+            }
+        }
+
+        // Spalten-Elimination
+        for (let row = 0; row < this.size; row++) {
+            if (row !== r && this.grid[row][c] !== FUTOSHIKI_EMPTY) {
+                candidates.delete(this.grid[row][c]);
+            }
+        }
+
+        // Horizontale Constraints (links)
+        if (c > 0) {
+            const relLeft = this.hConstraints[r][c - 1];
+            const leftVal = this.grid[r][c - 1];
+            if (relLeft && leftVal !== FUTOSHIKI_EMPTY) {
+                for (const cand of Array.from(candidates)) {
+                    if (relLeft === CONSTRAINT_LT && !(leftVal < cand)) candidates.delete(cand);
+                    if (relLeft === CONSTRAINT_GT && !(leftVal > cand)) candidates.delete(cand);
+                }
+            }
+        }
+
+        // Horizontale Constraints (rechts)
+        if (c < this.size - 1) {
+            const relRight = this.hConstraints[r][c];
+            const rightVal = this.grid[r][c + 1];
+            if (relRight && rightVal !== FUTOSHIKI_EMPTY) {
+                for (const cand of Array.from(candidates)) {
+                    if (relRight === CONSTRAINT_LT && !(cand < rightVal)) candidates.delete(cand);
+                    if (relRight === CONSTRAINT_GT && !(cand > rightVal)) candidates.delete(cand);
+                }
+            }
+        }
+
+        // Vertikale Constraints (oben)
+        if (r > 0) {
+            const relTop = this.vConstraints[r - 1][c];
+            const topVal = this.grid[r - 1][c];
+            if (relTop && topVal !== FUTOSHIKI_EMPTY) {
+                for (const cand of Array.from(candidates)) {
+                    if (relTop === CONSTRAINT_LT && !(topVal < cand)) candidates.delete(cand);
+                    if (relTop === CONSTRAINT_GT && !(topVal > cand)) candidates.delete(cand);
+                }
+            }
+        }
+
+        // Vertikale Constraints (unten)
+        if (r < this.size - 1) {
+            const relBottom = this.vConstraints[r][c];
+            const bottomVal = this.grid[r + 1][c];
+            if (relBottom && bottomVal !== FUTOSHIKI_EMPTY) {
+                for (const cand of Array.from(candidates)) {
+                    if (relBottom === CONSTRAINT_LT && !(cand < bottomVal)) candidates.delete(cand);
+                    if (relBottom === CONSTRAINT_GT && !(cand > bottomVal)) candidates.delete(cand);
+                }
+            }
+        }
+
+        return candidates;
+    }
+
+    /**
+     * Umfassende Regelvalidierung
+     */
+    validateRules() {
+        const rowErrors = [];
+        const colErrors = [];
+
+        for (let r = 0; r < this.size; r++) {
+            const dupCols = this.checkRowConflict(r);
+            if (dupCols.length > 0) {
+                rowErrors.push({ r, dupCols });
+            }
+        }
+
+        for (let c = 0; c < this.size; c++) {
+            const dupRows = this.checkColConflict(c);
+            if (dupRows.length > 0) {
+                colErrors.push({ c, dupRows });
+            }
+        }
+
+        const constraintErrors = this.checkConstraints();
+
+        let allFilled = true;
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.grid[r][c] === FUTOSHIKI_EMPTY) {
+                    allFilled = false;
+                    break;
+                }
+            }
+            if (!allFilled) break;
+        }
+
+        const isValid = rowErrors.length === 0 && colErrors.length === 0 && constraintErrors.length === 0;
+        const isComplete = isValid && allFilled;
+
+        return {
+            isValid,
+            isComplete,
+            allFilled,
+            rowErrors,
+            colErrors,
+            constraintErrors
+        };
+    }
+
+    validate() {
+        return this.validateRules();
+    }
+
+    isCompleted() {
+        return this.validateRules().isComplete;
+    }
+
+    isSolved() {
+        return this.isCompleted();
+    }
+
+    /**
+     * Findet Fehler für das Hinweis- und Feedback-System
+     */
+    findMistakes() {
+        // 1. Ungleichungsverletzungen
+        const violations = this.checkConstraints();
+        if (violations.length > 0) {
+            const v = violations[0];
+            return {
+                type: 'error',
+                isMistake: true,
+                errorType: 'constraint_violation',
+                strategy: 'Ungleichung verletzt',
+                title: 'Ungleichung verletzt',
+                r: v.r1,
+                c: v.c1,
+                highlightCells: [{ r: v.r1, c: v.c1 }, { r: v.r2, c: v.c2 }],
+                message: v.message
+            };
+        }
+
+        // 2. Zeilen-Duplikate
+        for (let r = 0; r < this.size; r++) {
+            const dupCols = this.checkRowConflict(r);
+            if (dupCols.length > 0) {
+                const c = dupCols[0];
+                return {
+                    type: 'error',
+                    isMistake: true,
+                    errorType: 'row_duplicate',
+                    strategy: 'Doppelte Ziffer in Zeile',
+                    title: 'Duplikat in Zeile',
+                    r, c,
+                    highlightCells: dupCols.map(col => ({ r, c: col })),
+                    message: `In Zeile ${r + 1} kommt die Ziffer ${this.grid[r][c]} mehrfach vor.`
+                };
+            }
+        }
+
+        // 3. Spalten-Duplikate
+        for (let c = 0; c < this.size; c++) {
+            const dupRows = this.checkColConflict(c);
+            if (dupRows.length > 0) {
+                const r = dupRows[0];
+                return {
+                    type: 'error',
+                    isMistake: true,
+                    errorType: 'col_duplicate',
+                    strategy: 'Doppelte Ziffer in Spalte',
+                    title: 'Duplikat in Spalte',
+                    r, c,
+                    highlightCells: dupRows.map(row => ({ r: row, c })),
+                    message: `In Spalte ${c + 1} kommt die Ziffer ${this.grid[r][c]} mehrfach vor.`
+                };
+            }
+        }
+
+        // 4. Mismatch mit Referenzlösung
+        if (this.solution) {
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    const current = this.grid[r][c];
+                    if (current !== FUTOSHIKI_EMPTY && current !== this.solution[r][c]) {
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorType: 'solution_mismatch',
+                            strategy: 'Falsche Ziffer',
+                            title: 'Falsche Ziffer',
+                            r, c,
+                            currentVal: current,
+                            expectedVal: this.solution[r][c],
+                            highlightCells: [{ r, c }],
+                            message: `In Feld (${r + 1},${c + 1}) ist die Ziffer ${current} logisch nicht korrekt.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    undo() {
+        if (this.undoStack.length === 0) return false;
+        const action = this.undoStack.pop();
+
+        if (action.type === 'value') {
+            this.grid[action.r][action.c] = action.oldVal;
+            this.notes[action.r][action.c] = new Set(action.oldNotes);
+            this.redoStack.push(action);
+            return true;
+        } else if (action.type === 'note') {
+            this.notes[action.r][action.c] = new Set(action.oldNotes);
+            this.redoStack.push(action);
+            return true;
+        }
+        return false;
+    }
+
+    redo() {
+        if (this.redoStack.length === 0) return false;
+        const action = this.redoStack.pop();
+
+        if (action.type === 'value') {
+            this.grid[action.r][action.c] = action.newVal;
+            this.notes[action.r][action.c] = new Set(action.newNotes);
+            this.undoStack.push(action);
+            return true;
+        } else if (action.type === 'note') {
+            this.notes[action.r][action.c] = new Set(action.newNotes);
+            this.undoStack.push(action);
+            return true;
+        }
+        return false;
+    }
+
+    getFilledCount() {
+        let count = 0;
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (this.grid[r][c] !== FUTOSHIKI_EMPTY) count++;
+            }
+        }
+        return count;
+    }
+
+    getTotalCells() {
+        return this.size * this.size;
+    }
+}
+
+// === Source: js\puzzles\futoshiki\solver.js ===
+/**
+ * Futoshiki Solver & Strategic Hint Engine
+ * Löst Futoshiki-Puzzles (4×4 bis 7×7) via Arc-Consistency (AC-3) & Backtracking (MRV),
+ * verifiziert Eindeutigkeit und liefert didaktische, logisch begründete Lösungsschritte.
+ */
+
+
+
+class FutoshikiSolver {
+    /**
+     * Führt eine Arc-Consistency (AC-3) Propagation durch
+     * @param {number} size
+     * @param {Array<Array<Set<number>>>} domains
+     * @param {Array<Array<string>>} hConstraints
+     * @param {Array<Array<string>>} vConstraints
+     * @returns {boolean} true wenn konsistent, false wenn ein Widerspruch (leere Domäne) auftritt
+     */
+    static runAC3(size, domains, hConstraints, vConstraints) {
+        // Queue von Arcs (Gerichtete Kanten [fromCell, toCell, type])
+        const queue = [];
+
+        // 1. Alle Ungleichungen in die Queue einspeisen (beide Richtungen)
+        // Horizontale Constraints
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size - 1; c++) {
+                const rel = hConstraints[r][c];
+                if (rel === CONSTRAINT_LT || rel === CONSTRAINT_GT) {
+                    queue.push({ r1: r, c1: c, r2: r, c2: c + 1, rel });
+                    queue.push({ r1: r, c1: c + 1, r2: r, c2: c, rel: rel === CONSTRAINT_LT ? CONSTRAINT_GT : CONSTRAINT_LT });
+                }
+            }
+        }
+
+        // Vertikale Constraints
+        for (let r = 0; r < size - 1; r++) {
+            for (let c = 0; c < size; c++) {
+                const rel = vConstraints[r][c];
+                if (rel === CONSTRAINT_LT || rel === CONSTRAINT_GT) {
+                    queue.push({ r1: r, c1: c, r2: r + 1, c2: c, rel });
+                    queue.push({ r1: r + 1, c1: c, r2: r, c2: c, rel: rel === CONSTRAINT_LT ? CONSTRAINT_GT : CONSTRAINT_LT });
+                }
+            }
+        }
+
+        // AllDifferent Arcs für Zeilen und Spalten
+        for (let r = 0; r < size; r++) {
+            for (let c1 = 0; c1 < size; c1++) {
+                for (let c2 = 0; c2 < size; c2++) {
+                    if (c1 !== c2) {
+                        queue.push({ r1: r, c1, r2: r, c2, rel: '!=' });
+                    }
+                }
+            }
+        }
+
+        for (let c = 0; c < size; c++) {
+            for (let r1 = 0; r1 < size; r1++) {
+                for (let r2 = 0; r2 < size; r2++) {
+                    if (r1 !== r2) {
+                        queue.push({ r1, c1: c, r2, c2: c, rel: '!=' });
+                    }
+                }
+            }
+        }
+
+        while (queue.length > 0) {
+            const arc = queue.shift();
+            const { r1, c1, r2, c2, rel } = arc;
+            const d1 = domains[r1][c1];
+            const d2 = domains[r2][c2];
+
+            let revised = false;
+
+            if (rel === '!=') {
+                // Wenn d2 nur 1 festen Wert hat, darf d1 diesen Wert nicht enthalten
+                if (d2.size === 1) {
+                    const fixedVal = Array.from(d2)[0];
+                    if (d1.has(fixedVal)) {
+                        d1.delete(fixedVal);
+                        revised = true;
+                    }
+                }
+            } else if (rel === CONSTRAINT_LT) {
+                // Für jedes x in d1 muss ein y in d2 existieren mit x < y
+                // Also muss x < max(d2) sein
+                if (d2.size === 0) return false;
+                const maxD2 = Math.max(...d2);
+                for (const x of Array.from(d1)) {
+                    if (x >= maxD2) {
+                        d1.delete(x);
+                        revised = true;
+                    }
+                }
+            } else if (rel === CONSTRAINT_GT) {
+                // Für jedes x in d1 muss ein y in d2 existieren mit x > y
+                // Also muss x > min(d2) sein
+                if (d2.size === 0) return false;
+                const minD2 = Math.min(...d2);
+                for (const x of Array.from(d1)) {
+                    if (x <= minD2) {
+                        d1.delete(x);
+                        revised = true;
+                    }
+                }
+            }
+
+            if (d1.size === 0) {
+                return false; // Widerspruch
+            }
+
+            if (revised) {
+                // Alle Nachbarn von (r1, c1) wieder in die Queue legen
+                // Zeile
+                for (let c = 0; c < size; c++) {
+                    if (c !== c1) queue.push({ r1: r1, c1: c, r2: r1, c2: c1, rel: '!=' });
+                }
+                // Spalte
+                for (let r = 0; r < size; r++) {
+                    if (r !== r1) queue.push({ r1: r, c1: c1, r2: r1, c2: c1, rel: '!=' });
+                }
+                // Constraints
+                if (c1 > 0 && hConstraints[r1][c1 - 1]) {
+                    const rRel = hConstraints[r1][c1 - 1] === CONSTRAINT_LT ? CONSTRAINT_GT : CONSTRAINT_LT;
+                    queue.push({ r1: r1, c1: c1 - 1, r2: r1, c2: c1, rel: hConstraints[r1][c1 - 1] });
+                }
+                if (c1 < size - 1 && hConstraints[r1][c1]) {
+                    const rRel = hConstraints[r1][c1] === CONSTRAINT_LT ? CONSTRAINT_GT : CONSTRAINT_LT;
+                    queue.push({ r1: r1, c1: c1 + 1, r2: r1, c2: c1, rel: rRel });
+                }
+                if (r1 > 0 && vConstraints[r1 - 1][c1]) {
+                    queue.push({ r1: r1 - 1, c1: c1, r2: r1, c2: c1, rel: vConstraints[r1 - 1][c1] });
+                }
+                if (r1 < size - 1 && vConstraints[r1][c1]) {
+                    const rRel = vConstraints[r1][c1] === CONSTRAINT_LT ? CONSTRAINT_GT : CONSTRAINT_LT;
+                    queue.push({ r1: r1 + 1, c1: c1, r2: r1, c2: c1, rel: rRel });
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Berechnet die vollständigen Kandidatenmengen für jede Zelle
+     * unter Berücksichtigung von Zeilen, Spalten und AC-3 Ungleichungen.
+     */
+    static computeCandidates(engine) {
+        const size = engine.size;
+        const domains = Array.from({ length: size }, () =>
+            Array.from({ length: size }, () => new Set())
+        );
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                const val = engine.grid[r][c];
+                if (val !== FUTOSHIKI_EMPTY) {
+                    domains[r][c] = new Set([val]);
+                } else {
+                    for (let v = 1; v <= engine.maxValue; v++) {
+                        domains[r][c].add(v);
+                    }
+                }
+            }
+        }
+
+        FutoshikiSolver.runAC3(size, domains, engine.hConstraints, engine.vConstraints);
+        return domains;
+    }
+
+    /**
+     * Löst ein Futoshiki-Puzzle vollständig via AC-3 + MRV-Backtracking.
+     * @param {FutoshikiEngine|Object} puzzleInput
+     * @param {number} maxSolutions Standard: 2
+     * @returns {Array<Array<Array<number>>>} Liste von Lösungen (jede Lösung ist ein N×N Array)
+     */
+    static solve(puzzleInput, maxSolutions = 2) {
+        let engine;
+        if (puzzleInput instanceof FutoshikiEngine) {
+            engine = puzzleInput;
+        } else {
+            engine = new FutoshikiEngine(puzzleInput.size || 5);
+            engine.loadPuzzle(puzzleInput);
+        }
+
+        const size = engine.size;
+        const initialDomains = Array.from({ length: size }, () =>
+            Array.from({ length: size }, () => new Set())
+        );
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                const val = engine.grid[r][c];
+                if (val !== FUTOSHIKI_EMPTY) {
+                    initialDomains[r][c] = new Set([val]);
+                } else {
+                    for (let v = 1; v <= size; v++) {
+                        initialDomains[r][c].add(v);
+                    }
+                }
+            }
+        }
+
+        const consistent = FutoshikiSolver.runAC3(size, initialDomains, engine.hConstraints, engine.vConstraints);
+        if (!consistent) return [];
+
+        const solutions = [];
+
+        function cloneDomains(doms) {
+            return doms.map(row => row.map(cellSet => new Set(cellSet)));
+        }
+
+        function backtrack(currentDomains) {
+            if (solutions.length >= maxSolutions) return;
+
+            // Zelle mit minimaler Domänengröße > 1 suchen (MRV Heuristik)
+            let minSize = Infinity;
+            let targetR = -1;
+            let targetC = -1;
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const s = currentDomains[r][c].size;
+                    if (s === 0) return; // Dead end
+                    if (s > 1 && s < minSize) {
+                        minSize = s;
+                        targetR = r;
+                        targetC = c;
+                    }
+                }
+            }
+
+            // Wenn alle Zellen Größe 1 haben, ist das Puzzle vollständig gelöst!
+            if (minSize === Infinity) {
+                const solGrid = Array.from({ length: size }, () => Array(size).fill(0));
+                for (let r = 0; r < size; r++) {
+                    for (let c = 0; c < size; c++) {
+                        solGrid[r][c] = Array.from(currentDomains[r][c])[0];
+                    }
+                }
+                solutions.push(solGrid);
+                return;
+            }
+
+            // Werte ausprobieren
+            const values = Array.from(currentDomains[targetR][targetC]);
+            for (const val of values) {
+                const nextDomains = cloneDomains(currentDomains);
+                nextDomains[targetR][targetC] = new Set([val]);
+
+                const ok = FutoshikiSolver.runAC3(size, nextDomains, engine.hConstraints, engine.vConstraints);
+                if (ok) {
+                    backtrack(nextDomains);
+                    if (solutions.length >= maxSolutions) return;
+                }
+            }
+        }
+
+        backtrack(initialDomains);
+        return solutions;
+    }
+
+    /**
+     * Findet den didaktisch und strategisch besten nächsten logischen Hinweis
+     */
+    static findLogicalHint(engine, options = {}) {
+        // 1. FEHLER ZUERST PRÜFEN
+        const mistake = engine.findMistakes();
+        if (mistake) return mistake;
+
+        const size = engine.size;
+        const grid = engine.grid;
+        const focusCell = options.focusCell || null;
+
+        // Vollständige Kandidaten berechnen
+        const candidates = FutoshikiSolver.computeCandidates(engine);
+
+        // 2. STRATEGIE: NAKED SINGLE (Nur noch ein Kandidat in Zelle)
+        const nakedSingles = [];
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (grid[r][c] === FUTOSHIKI_EMPTY && candidates[r][c].size === 1) {
+                    const val = Array.from(candidates[r][c])[0];
+                    nakedSingles.push({
+                        type: 'naked_single',
+                        strategy: 'Naked Single (Eindeutige Ziffer)',
+                        title: 'Eindeutige Ziffer',
+                        r, c,
+                        value: val,
+                        expectedVal: val,
+                        highlightCells: [{ r, c }],
+                        message: `In Feld (${r + 1},${c + 1}) ist nur noch die Ziffer ${val} möglich.`,
+                        description: `Alle anderen Ziffern sind durch die Zeile, Spalte oder benachbarte Ungleichungen ausgeschlossen.`
+                    });
+                }
+            }
+        }
+
+        if (nakedSingles.length > 0) {
+            if (focusCell) {
+                const focused = nakedSingles.find(h => h.r === focusCell.r && h.c === focusCell.c);
+                if (focused) return focused;
+            }
+            return nakedSingles[0];
+        }
+
+        // 3. STRATEGIE: HIDDEN SINGLE (Zeile)
+        for (let r = 0; r < size; r++) {
+            for (let v = 1; v <= size; v++) {
+                // Bereits in Zeile gesetzt?
+                let alreadyPlaced = false;
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === v) {
+                        alreadyPlaced = true;
+                        break;
+                    }
+                }
+                if (alreadyPlaced) continue;
+
+                const possibleCols = [];
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === FUTOSHIKI_EMPTY && candidates[r][c].has(v)) {
+                        possibleCols.push(c);
+                    }
+                }
+
+                if (possibleCols.length === 1) {
+                    const c = possibleCols[0];
+                    return {
+                        type: 'hidden_single_row',
+                        strategy: 'Hidden Single (Zeile)',
+                        title: 'Eindeutige Zeilenposition',
+                        r, c,
+                        value: v,
+                        expectedVal: v,
+                        highlightCells: [{ r, c }],
+                        message: `In Zeile ${r + 1} kann die Ziffer ${v} nur noch auf Feld (${r + 1},${c + 1}) stehen.`,
+                        description: `In allen anderen freien Feldern der Zeile ist die ${v} durch Spaltenkonflikte oder Ungleichungen blockiert.`
+                    };
+                }
+            }
+        }
+
+        // 4. STRATEGIE: HIDDEN SINGLE (Spalte)
+        for (let c = 0; c < size; c++) {
+            for (let v = 1; v <= size; v++) {
+                let alreadyPlaced = false;
+                for (let r = 0; r < size; r++) {
+                    if (grid[r][c] === v) {
+                        alreadyPlaced = true;
+                        break;
+                    }
+                }
+                if (alreadyPlaced) continue;
+
+                const possibleRows = [];
+                for (let r = 0; r < size; r++) {
+                    if (grid[r][c] === FUTOSHIKI_EMPTY && candidates[r][c].has(v)) {
+                        possibleRows.push(r);
+                    }
+                }
+
+                if (possibleRows.length === 1) {
+                    const r = possibleRows[0];
+                    return {
+                        type: 'hidden_single_col',
+                        strategy: 'Hidden Single (Spalte)',
+                        title: 'Eindeutige Spaltenposition',
+                        r, c,
+                        value: v,
+                        expectedVal: v,
+                        highlightCells: [{ r, c }],
+                        message: `In Spalte ${c + 1} kann die Ziffer ${v} nur noch auf Feld (${r + 1},${c + 1}) stehen.`,
+                        description: `In allen anderen freien Feldern der Spalte ist die ${v} blockiert.`
+                    };
+                }
+            }
+        }
+
+        // 5. STRATEGIE: EXTREMWERTE / TRANSITIVE KETTEN
+        // Wenn eine Kette A < B < C existiert, kann A maximal size-2 und C minimal 3 sein.
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (grid[r][c] !== FUTOSHIKI_EMPTY) continue;
+                // Hat diese Zelle eine Ungleichung, die Extremwerte verbietet?
+                // Z.B. cell < neighbor -> cell cannot be maxValue
+                const candSet = candidates[r][c];
+                if (c < size - 1 && engine.hConstraints[r][c] === CONSTRAINT_LT && candSet.has(size)) {
+                    // candSet has size, but it is strictly less than neighbor -> contradiction prevented by AC-3
+                }
+            }
+        }
+
+        // 6. STRATEGIE: NAKED PAIR (Zeile oder Spalte)
+        // Zwei Zellen in einer Zeile/Spalte teilen exakt dieselben 2 Kandidaten
+        for (let r = 0; r < size; r++) {
+            for (let c1 = 0; c1 < size; c1++) {
+                if (grid[r][c1] === FUTOSHIKI_EMPTY && candidates[r][c1].size === 2) {
+                    for (let c2 = c1 + 1; c2 < size; c2++) {
+                        if (grid[r][c2] === FUTOSHIKI_EMPTY && candidates[r][c2].size === 2) {
+                            const arr1 = Array.from(candidates[r][c1]).sort().join(',');
+                            const arr2 = Array.from(candidates[r][c2]).sort().join(',');
+                            if (arr1 === arr2) {
+                                // Gibt es andere Zellen in der Zeile, die diese Kandidaten noch haben?
+                                const pairVals = Array.from(candidates[r][c1]);
+                                for (let cOther = 0; cOther < size; cOther++) {
+                                    if (cOther !== c1 && cOther !== c2 && grid[r][cOther] === FUTOSHIKI_EMPTY) {
+                                        if (candidates[r][cOther].has(pairVals[0]) || candidates[r][cOther].has(pairVals[1])) {
+                                            return {
+                                                type: 'naked_pair_row',
+                                                strategy: 'Naked Pair (Zeile)',
+                                                title: 'Paar-Ausschluss',
+                                                r, c: cOther,
+                                                highlightCells: [{ r, c: c1 }, { r, c: c2 }, { r, c: cOther }],
+                                                message: `Die Felder (${r + 1},${c1 + 1}) und (${r + 1},${c2 + 1}) teilen das Paar [${pairVals.join(', ')}].`,
+                                                description: `Diese Ziffern können in keinem anderen Feld von Zeile ${r + 1} vorkommen.`
+                                            };
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 7. FALLBACK: NÄCHSTER SCHRITT AUS DER REFERENZLÖSUNG
+        let solution = engine.getSolution();
+        if (!solution) {
+            const found = FutoshikiSolver.solve(engine, 1);
+            if (found.length > 0) solution = found[0];
+        }
+
+        if (solution) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === FUTOSHIKI_EMPTY) {
+                        const val = solution[r][c];
+                        return {
+                            type: 'place_number',
+                            strategy: 'Nächster logischer Schritt',
+                            title: 'Zahl einsetzen',
+                            r, c,
+                            value: val,
+                            expectedVal: val,
+                            highlightCells: [{ r, c }],
+                            message: `In Feld (${r + 1},${c + 1}) gehört die Ziffer ${val}.`,
+                            description: `Platziere die ${val} in Feld (${r + 1},${c + 1}).`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+// === Source: js\puzzles\futoshiki\generator.js ===
+/**
+ * Futoshiki Puzzle Generator
+ * Generiert deterministisch eindeutig lösbare Futoshiki-Puzzles (4×4 bis 7×7)
+ * mittels Lateinischem Quadrat, abgeleiteten Ungleichungen und Dig-Hole-Strategie.
+ */
+
+
+
+
+class FutoshikiGenerator {
+    /**
+     * Deterministischer PRNG (Mulberry32)
+     */
+    static seededRandom(seed) {
+        let s = (seed || 1) | 0;
+        return function() {
+            s = (s + 0x6D2B79F5) | 0;
+            let t = Math.imul(s ^ (s >>> 15), 1 | s);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    /**
+     * Fisher-Yates Shuffle
+     */
+    static shuffle(arr, rng) {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    /**
+     * Generiert ein vollständiges Lateinisches Quadrat der Größe N×N
+     */
+    static generateLatinSquare(size, rng) {
+        const grid = Array.from({ length: size }, () => Array(size).fill(0));
+        const digits = Array.from({ length: size }, (_, i) => i + 1);
+
+        // Zeile 0 zufällig permutieren
+        grid[0] = FutoshikiGenerator.shuffle(digits, rng);
+
+        function solveRow(r, c) {
+            if (r === size) return true;
+            if (c === size) return solveRow(r + 1, 0);
+
+            // Welche Ziffern sind in Spalte c bereits vergeben?
+            const usedInCol = new Set();
+            for (let row = 0; row < r; row++) {
+                usedInCol.add(grid[row][c]);
+            }
+
+            // Welche Ziffern sind in Zeile r bereits vergeben?
+            const usedInRow = new Set();
+            for (let col = 0; col < c; col++) {
+                usedInRow.add(grid[r][col]);
+            }
+
+            const candidates = FutoshikiGenerator.shuffle(
+                digits.filter(d => !usedInCol.has(d) && !usedInRow.has(d)),
+                rng
+            );
+
+            for (const d of candidates) {
+                grid[r][c] = d;
+                if (solveRow(r, c + 1)) return true;
+                grid[r][c] = 0;
+            }
+
+            return false;
+        }
+
+        solveRow(1, 0);
+        return grid;
+    }
+
+    /**
+     * Generiert ein eindeutig lösbares Futoshiki-Puzzle
+     * @param {Object} options
+     *   size: number (4..7)
+     *   difficulty: 'easy'|'medium'|'hard'
+     *   seed: number (optional)
+     */
+    static generatePuzzle(options = {}) {
+        const size = Math.max(4, Math.min(7, options.size || 5));
+        const difficulty = options.difficulty || 'medium';
+        const seed = options.seed !== undefined ? options.seed : (Date.now() & 0xFFFFFF);
+
+        const maxAttempts = 60;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const currentRng = FutoshikiGenerator.seededRandom((seed + attempt * 1013) | 0);
+
+            // 1. Vollständige Referenzlösung als Lateinisches Quadrat erzeugen
+            const solution = FutoshikiGenerator.generateLatinSquare(size, currentRng);
+            if (!solution || solution[0][0] === 0) continue;
+
+            // 2. Alle möglichen Constraints aus der Lösung ableiten
+            const allH = Array.from({ length: size }, () => Array(size - 1).fill(''));
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size - 1; c++) {
+                    allH[r][c] = solution[r][c] < solution[r][c + 1] ? CONSTRAINT_LT : CONSTRAINT_GT;
+                }
+            }
+
+            const allV = Array.from({ length: size - 1 }, () => Array(size).fill(''));
+            for (let r = 0; r < size - 1; r++) {
+                for (let c = 0; c < size; c++) {
+                    allV[r][c] = solution[r][c] < solution[r + 1][c] ? CONSTRAINT_LT : CONSTRAINT_GT;
+                }
+            }
+
+            // 3. Constraints zufällig ausdünnen (je nach Schwierigkeit)
+            // Easy: behalte ~65%, Medium: ~45%, Hard: ~30%
+            const keepConstraintProb = difficulty === 'easy' ? 0.65 : difficulty === 'hard' ? 0.30 : 0.45;
+
+            const hConstraints = Array.from({ length: size }, () => Array(size - 1).fill(''));
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size - 1; c++) {
+                    if (currentRng() < keepConstraintProb) {
+                        hConstraints[r][c] = allH[r][c];
+                    }
+                }
+            }
+
+            const vConstraints = Array.from({ length: size - 1 }, () => Array(size).fill(''));
+            for (let r = 0; r < size - 1; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (currentRng() < keepConstraintProb) {
+                        vConstraints[r][c] = allV[r][c];
+                    }
+                }
+            }
+
+            // 4. Dig-Hole: Ziffern schrittweise entfernen unter Beibehaltung der Eindeutigkeit
+            const grid = solution.map(row => [...row]);
+            const allCells = [];
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    allCells.push({ r, c });
+                }
+            }
+            const shuffledCells = FutoshikiGenerator.shuffle(allCells, currentRng);
+
+            for (const { r, c } of shuffledCells) {
+                const backup = grid[r][c];
+                grid[r][c] = FUTOSHIKI_EMPTY;
+
+                // Eindeutigkeit prüfen
+                const testPuzzle = {
+                    size,
+                    initialGrid: grid,
+                    hConstraints,
+                    vConstraints
+                };
+
+                const solutions = FutoshikiSolver.solve(testPuzzle, 2);
+                if (solutions.length !== 1) {
+                    // Nicht mehr eindeutig -> Ziffer muss erhalten bleiben
+                    grid[r][c] = backup;
+                }
+            }
+
+            // Prüfen ob die generierte Aufgabe gültig und eindeutig ist
+            const finalCheck = FutoshikiSolver.solve({
+                size,
+                initialGrid: grid,
+                hConstraints,
+                vConstraints
+            }, 2);
+
+            if (finalCheck.length === 1) {
+                return {
+                    size,
+                    difficulty,
+                    seed,
+                    initialGrid: grid,
+                    hConstraints,
+                    vConstraints,
+                    solution
+                };
+            }
+        }
+
+        // Fallback: Solides 4x4 oder 5x5 Basis-Puzzle
+        return FutoshikiGenerator.generateFallbackPuzzle(size, difficulty, seed);
+    }
+
+    /**
+     * Deterministischer Fallback
+     */
+    static generateFallbackPuzzle(size, difficulty, seed) {
+        const sol = FutoshikiGenerator.generateLatinSquare(size, FutoshikiGenerator.seededRandom(seed));
+        const initialGrid = Array.from({ length: size }, () => Array(size).fill(0));
+        // Ein paar Givens aus der Lösung übernehmen
+        for (let i = 0; i < size; i++) {
+            initialGrid[i][i] = sol[i][i];
+        }
+
+        const hConstraints = Array.from({ length: size }, () => Array(size - 1).fill(''));
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size - 1; c++) {
+                if ((r + c) % 2 === 0) {
+                    hConstraints[r][c] = sol[r][c] < sol[r][c + 1] ? CONSTRAINT_LT : CONSTRAINT_GT;
+                }
+            }
+        }
+
+        const vConstraints = Array.from({ length: size - 1 }, () => Array(size).fill(''));
+        for (let r = 0; r < size - 1; r++) {
+            for (let c = 0; c < size; c++) {
+                if ((r + c) % 2 === 1) {
+                    vConstraints[r][c] = sol[r][c] < sol[r + 1][c] ? CONSTRAINT_LT : CONSTRAINT_GT;
+                }
+            }
+        }
+
+        return {
+            size,
+            difficulty,
+            seed,
+            initialGrid,
+            hConstraints,
+            vConstraints,
+            solution: sol
+        };
+    }
+}
+
+// === Source: js\puzzles\futoshiki\renderer.js ===
+/**
+ * Futoshiki Visual Renderer
+ * Zeichnet das (2N-1)×(2N-1) CSS-Grid mit Ziffernzellen, horizontalen & vertikalen
+ * Ungleichungs-Pfeilen, Notizen-Minigrid, Keypad und didaktischem Regeltext.
+ */
+
+
+
+function getFutoshikiLtSvg(extraClass = '') {
+    return `<svg class="futoshiki-arrow-icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M15.5 5.5L9 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+}
+
+function getFutoshikiGtSvg(extraClass = '') {
+    return `<svg class="futoshiki-arrow-icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8.5 5.5L15 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+}
+
+function getFutoshikiUpSvg(extraClass = '') {
+    return `<svg class="futoshiki-arrow-icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5.5 15.5L12 9l6.5 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+}
+
+function getFutoshikiDownSvg(extraClass = '') {
+    return `<svg class="futoshiki-arrow-icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5.5 8.5L12 15l6.5-6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+}
+
+class FutoshikiRenderer {
+    static getSymbolSvg(val, extraClass = '') {
+        return `<span class="futoshiki-symbol ${extraClass}">${val || ''}</span>`;
+    }
+
+    /**
+     * Zählt die noch zu platzierenden Instanzen einer Ziffer
+     */
+    static countRemaining(engine, digit) {
+        let placed = 0;
+        for (let r = 0; r < engine.size; r++) {
+            for (let c = 0; c < engine.size; c++) {
+                if (engine.grid[r][c] === digit) placed++;
+            }
+        }
+        return Math.max(0, engine.size - placed);
+    }
+
+    /**
+     * Rendert das Futoshiki-Board
+     */
+    static renderBoard(container, engine, state, onCellInteraction) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        const size = engine.size;
+        const totalGridDims = size * 2 - 1;
+
+        const boardWrap = document.createElement('div');
+        boardWrap.className = `futoshiki-board-wrapper futoshiki-size-${size}`;
+        boardWrap.id = 'futoshikiBoard';
+
+        const gridEl = document.createElement('div');
+        gridEl.className = 'futoshiki-grid';
+        gridEl.style.setProperty('--futoshiki-size', size);
+
+        // Template: abwechselnd Zellen (1fr) und Kanten-Slots (auto)
+        const colsTemplate = [];
+        const rowsTemplate = [];
+        for (let i = 0; i < totalGridDims; i++) {
+            if (i % 2 === 0) {
+                colsTemplate.push('minmax(0, 1fr)');
+                rowsTemplate.push('minmax(0, 1fr)');
+            } else {
+                colsTemplate.push('auto');
+                rowsTemplate.push('auto');
+            }
+        }
+        gridEl.style.gridTemplateColumns = colsTemplate.join(' ');
+        gridEl.style.gridTemplateRows = rowsTemplate.join(' ');
+
+        // Validierung und Konflikte
+        const validation = state.autoCheck ? engine.validateRules() : {
+            rowErrors: [],
+            colErrors: [],
+            constraintErrors: []
+        };
+
+        const conflictCells = new Set();
+        if (state.autoCheck) {
+            for (const re of validation.rowErrors) {
+                for (const col of re.dupCols) conflictCells.add(`${re.r},${col}`);
+            }
+            for (const ce of validation.colErrors) {
+                for (const row of ce.dupRows) conflictCells.add(`${row},${ce.c}`);
+            }
+        }
+
+        const solution = state.solutionRevealed ? engine.getSolution() : null;
+        const selectedCell = !state.solutionRevealed ? state.selectedCell : null;
+
+        for (let gridRow = 0; gridRow < totalGridDims; gridRow++) {
+            for (let gridCol = 0; gridCol < totalGridDims; gridCol++) {
+                const isCellRow = gridRow % 2 === 0;
+                const isCellCol = gridCol % 2 === 0;
+
+                // 1. ZIFFER-ZELLE
+                if (isCellRow && isCellCol) {
+                    const r = gridRow / 2;
+                    const c = gridCol / 2;
+                    const val = engine.grid[r][c];
+                    const isLocked = engine.isLocked(r, c);
+
+                    const cellEl = document.createElement('div');
+                    cellEl.className = 'grid-cell futoshiki-cell';
+                    cellEl.dataset.r = r;
+                    cellEl.dataset.c = c;
+                    cellEl.style.gridRow = `${gridRow + 1}`;
+                    cellEl.style.gridColumn = `${gridCol + 1}`;
+
+                    if (isLocked) cellEl.classList.add('cell-locked');
+                    const isSelected = selectedCell && selectedCell.r === r && selectedCell.c === c;
+                    const isRelated = selectedCell && (selectedCell.r === r || selectedCell.c === c) && !isSelected;
+                    const isSameVal = selectedCell && val > 0 && engine.grid[selectedCell.r][selectedCell.c] === val;
+                    const isConflict = conflictCells.has(`${r},${c}`);
+
+                    const isHintTarget = !state.solutionRevealed && state.currentHint &&
+                        state.currentHint.highlightCells &&
+                        state.currentHint.highlightCells.some(h => h.r === r && h.c === c);
+
+                    if (isSelected) cellEl.classList.add('selected');
+                    if (isRelated) cellEl.classList.add('highlight-related');
+                    if (isSameVal) cellEl.classList.add('highlight-same-val');
+                    if (isConflict) cellEl.classList.add('conflict');
+                    if (isHintTarget) cellEl.classList.add('hint-target');
+
+                    // Lösungsaufdeckung
+                    if (state.solutionRevealed && solution) {
+                        const solVal = solution[r][c];
+                        if (val === solVal) {
+                            cellEl.classList.add('cell-revealed-correct');
+                            cellEl.innerHTML = `<span class="val-digit">${val}</span>`;
+                        } else if (val === FUTOSHIKI_EMPTY) {
+                            cellEl.classList.add('cell-revealed-solution');
+                            cellEl.innerHTML = `<span class="ghost-digit">${solVal}</span>`;
+                        } else {
+                            cellEl.classList.add('cell-revealed-error');
+                            cellEl.innerHTML = `<span class="wrong-val">${val}</span><span class="correct-sub">${solVal}</span>`;
+                        }
+                    } else if (val > 0) {
+                        cellEl.classList.add('val-placed');
+                        const span = document.createElement('span');
+                        span.className = 'val-digit';
+                        span.textContent = val;
+                        cellEl.appendChild(span);
+                    } else {
+                        // Notizen
+                        const notes = engine.notes[r][c];
+                        if (notes && notes.size > 0) {
+                            const noteGrid = document.createElement('div');
+                            noteGrid.className = `futoshiki-note-grid grid-${size}`;
+                            for (let n = 1; n <= size; n++) {
+                                const nSpan = document.createElement('span');
+                                nSpan.className = 'note-digit';
+                                nSpan.textContent = notes.has(n) ? n : '';
+                                noteGrid.appendChild(nSpan);
+                            }
+                            cellEl.appendChild(noteGrid);
+                        }
+                    }
+
+                    if (typeof onCellInteraction === 'function') {
+                        cellEl.addEventListener('click', () => {
+                            onCellInteraction({ r, c, target: 'cell' });
+                        });
+                    }
+
+                    gridEl.appendChild(cellEl);
+                }
+                // 2. HORIZONTALE UNGLEICHUNG (zwischen r, c und r, c+1)
+                else if (isCellRow && !isCellCol) {
+                    const r = gridRow / 2;
+                    const c = (gridCol - 1) / 2;
+                    const rel = engine.getConstraintH(r, c);
+
+                    const hEl = document.createElement('div');
+                    hEl.className = 'futoshiki-constraint-h';
+                    hEl.style.gridRow = `${gridRow + 1}`;
+                    hEl.style.gridColumn = `${gridCol + 1}`;
+
+                    if (rel === CONSTRAINT_LT) {
+                        hEl.innerHTML = getFutoshikiLtSvg();
+                    } else if (rel === CONSTRAINT_GT) {
+                        hEl.innerHTML = getFutoshikiGtSvg();
+                    }
+
+                    // Prüfung auf Verletzung
+                    if (state.autoCheck && rel) {
+                        const v1 = engine.grid[r][c];
+                        const v2 = engine.grid[r][c + 1];
+                        if (v1 > 0 && v2 > 0) {
+                            if ((rel === CONSTRAINT_LT && !(v1 < v2)) || (rel === CONSTRAINT_GT && !(v1 > v2))) {
+                                hEl.classList.add('violated');
+                            }
+                        }
+                    }
+
+                    gridEl.appendChild(hEl);
+                }
+                // 3. VERTIKALE UNGLEICHUNG (zwischen r, c und r+1, c)
+                else if (!isCellRow && isCellCol) {
+                    const r = (gridRow - 1) / 2;
+                    const c = gridCol / 2;
+                    const rel = engine.getConstraintV(r, c);
+
+                    const vEl = document.createElement('div');
+                    vEl.className = 'futoshiki-constraint-v';
+                    vEl.style.gridRow = `${gridRow + 1}`;
+                    vEl.style.gridColumn = `${gridCol + 1}`;
+
+                    if (rel === CONSTRAINT_LT) {
+                        vEl.innerHTML = getFutoshikiUpSvg(); // oben < unten
+                    } else if (rel === CONSTRAINT_GT) {
+                        vEl.innerHTML = getFutoshikiDownSvg(); // oben > unten
+                    }
+
+                    // Prüfung auf Verletzung
+                    if (state.autoCheck && rel) {
+                        const v1 = engine.grid[r][c];
+                        const v2 = engine.grid[r + 1][c];
+                        if (v1 > 0 && v2 > 0) {
+                            if ((rel === CONSTRAINT_LT && !(v1 < v2)) || (rel === CONSTRAINT_GT && !(v1 > v2))) {
+                                vEl.classList.add('violated');
+                            }
+                        }
+                    }
+
+                    gridEl.appendChild(vEl);
+                }
+                // 4. KREUZUNGS-ECKE (Platzhalter)
+                else {
+                    const cornerEl = document.createElement('div');
+                    cornerEl.className = 'futoshiki-corner-slot';
+                    cornerEl.style.gridRow = `${gridRow + 1}`;
+                    cornerEl.style.gridColumn = `${gridCol + 1}`;
+                    gridEl.appendChild(cornerEl);
+                }
+            }
+        }
+
+        boardWrap.appendChild(gridEl);
+        container.appendChild(boardWrap);
+    }
+
+    /**
+     * Keypad-Rendering (Ziffern 1..N + Löschen)
+     */
+    static renderKeypad(container, engine, state, onKeyInput) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        const size = engine.size;
+        const keypadWrap = document.createElement('div');
+        keypadWrap.className = 'futoshiki-keypad';
+
+        // Ziffern-Buttons 1..N
+        for (let v = 1; v <= size; v++) {
+            const btn = document.createElement('button');
+            btn.className = 'keypad-btn futoshiki-key';
+            btn.dataset.val = v;
+
+            const remaining = FutoshikiRenderer.countRemaining(engine, v);
+            if (remaining === 0) btn.classList.add('completed-digit');
+
+            const dSpan = document.createElement('span');
+            dSpan.className = 'key-digit';
+            dSpan.textContent = v;
+            btn.appendChild(dSpan);
+
+            const rSpan = document.createElement('span');
+            rSpan.className = 'key-remaining';
+            rSpan.textContent = remaining;
+            btn.appendChild(rSpan);
+
+            btn.addEventListener('click', () => {
+                if (typeof onKeyInput === 'function') onKeyInput(v);
+            });
+            keypadWrap.appendChild(btn);
+        }
+
+        // Löschen-Button
+        const btnClear = document.createElement('button');
+        btnClear.className = 'keypad-btn futoshiki-key key-clear';
+        btnClear.id = 'futoshikiKeypadClear';
+        btnClear.setAttribute('aria-label', 'Löschen');
+
+        const clearSpan = document.createElement('span');
+        clearSpan.className = 'key-digit';
+        clearSpan.textContent = '✕';
+        btnClear.appendChild(clearSpan);
+
+        btnClear.addEventListener('click', () => {
+            if (typeof onKeyInput === 'function') onKeyInput(FUTOSHIKI_EMPTY);
+        });
+        keypadWrap.appendChild(btnClear);
+
+        container.appendChild(keypadWrap);
+    }
+
+    /**
+     * Spielregeln im Modal
+     */
+    static getRules(lang = 'de') {
+        if (lang === 'en') {
+            return `<div class="rules-content">
+                <h3>Futoshiki Rules</h3>
+                <ul>
+                    <li><strong>Latin Square:</strong> Fill the grid so that each row and column contains the numbers 1 to N exactly once.</li>
+                    <li><strong>Inequalities:</strong> Greater-than (&gt;) and less-than (&lt;) symbols indicate the relative value of adjacent cells.</li>
+                    <li><strong>Clues:</strong> Some digits are given at the start and cannot be changed.</li>
+                </ul>
+            </div>`;
+        }
+        return `<div class="rules-content">
+            <h3>Futoshiki Regeln</h3>
+            <ul>
+                <li><strong>Lateinisches Quadrat:</strong> Fülle das Gitter so aus, dass in jeder Zeile und jeder Spalte jede Zahl von 1 bis N genau einmal vorkommt.</li>
+                <li><strong>Ungleichungen:</strong> Die Pfeilsymbole (&lt;, &gt;, ∧, ∨) zeigen an, welches der beiden benachbarten Felder größer bzw. kleiner sein muss.</li>
+                <li><strong>Vorgegebene Zahlen:</strong> Vorgegebene Startzahlen sind fixiert und können nicht verändert werden.</li>
+            </ul>
+        </div>`;
+    }
+}
+
+// === Source: js\puzzles\futoshiki\data\i18n.js ===
+/**
+ * Futoshiki Lokalisierung (DE/EN)
+ */
+
+const FUTOSHIKI_I18N = {
+    de: {
+        puzzle_name: "Futoshiki",
+        puzzle_desc: "Fülle das Gitter mit Zahlen und beachte die Ungleichungen",
+        chapter_1_name: "Ordnung",
+        chapter_1_desc: "4×4 & 5×5 Grundlagen",
+        chapter_2_name: "Vergleich",
+        chapter_2_desc: "5×5 & 6×6 Fortgeschritten",
+        chapter_3_name: "Logik-Ketten",
+        chapter_3_desc: "6×6 Herausforderung",
+        chapter_4_name: "Großmeister",
+        chapter_4_desc: "6×6 & 7×7 Meister",
+        error_row_dup: "Doppelte Zahl in Zeile",
+        error_col_dup: "Doppelte Zahl in Spalte",
+        error_violation: "Ungleichung verletzt",
+        tutorial_basics: "Grundlagen",
+        tutorial_badge: "7 Lektionen"
+    },
+    en: {
+        puzzle_name: "Futoshiki",
+        puzzle_desc: "Fill the grid with numbers and respect the inequality signs",
+        chapter_1_name: "Order",
+        chapter_1_desc: "4×4 & 5×5 Basics",
+        chapter_2_name: "Comparison",
+        chapter_2_desc: "5×5 & 6×6 Advanced",
+        chapter_3_name: "Logic Chains",
+        chapter_3_desc: "6×6 Challenge",
+        chapter_4_name: "Grandmaster",
+        chapter_4_desc: "6×6 & 7×7 Master",
+        error_row_dup: "Duplicate number in row",
+        error_col_dup: "Duplicate number in column",
+        error_violation: "Inequality violated",
+        tutorial_basics: "Basics",
+        tutorial_badge: "7 Lessons"
+    }
+};
+
+// === Source: js\puzzles\futoshiki\data\levels.js ===
+/**
+ * Futoshiki Level & Tagesrätsel-Generierung
+ * 240 deterministische Kampagnen-Level in 4 thematischen Kapiteln (4×4 bis 7×7)
+ */
+
+
+
+function getFutoshikiCampaignLevel(levelIndex) {
+    // 240 Level in 4 Kapiteln:
+    // Kapitel 1 „Ordnung“ (Level 1–60): 4×4 & 5×5 Easy/Medium
+    // Kapitel 2 „Vergleich“ (Level 61–120): 5×5 & 6×6 Medium
+    // Kapitel 3 „Logik-Ketten“ (Level 121–180): 6×6 Medium/Hard
+    // Kapitel 4 „Großmeister“ (Level 181–240): 6×6 & 7×7 Hard
+    let size, difficulty;
+    if (levelIndex < 30) {
+        size = 4;
+        difficulty = 'easy';
+    } else if (levelIndex < 60) {
+        size = 5;
+        difficulty = 'easy';
+    } else if (levelIndex < 90) {
+        size = 5;
+        difficulty = 'medium';
+    } else if (levelIndex < 120) {
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 150) {
+        size = 6;
+        difficulty = 'hard';
+    } else if (levelIndex < 180) {
+        size = 6;
+        difficulty = 'hard';
+    } else if (levelIndex < 210) {
+        size = 7;
+        difficulty = 'hard';
+    } else {
+        size = 7;
+        difficulty = 'hard';
+    }
+
+    const seed = 90000 + (levelIndex + 1) * 137;
+    const generated = FutoshikiGenerator.generatePuzzle({ size, difficulty, seed });
+
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1}`,
+        ...generated
+    };
+}
+
+/**
+ * Erzeugt das synchrone Tagesrätsel basierend auf dem Datum (JJJJ-MM-TT)
+ */
+function getFutoshikiDailyPuzzle(dateStr) {
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10);
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+    const size = isWeekend ? 6 : 5;
+    const difficulty = isWeekend ? 'hard' : 'medium';
+
+    const generated = FutoshikiGenerator.generatePuzzle({ size, difficulty, seed });
+    return {
+        id: `daily_${dateStr}`,
+        date: dateStr,
+        name: `Tagesrätsel (${dateStr})`,
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\futoshiki\data\tutorial.js ===
+/**
+ * Futoshiki Interaktives Tutorial
+ * 7 aufeinander aufbauende Lektionen für Anfänger und Fortgeschrittene
+ */
+
+
+
+const FUTOSHIKI_TUTORIAL_STEPS = [
+    {
+        id: 1,
+        title: "1. Das Lateinische Quadrat 🔣",
+        subtitle: "Zeilen- und Spaltenregeln",
+        description: `Willkommen bei **Futoshiki**!\n\nAuf einem 4×4 Spielfeld muss in jeder Zeile und jeder Spalte **jede Zahl von 1 bis 4 genau einmal** vorkommen.\n\n*Aufgabe: Setze die fehlende 4 in Zeile 1 ein.*`,
+        size: 4,
+        initialGrid: [
+            [1, 2, 3, FUTOSHIKI_EMPTY],
+            [2, 3, 4, 1],
+            [3, 4, 1, 2],
+            [4, 1, 2, 3]
+        ],
+        hConstraints: [
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', '']
+        ],
+        vConstraints: [
+            ['', '', '', ''],
+            ['', '', '', ''],
+            ['', '', '', '']
+        ],
+        solution: [
+            [1, 2, 3, 4],
+            [2, 3, 4, 1],
+            [3, 4, 1, 2],
+            [4, 1, 2, 3]
+        ],
+        targetCells: [{ r: 0, c: 3, val: 4 }],
+        explanation: "Perfekt! In Zeile 1 fehlte nur noch die 4."
+    },
+    {
+        id: 2,
+        title: "2. Ungleichungszeichen < und >",
+        subtitle: "Größer- und Kleiner-Relationen",
+        description: `Zwischen benachbarten Feldern siehst du Pfeilsymbole:\n\n- **<** bedeutet: Die linke Zahl muss **kleiner** sein als die rechte.\n- **>** bedeutet: Die linke Zahl muss **größer** sein als die rechte.\n\n*Aufgabe: Wenn links eine 1 steht und < rechts zeigt, setze eine gültige Zahl (z.B. 2) ein.*`,
+        size: 4,
+        initialGrid: [
+            [1, FUTOSHIKI_EMPTY, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        hConstraints: [
+            ['<', '', ''],
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', '']
+        ],
+        vConstraints: [
+            ['', '', '', ''],
+            ['', '', '', ''],
+            ['', '', '', '']
+        ],
+        solution: [
+            [1, 2, 3, 4],
+            [2, 1, 4, 3],
+            [3, 4, 1, 2],
+            [4, 3, 2, 1]
+        ],
+        targetCells: [{ r: 0, c: 1, val: 2 }],
+        explanation: "Sehr gut! 1 < 2 ist mathematisch wahr."
+    },
+    {
+        id: 3,
+        title: "3. Vertikale Pfeile ∧ und ∨",
+        subtitle: "Relationen zwischen Zeilen",
+        description: `Ungleichungen existieren auch senkrecht:\n\n- **∧** bedeutet: Das obere Feld ist **kleiner** als das untere.\n- **∨** bedeutet: Das obere Feld ist **größer** als das untere.\n\n*Aufgabe: Oben steht eine 4 mit ∨ nach unten. Setze die passende Zahl ein.*`,
+        size: 4,
+        initialGrid: [
+            [4, 0, 0, 0],
+            [FUTOSHIKI_EMPTY, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        hConstraints: [
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', '']
+        ],
+        vConstraints: [
+            ['>', '', '', ''],
+            ['', '', '', ''],
+            ['', '', '', '']
+        ],
+        solution: [
+            [4, 1, 2, 3],
+            [3, 2, 4, 1],
+            [2, 4, 1, 3],
+            [1, 3, 3, 2]
+        ],
+        targetCells: [{ r: 1, c: 0, val: 3 }],
+        explanation: "Klasse! Da 4 > 3 ist, stimmt die Relation."
+    },
+    {
+        id: 4,
+        title: "4. Constraint-Ausschluss 🚫",
+        subtitle: "Unmögliche Extremwerte ausschließen",
+        description: `Wenn gilt: **A < B**, dann kann **A niemals 4** sein (bei 4×4), weil es keine Zahl gibt, die größer als 4 ist!\n\nEbenso kann **B niemals 1** sein.\n\n*Aufgabe: Nutze diese Deduktion zur Lösung.*`,
+        size: 4,
+        initialGrid: [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        hConstraints: [
+            ['<', '<', '<'],
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', '']
+        ],
+        vConstraints: [
+            ['', '', '', ''],
+            ['', '', '', ''],
+            ['', '', '', '']
+        ],
+        solution: [
+            [1, 2, 3, 4],
+            [2, 3, 4, 1],
+            [3, 4, 1, 2],
+            [4, 1, 2, 3]
+        ],
+        targetCells: [{ r: 0, c: 0, val: 1 }, { r: 0, c: 3, val: 4 }],
+        explanation: "Hervorragend! In einer Kette A < B < C < D sind alle Positionen 1, 2, 3, 4 eindeutig festgelegt."
+    },
+    {
+        id: 5,
+        title: "5. Zeilen- und Spalten-Interaktion 🎯",
+        subtitle: "Kombination beider Achsen",
+        description: `Kombiniere immer die Zeilen-, Spalten- und Pfeil-Bedingungen.\n\nWenn in einer Spalte bereits 1, 2 und 3 stehen, muss das letzte Feld zwingend die 4 sein.\n\n*Aufgabe: Fülle das letzte freie Feld in Spalte 1.*`,
+        size: 4,
+        initialGrid: [
+            [1, 0, 0, 0],
+            [2, 0, 0, 0],
+            [3, 0, 0, 0],
+            [FUTOSHIKI_EMPTY, 0, 0, 0]
+        ],
+        hConstraints: [
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', '']
+        ],
+        vConstraints: [
+            ['', '', '', ''],
+            ['', '', '', ''],
+            ['', '', '', '']
+        ],
+        solution: [
+            [1, 2, 3, 4],
+            [2, 3, 4, 1],
+            [3, 4, 1, 2],
+            [4, 1, 2, 3]
+        ],
+        targetCells: [{ r: 3, c: 0, val: 4 }],
+        explanation: "Perfekt gelöst!"
+    },
+    {
+        id: 6,
+        title: "6. Notizen-Modus ✏️",
+        subtitle: "Mögliche Kandidaten festhalten",
+        description: `Mit dem **Stift-Icon** kannst du kleine Bleistift-Notizen in Felder eintragen, wenn du dir noch nicht sicher bist.\n\nDas hilft dir, Ausschlussverfahren schrittweise durchzuführen.\n\n*Aufgabe: Setze die Lösung für das markierte Feld.*`,
+        size: 4,
+        initialGrid: [
+            [1, 0, 0, 0],
+            [0, 2, 0, 0],
+            [0, 0, 3, 0],
+            [0, 0, 0, FUTOSHIKI_EMPTY]
+        ],
+        hConstraints: [
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', '']
+        ],
+        vConstraints: [
+            ['', '', '', ''],
+            ['', '', '', ''],
+            ['', '', '', '']
+        ],
+        solution: [
+            [1, 3, 4, 2],
+            [4, 2, 1, 3],
+            [2, 4, 3, 1],
+            [3, 1, 2, 4]
+        ],
+        targetCells: [{ r: 3, c: 3, val: 4 }],
+        explanation: "Sehr gut! Notizen machen komplexe Puzzles übersichtlich."
+    },
+    {
+        id: 7,
+        title: "7. Vollständiges Puzzle 🏆",
+        subtitle: "Kombiniere alle Techniken",
+        description: `Du beherrschst nun alle Grundregeln von Futoshiki!\n\nLöse dieses vollständige 4×4 Rätsel, indem du logisch Ungleichungen und Zeilen-/Spaltenregeln verknüpfst.`,
+        size: 4,
+        initialGrid: [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        hConstraints: [
+            ['<', '', '>'],
+            ['', '<', ''],
+            ['>', '', ''],
+            ['', '', '<']
+        ],
+        vConstraints: [
+            ['<', '', '', ''],
+            ['', '>', '', ''],
+            ['', '', '<', '']
+        ],
+        solution: [
+            [1, 4, 3, 2],
+            [2, 1, 4, 3],
+            [4, 3, 2, 1],
+            [3, 2, 1, 4]
+        ],
+        explanation: "Herzlichen Glückwunsch! Du bist bereit für die Futoshiki-Kampagne und die Tagesrätsel!"
+    }
+];
+
+// === Source: js\puzzles\futoshiki\index.js ===
+/**
+ * Futoshiki Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für Futoshiki (4×4 bis 7×7).
+ */
+
+
+
+
+
+
+
+
+
+const FutoshikiPlugin = {
+    id: 'futoshiki',
+    name: 'Futoshiki',
+    icon: '🔣',
+    description: 'Zahlen & Ungleichungen (4×4 bis 7×7)',
+    badge: 'Neu',
+    cssPath: './css/puzzles/futoshiki.css',
+
+    getSizes: () => [
+        { id: 4, label: '4 × 4 (Mini)', gridSize: 4 },
+        { id: 5, label: '5 × 5 (Standard)', gridSize: 5 },
+        { id: 6, label: '6 × 6 (Groß)', gridSize: 6 },
+        { id: 7, label: '7 × 7 (Experte)', gridSize: 7 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [1, 2, 3, 4, 5, 6, 7, FUTOSHIKI_EMPTY],
+
+    getInputConfig: () => ({
+        type: 'keypad',
+        allowKeypad: true,
+        keys: [1, 2, 3, 4, 5, 6, 7, FUTOSHIKI_EMPTY]
+    }),
+
+    createEngine: (size = 5) => new FutoshikiEngine(size),
+    generatePuzzle: (opts) => FutoshikiGenerator.generatePuzzle(opts),
+    solvePuzzle: (engine, max = 1) => FutoshikiSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => FutoshikiRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => FutoshikiRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass) => FutoshikiRenderer.getSymbolSvg(val, extraClass),
+
+    getHint: (engine, options) => FutoshikiSolver.findLogicalHint(engine, options),
+    getRules: (lang) => FutoshikiRenderer.getRules(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 240,
+        chapters: [
+            { id: 0, name: 'Ordnung', levelRange: [0, 59], desc: '4×4 & 5×5 Grundlagen' },
+            { id: 1, name: 'Vergleich', levelRange: [60, 119], desc: '5×5 & 6×6 Fortgeschritten' },
+            { id: 2, name: 'Logik-Ketten', levelRange: [120, 179], desc: '6×6 Herausforderung' },
+            { id: 3, name: 'Großmeister', levelRange: [180, 239], desc: '6×6 & 7×7 Meister' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getFutoshikiCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getFutoshikiDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: FUTOSHIKI_TUTORIAL_STEPS, badge: '7 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => FUTOSHIKI_I18N[lang] || {}
+};
+
+// === Source: js\puzzles\hashi\engine.js ===
+/**
+ * Hashiwokakero (Bridges / Brücken) Puzzle Engine
+ * Repräsentiert das Spielfeld mit Inseln, Brücken, Orthogonalitäts- und
+ * Kreuzungsprüfungen, Konnektivitäts-Validierung (BFS) und Undo/Redo.
+ */
+
+const HASHI_BRIDGE_NONE = 0;
+const HASHI_BRIDGE_SINGLE = 1;
+const HASHI_BRIDGE_DOUBLE = 2;
+const HASHI_MAX_BRIDGES = 2;
+
+class HashiEngine {
+    constructor(rows = 7, cols = 7) {
+        this.rows = rows;
+        this.cols = cols;
+        // Map<"r,c", { r, c, value }>
+        this.islands = new Map();
+        // Map<"r1,c1-r2,c2", count: 0|1|2>
+        this.bridges = new Map();
+        // Set<"r1,c1-r2,c2">
+        this.locked = new Set();
+        // Map<"r1,c1-r2,c2", Set<any>>
+        this.notes = new Map();
+        // Map<"r1,c1-r2,c2", number>
+        this.solution = null;
+        // History
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Erzeugt einen kanonischen Kanten-Key für zwei Inselkoordinaten.
+     * Stellt sicher, dass die Koordinaten sortiert sind.
+     */
+    static getEdgeKey(r1, c1, r2, c2) {
+        if (r1 > r2 || (r1 === r2 && c1 > c2)) {
+            return `${r2},${c2}-${r1},${c1}`;
+        }
+        return `${r1},${c1}-${r2},${c2}`;
+    }
+
+    /**
+     * Parst einen Kanten-Key zurück in Koordinaten.
+     */
+    static parseEdgeKey(key) {
+        const [p1, p2] = key.split('-');
+        const [r1, c1] = p1.split(',').map(Number);
+        const [r2, c2] = p2.split(',').map(Number);
+        return { r1, c1, r2, c2 };
+    }
+
+    /**
+     * Lädt ein Puzzle
+     * @param {Object} config
+     *   rows: number
+     *   cols: number
+     *   islands: Array<{r, c, value}> oder Map oder Object
+     *   bridges: (optional) Startbelegung
+     *   locked: (optional) Array oder Set von fixierten Kanten
+     *   solution: (optional) Referenzlösung Map oder Object
+     */
+    loadPuzzle({ rows = 7, cols = 7, islands = [], bridges = null, locked = null, solution = null }) {
+        this.rows = rows;
+        this.cols = cols;
+        this.islands = new Map();
+        this.bridges = new Map();
+        this.locked = new Set();
+        this.notes = new Map();
+        this.undoStack = [];
+        this.redoStack = [];
+
+        // Inseln initialisieren
+        if (Array.isArray(islands)) {
+            for (const isl of islands) {
+                if (isl && typeof isl.r === 'number' && typeof isl.c === 'number') {
+                    this.islands.set(`${isl.r},${isl.c}`, { r: isl.r, c: isl.c, value: isl.value });
+                }
+            }
+        } else if (islands instanceof Map) {
+            for (const [k, v] of islands.entries()) {
+                const [r, c] = k.split(',').map(Number);
+                const val = typeof v === 'object' ? v.value : v;
+                this.islands.set(`${r},${c}`, { r, c, value: val });
+            }
+        } else if (typeof islands === 'object' && islands !== null) {
+            for (const [k, v] of Object.entries(islands)) {
+                const [r, c] = k.split(',').map(Number);
+                const val = typeof v === 'object' ? v.value : v;
+                this.islands.set(`${r},${c}`, { r, c, value: val });
+            }
+        }
+
+        // Alle möglichen gültigen Brückenpfade initialisieren
+        const allPossible = this.getAllPossibleEdges();
+        for (const edgeKey of allPossible) {
+            this.bridges.set(edgeKey, HASHI_BRIDGE_NONE);
+            this.notes.set(edgeKey, new Set());
+        }
+
+        // Locked-Kanten
+        if (locked) {
+            const lockedList = Array.isArray(locked) ? locked : Array.from(locked);
+            for (const lk of lockedList) {
+                this.locked.add(lk);
+            }
+        }
+
+        // Startbrücken setzen
+        if (bridges) {
+            if (bridges instanceof Map) {
+                for (const [k, v] of bridges.entries()) {
+                    if (this.bridges.has(k)) this.bridges.set(k, v);
+                }
+            } else if (typeof bridges === 'object') {
+                for (const [k, v] of Object.entries(bridges)) {
+                    if (this.bridges.has(k)) this.bridges.set(k, v);
+                }
+            }
+        }
+
+        // Lösung speichern
+        if (solution) {
+            this.solution = new Map();
+            if (solution instanceof Map) {
+                for (const [k, v] of solution.entries()) {
+                    if (v > 0) this.solution.set(k, v);
+                }
+            } else if (Array.isArray(solution)) {
+                for (const item of solution) {
+                    if (item && item.r1 !== undefined) {
+                        const key = HashiEngine.getEdgeKey(item.r1, item.c1, item.r2, item.c2);
+                        this.solution.set(key, item.count || 1);
+                    }
+                }
+            } else if (typeof solution === 'object') {
+                for (const [k, v] of Object.entries(solution)) {
+                    if (v > 0) this.solution.set(k, v);
+                }
+            }
+        } else {
+            this.solution = null;
+        }
+
+        // Initialzustand für Restart merken
+        this.initialBridges = new Map(this.bridges);
+    }
+
+    /**
+     * Setzt das Spielfeld auf den Startzustand zurück
+     */
+    restart() {
+        if (this.initialBridges) {
+            this.bridges = new Map(this.initialBridges);
+        } else {
+            for (const k of this.bridges.keys()) {
+                this.bridges.set(k, HASHI_BRIDGE_NONE);
+            }
+        }
+        for (const k of this.notes.keys()) {
+            this.notes.set(k, new Set());
+        }
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Gibt die Referenzlösung zurück
+     */
+    getSolution() {
+        return this.solution;
+    }
+
+    /**
+     * Prüft, ob an der Position (r, c) eine Insel existiert
+     */
+    hasIsland(r, c) {
+        return this.islands.has(`${r},${c}`);
+    }
+
+    /**
+     * Gibt die Insel an (r, c) zurück oder null
+     */
+    getIsland(r, c) {
+        return this.islands.get(`${r},${c}`) || null;
+    }
+
+    /**
+     * Alias für getIsland
+     */
+    getCell(r, c) {
+        const isl = this.getIsland(r, c);
+        return isl ? isl.value : null;
+    }
+
+    /**
+     * Gibt alle Inseln als Array zurück
+     */
+    getIslandsList() {
+        return Array.from(this.islands.values());
+    }
+
+    /**
+     * Ermittelt alle orthogonalen Nachbar-Inseln in 4 Richtungen,
+     * zwischen denen keine andere Insel im Weg steht.
+     */
+    getOrthogonalNeighbors(r, c) {
+        if (!this.hasIsland(r, c)) return [];
+        const neighbors = [];
+
+        // Oben (dr = -1)
+        for (let row = r - 1; row >= 0; row--) {
+            if (this.hasIsland(row, c)) {
+                neighbors.push(this.getIsland(row, c));
+                break;
+            }
+        }
+        // Unten (dr = +1)
+        for (let row = r + 1; row < this.rows; row++) {
+            if (this.hasIsland(row, c)) {
+                neighbors.push(this.getIsland(row, c));
+                break;
+            }
+        }
+        // Links (dc = -1)
+        for (let col = c - 1; col >= 0; col--) {
+            if (this.hasIsland(r, col)) {
+                neighbors.push(this.getIsland(r, col));
+                break;
+            }
+        }
+        // Rechts (dc = +1)
+        for (let col = c + 1; col < this.cols; col++) {
+            if (this.hasIsland(r, col)) {
+                neighbors.push(this.getIsland(r, col));
+                break;
+            }
+        }
+
+        return neighbors;
+    }
+
+    /**
+     * Findet alle topologisch möglichen Kanten zwischen orthogonalen Inselpaaren
+     */
+    getAllPossibleEdges() {
+        const edgeSet = new Set();
+        const islands = this.getIslandsList();
+        for (const isl of islands) {
+            const neighbors = this.getOrthogonalNeighbors(isl.r, isl.c);
+            for (const n of neighbors) {
+                const key = HashiEngine.getEdgeKey(isl.r, isl.c, n.r, n.c);
+                edgeSet.add(key);
+            }
+        }
+        return Array.from(edgeSet);
+    }
+
+    /**
+     * Prüft, ob zwei Kanten einander kreuzen
+     */
+    static edgesCross(r1A, c1A, r2A, c2A, r1B, c1B, r2B, c2B) {
+        const isHorizA = r1A === r2A;
+        const isHorizB = r1B === r2B;
+
+        // Wenn beide horizontal oder beide vertikal sind, können sie sich nicht kreuzen (höchstens überlappen)
+        if (isHorizA === isHorizB) return false;
+
+        let hRow, hMinC, hMaxC, vCol, vMinR, vMaxR;
+        if (isHorizA) {
+            hRow = r1A;
+            hMinC = Math.min(c1A, c2A);
+            hMaxC = Math.max(c1A, c2A);
+            vCol = c1B;
+            vMinR = Math.min(r1B, r2B);
+            vMaxR = Math.max(r1B, r2B);
+        } else {
+            hRow = r1B;
+            hMinC = Math.min(c1B, c2B);
+            hMaxC = Math.max(c1B, c2B);
+            vCol = c1A;
+            vMinR = Math.min(r1A, r2A);
+            vMaxR = Math.max(r1A, r2A);
+        }
+
+        // Kreuzung liegt strictly im Inneren beider Segmente
+        return (hMinC < vCol && vCol < hMaxC && vMinR < hRow && hRow < vMaxR);
+    }
+
+    /**
+     * Prüft, ob eine Brücke zwischen (r1,c1) und (r2,c2) eine bereits existierende Brücke kreuzen würde
+     */
+    hasCrossing(r1, c1, r2, c2) {
+        const key = HashiEngine.getEdgeKey(r1, c1, r2, c2);
+        for (const [otherKey, count] of this.bridges.entries()) {
+            if (count <= 0 || otherKey === key) continue;
+            const other = HashiEngine.parseEdgeKey(otherKey);
+            if (HashiEngine.edgesCross(r1, c1, r2, c2, other.r1, other.c1, other.r2, other.c2)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gibt alle erreichbaren Nachbarn zurück, zu denen eine Brücke gebaut werden kann
+     * (nicht durch bestehende Brücken kreuzend blockiert).
+     */
+    getReachableIslands(r, c) {
+        const neighbors = this.getOrthogonalNeighbors(r, c);
+        return neighbors.filter(n => {
+            const key = HashiEngine.getEdgeKey(r, c, n.r, n.c);
+            // Wenn schon eine Brücke existiert, ist sie erreichbar
+            if ((this.bridges.get(key) || 0) > 0) return true;
+            // Wenn keine existiert, darf sie keine andere kreuzen
+            return !this.hasCrossing(r, c, n.r, n.c);
+        });
+    }
+
+    /**
+     * Liefert die aktuelle Brückenanzahl zwischen zwei Koordinaten
+     */
+    getBridgeCount(r1, c1, r2, c2) {
+        const key = HashiEngine.getEdgeKey(r1, c1, r2, c2);
+        return this.bridges.get(key) || 0;
+    }
+
+    /**
+     * Setzt die Brückenanzahl gezielt (mit Undo/Redo)
+     */
+    setBridge(r1, c1, r2, c2, count) {
+        const key = HashiEngine.getEdgeKey(r1, c1, r2, c2);
+        if (this.locked.has(key)) return false;
+
+        const newCount = Math.max(0, Math.min(HASHI_MAX_BRIDGES, count));
+        const oldCount = this.bridges.get(key) || 0;
+        if (newCount === oldCount) return true;
+
+        // Wenn Brücken hinzugefügt werden, darf es keine Kreuzung geben
+        if (newCount > 0 && this.hasCrossing(r1, c1, r2, c2)) {
+            return false;
+        }
+
+        this.undoStack.push({
+            type: 'bridge',
+            key,
+            oldCount,
+            newCount
+        });
+        this.redoStack = [];
+
+        this.bridges.set(key, newCount);
+        return true;
+    }
+
+    /**
+     * Zyklischer Klick / Wisch: 0 -> 1 -> 2 -> 0
+     */
+    cycleBridge(r1, c1, r2, c2) {
+        const key = HashiEngine.getEdgeKey(r1, c1, r2, c2);
+        if (this.locked.has(key)) return false;
+
+        const current = this.bridges.get(key) || 0;
+        let target = (current + 1) % (HASHI_MAX_BRIDGES + 1);
+
+        // Falls target > 0 eine Kreuzung erzeugt, überspringen wir direkt auf 0
+        if (target > 0 && this.hasCrossing(r1, c1, r2, c2)) {
+            target = 0;
+        }
+
+        return this.setBridge(r1, c1, r2, c2, target);
+    }
+
+    /**
+     * Alias für cycleBridge oder Erhöhung
+     */
+    addBridge(r1, c1, r2, c2) {
+        return this.cycleBridge(r1, c1, r2, c2);
+    }
+
+    /**
+     * Entfernt alle Brücken zwischen den beiden Inseln
+     */
+    removeBridge(r1, c1, r2, c2) {
+        return this.setBridge(r1, c1, r2, c2, 0);
+    }
+
+    /**
+     * Notiz (X-Markierung etc.) für eine Kante toggeln
+     */
+    toggleNote(r1, c1, r2, c2, noteVal = 'x') {
+        const key = HashiEngine.getEdgeKey(r1, c1, r2, c2);
+        if (!this.notes.has(key)) {
+            this.notes.set(key, new Set());
+        }
+        const noteSet = this.notes.get(key);
+        const oldSet = new Set(noteSet);
+
+        if (noteSet.has(noteVal)) {
+            noteSet.delete(noteVal);
+        } else {
+            noteSet.add(noteVal);
+        }
+
+        this.undoStack.push({
+            type: 'note',
+            key,
+            oldSet,
+            newSet: new Set(noteSet)
+        });
+        this.redoStack = [];
+        return true;
+    }
+
+    getNotes(r1, c1, r2, c2) {
+        const key = HashiEngine.getEdgeKey(r1, c1, r2, c2);
+        return this.notes.get(key) || new Set();
+    }
+
+    /**
+     * Berechnet den aktuellen Grad (Anzahl aller Brücken) einer Insel
+     */
+    getIslandDegree(r, c) {
+        if (!this.hasIsland(r, c)) return 0;
+        let degree = 0;
+        const neighbors = this.getOrthogonalNeighbors(r, c);
+        for (const n of neighbors) {
+            const count = this.getBridgeCount(r, c, n.r, n.c);
+            degree += count;
+        }
+        return degree;
+    }
+
+    /**
+     * Prüft, ob eine Insel exakt ihre geforderte Anzahl an Brücken hat
+     */
+    isIslandSatisfied(r, c) {
+        const isl = this.getIsland(r, c);
+        if (!isl) return false;
+        return this.getIslandDegree(r, c) === isl.value;
+    }
+
+    /**
+     * Prüft, ob eine Insel überbelegt ist
+     */
+    isIslandOverfilled(r, c) {
+        const isl = this.getIsland(r, c);
+        if (!isl) return false;
+        return this.getIslandDegree(r, c) > isl.value;
+    }
+
+    /**
+     * Gibt die noch benötigten Brücken für eine Insel zurück
+     */
+    getIslandRemaining(r, c) {
+        const isl = this.getIsland(r, c);
+        if (!isl) return 0;
+        return isl.value - this.getIslandDegree(r, c);
+    }
+
+    /**
+     * BFS-Prüfung: Sind alle Inseln über aktive Brücken zu einem
+     * einzigen zusammenhängenden Graphen verbunden?
+     */
+    isConnected() {
+        const islands = this.getIslandsList();
+        if (islands.length <= 1) return true;
+
+        const visited = new Set();
+        const start = islands[0];
+        const queue = [`${start.r},${start.c}`];
+        visited.add(`${start.r},${start.c}`);
+
+        while (queue.length > 0) {
+            const currKey = queue.shift();
+            const [cr, cc] = currKey.split(',').map(Number);
+            const neighbors = this.getOrthogonalNeighbors(cr, cc);
+
+            for (const n of neighbors) {
+                const count = this.getBridgeCount(cr, cc, n.r, n.c);
+                if (count > 0) {
+                    const nKey = `${n.r},${n.c}`;
+                    if (!visited.has(nKey)) {
+                        visited.add(nKey);
+                        queue.push(nKey);
+                    }
+                }
+            }
+        }
+
+        return visited.size === islands.length;
+    }
+
+    /**
+     * Gibt alle Zusammenhangskomponenten zurück
+     * Jede Komponente ist ein Array von Insel-Keys "r,c"
+     */
+    getConnectedComponents() {
+        const islands = this.getIslandsList();
+        const visited = new Set();
+        const components = [];
+
+        for (const isl of islands) {
+            const key = `${isl.r},${isl.c}`;
+            if (visited.has(key)) continue;
+
+            const comp = [];
+            const queue = [key];
+            visited.add(key);
+
+            while (queue.length > 0) {
+                const currKey = queue.shift();
+                comp.push(currKey);
+                const [cr, cc] = currKey.split(',').map(Number);
+                const neighbors = this.getOrthogonalNeighbors(cr, cc);
+
+                for (const n of neighbors) {
+                    const count = this.getBridgeCount(cr, cc, n.r, n.c);
+                    if (count > 0) {
+                        const nKey = `${n.r},${n.c}`;
+                        if (!visited.has(nKey)) {
+                            visited.add(nKey);
+                            queue.push(nKey);
+                        }
+                    }
+                }
+            }
+            components.push(comp);
+        }
+
+        return components;
+    }
+
+    /**
+     * Umfassende Regelvalidierung
+     */
+    validateRules() {
+        const errors = [];
+        let allSatisfied = true;
+        const islands = this.getIslandsList();
+
+        // 1. Inselgrade prüfen
+        for (const isl of islands) {
+            const degree = this.getIslandDegree(isl.r, isl.c);
+            if (degree > isl.value) {
+                errors.push({
+                    type: 'overfilled_island',
+                    r: isl.r,
+                    c: isl.c,
+                    degree,
+                    value: isl.value,
+                    message: `Insel bei (${isl.r + 1},${isl.c + 1}) hat ${degree} von maximal ${isl.value} Brücken.`
+                });
+                allSatisfied = false;
+            } else if (degree < isl.value) {
+                allSatisfied = false;
+            }
+        }
+
+        // 2. Kreuzungen prüfen
+        const activeEdges = [];
+        for (const [key, count] of this.bridges.entries()) {
+            if (count > 0) {
+                activeEdges.push({ key, ...HashiEngine.parseEdgeKey(key) });
+            }
+        }
+
+        for (let i = 0; i < activeEdges.length; i++) {
+            for (let j = i + 1; j < activeEdges.length; j++) {
+                const e1 = activeEdges[i];
+                const e2 = activeEdges[j];
+                if (HashiEngine.edgesCross(e1.r1, e1.c1, e1.r2, e1.c2, e2.r1, e2.c1, e2.r2, e2.c2)) {
+                    errors.push({
+                        type: 'crossing_bridges',
+                        edge1: e1.key,
+                        edge2: e2.key,
+                        message: `Brücken kreuzen sich zwischen (${e1.key}) und (${e2.key}).`
+                    });
+                }
+            }
+        }
+
+        // 3. Konnektivität prüfen (nur wenn alle Inseln erfüllt sind)
+        const connected = this.isConnected();
+        if (allSatisfied && !connected) {
+            errors.push({
+                type: 'disconnected_network',
+                message: 'Nicht alle Inseln sind in einem einzigen Netzwerk miteinander verbunden.'
+            });
+        }
+
+        const isValid = errors.length === 0;
+        const isComplete = isValid && allSatisfied && connected;
+
+        return {
+            isValid,
+            isComplete,
+            allSatisfied,
+            connected,
+            errors
+        };
+    }
+
+    /**
+     * Alias für validateRules
+     */
+    validate() {
+        return this.validateRules();
+    }
+
+    /**
+     * Prüft ob das Puzzle vollständig und korrekt gelöst ist
+     */
+    isCompleted() {
+        return this.validateRules().isComplete;
+    }
+
+    isSolved() {
+        return this.isCompleted();
+    }
+
+    /**
+     * Findet Fehler für das Hinweis- und Feedback-System
+     */
+    findMistakes() {
+        // 1. Überbelegte Insel
+        for (const isl of this.getIslandsList()) {
+            const deg = this.getIslandDegree(isl.r, isl.c);
+            if (deg > isl.value) {
+                return {
+                    type: 'error',
+                    isMistake: true,
+                    errorType: 'overfilled_island',
+                    strategy: 'Überbelegte Insel',
+                    title: 'Zu viele Brücken',
+                    r: isl.r,
+                    c: isl.c,
+                    highlightCells: [{ r: isl.r, c: isl.c }],
+                    message: `Insel (${isl.r + 1},${isl.c + 1}) hat ${deg} Brücken, darf aber nur ${isl.value} haben.`
+                };
+            }
+        }
+
+        // 2. Isolierte geschlossene Teilkomponente
+        // Wenn eine Komponente alle ihre Inseln vollständig erfüllt hat, aber nicht alle Inseln umfasst,
+        // kann sie sich niemals mehr mit dem Rest verbinden!
+        const totalIslands = this.islands.size;
+        if (totalIslands > 2) {
+            const comps = this.getConnectedComponents();
+            for (const comp of comps) {
+                if (comp.length > 1 && comp.length < totalIslands) {
+                    let compAllSatisfied = true;
+                    for (const key of comp) {
+                        const [r, c] = key.split(',').map(Number);
+                        if (!this.isIslandSatisfied(r, c)) {
+                            compAllSatisfied = false;
+                            break;
+                        }
+                    }
+                    if (compAllSatisfied) {
+                        const firstCell = comp[0].split(',').map(Number);
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorType: 'isolated_subgraph',
+                            strategy: 'Isoliertes Teilnetzwerk',
+                            title: 'Isoliertes Teilnetzwerk',
+                            r: firstCell[0],
+                            c: firstCell[1],
+                            highlightCells: comp.map(k => {
+                                const [r, c] = k.split(',').map(Number);
+                                return { r, c };
+                            }),
+                            message: `Dieses Insel-Netzwerk ist in sich abgeschlossen, verbindet aber nicht alle ${totalIslands} Inseln.`
+                        };
+                    }
+                }
+            }
+        }
+
+        // 3. Mismatch mit Referenzlösung
+        if (this.solution) {
+            for (const [key, count] of this.bridges.entries()) {
+                if (count > 0) {
+                    const solCount = this.solution.get(key) || 0;
+                    if (count > solCount) {
+                        const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(key);
+                        return {
+                            type: 'error',
+                            isMistake: true,
+                            errorType: 'solution_mismatch',
+                            strategy: 'Falsche Brücke',
+                            title: 'Falsche Brücke',
+                            r: r1,
+                            c: c1,
+                            edgeKey: key,
+                            highlightCells: [{ r: r1, c: c1 }, { r: r2, c: c2 }],
+                            message: `Zwischen (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}) sind zu viele Brücken gesetzt.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Undo-Schritt
+     */
+    undo() {
+        if (this.undoStack.length === 0) return false;
+        const action = this.undoStack.pop();
+
+        if (action.type === 'bridge') {
+            this.bridges.set(action.key, action.oldCount);
+            this.redoStack.push(action);
+            return true;
+        } else if (action.type === 'note') {
+            this.notes.set(action.key, action.oldSet);
+            this.redoStack.push(action);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Redo-Schritt
+     */
+    redo() {
+        if (this.redoStack.length === 0) return false;
+        const action = this.redoStack.pop();
+
+        if (action.type === 'bridge') {
+            this.bridges.set(action.key, action.newCount);
+            this.undoStack.push(action);
+            return true;
+        } else if (action.type === 'note') {
+            this.notes.set(action.key, action.newSet);
+            this.undoStack.push(action);
+            return true;
+        }
+        return false;
+    }
+
+    getFilledCount() {
+        let count = 0;
+        for (const isl of this.getIslandsList()) {
+            if (this.isIslandSatisfied(isl.r, isl.c)) count++;
+        }
+        return count;
+    }
+
+    getTotalCells() {
+        return this.islands.size;
+    }
+}
+
+// === Source: js\puzzles\hashi\solver.js ===
+/**
+ * Hashiwokakero (Bridges / Brücken) Solver & Logical Hint Engine
+ * Löst Hashiwokakero-Puzzles via Constraint Propagation & Backtracking,
+ * verifiziert Eindeutigkeit und liefert didaktische, logisch begründete Hinweise.
+ */
+
+
+
+class HashiSolver {
+    /**
+     * Löst ein Hashi-Puzzle (vollständig oder ab aktuellem Zustand).
+     * @param {HashiEngine|Object} puzzleInput - Engine oder { rows, cols, islands }
+     * @param {number} maxSolutions - Maximale Anzahl zu findender Lösungen (Standard: 2 für Eindeutigkeitsprüfung)
+     * @returns {Array<Map<string, number>>} Gefundene Lösungen
+     */
+    static solve(puzzleInput, maxSolutions = 2) {
+        let engine;
+        if (puzzleInput instanceof HashiEngine) {
+            engine = puzzleInput;
+        } else {
+            engine = new HashiEngine(puzzleInput.rows || 7, puzzleInput.cols || 7);
+            engine.loadPuzzle(puzzleInput);
+        }
+
+        const islands = engine.getIslandsList();
+        if (islands.length === 0) return [];
+
+        // Alle möglichen Kanten zwischen orthogonalen Nachbarn ermitteln
+        const edges = [];
+        const edgeIndexMap = new Map();
+
+        const allEdgeKeys = engine.getAllPossibleEdges();
+        for (let i = 0; i < allEdgeKeys.length; i++) {
+            const key = allEdgeKeys[i];
+            const parsed = HashiEngine.parseEdgeKey(key);
+            edges.push({
+                index: i,
+                key,
+                ...parsed
+            });
+            edgeIndexMap.set(key, i);
+        }
+
+        const numEdges = edges.length;
+
+        // Kreuzungs-Konflikt-Matrix (welche Kanten kreuzen sich gegenseitig?)
+        const crossingMask = Array.from({ length: numEdges }, () => []);
+        for (let i = 0; i < numEdges; i++) {
+            for (let j = i + 1; j < numEdges; j++) {
+                const e1 = edges[i];
+                const e2 = edges[j];
+                if (HashiEngine.edgesCross(e1.r1, e1.c1, e1.r2, e1.c2, e2.r1, e2.c1, e2.r2, e2.c2)) {
+                    crossingMask[i].push(j);
+                    crossingMask[j].push(i);
+                }
+            }
+        }
+
+        // Insel-Kanten-Zuordnung
+        const islandEdges = new Map();
+        for (const isl of islands) {
+            islandEdges.set(`${isl.r},${isl.c}`, []);
+        }
+        for (let i = 0; i < numEdges; i++) {
+            const e = edges[i];
+            islandEdges.get(`${e.r1},${e.c1}`).push(i);
+            islandEdges.get(`${e.r2},${e.c2}`).push(i);
+        }
+
+        // Aktuelle Zuweisung (-1 = unentschieden, 0, 1, 2 = Brücken)
+        const assignment = new Int8Array(numEdges).fill(0);
+        // Vorbelegung aus der Engine übernehmen (falls schon Brücken gesetzt sind)
+        for (let i = 0; i < numEdges; i++) {
+            const current = engine.bridges.get(edges[i].key) || 0;
+            assignment[i] = current;
+        }
+
+        const solutions = [];
+
+        // Prüffunktion für Zusammenhang (BFS)
+        function checkFullConnectivity(currAssignment) {
+            if (islands.length <= 1) return true;
+            const visited = new Set();
+            const start = `${islands[0].r},${islands[0].c}`;
+            visited.add(start);
+            const queue = [start];
+
+            while (queue.length > 0) {
+                const currKey = queue.shift();
+                const edgeIndices = islandEdges.get(currKey) || [];
+                for (const eIdx of edgeIndices) {
+                    if (currAssignment[eIdx] > 0) {
+                        const e = edges[eIdx];
+                        const neighborKey = (`${e.r1},${e.c1}` === currKey) ? `${e.r2},${e.c2}` : `${e.r1},${e.c1}`;
+                        if (!visited.has(neighborKey)) {
+                            visited.add(neighborKey);
+                            queue.push(neighborKey);
+                        }
+                    }
+                }
+            }
+            return visited.size === islands.length;
+        }
+
+        // Backtracking
+        function search(edgeIdx) {
+            if (solutions.length >= maxSolutions) return;
+
+            // Wenn alle Kanten belegt sind: finale Validierung
+            if (edgeIdx === numEdges) {
+                // Alle Inseln müssen exakt ihren Wert haben
+                for (const isl of islands) {
+                    const eIndices = islandEdges.get(`${isl.r},${isl.c}`);
+                    let deg = 0;
+                    for (const ei of eIndices) deg += assignment[ei];
+                    if (deg !== isl.value) return;
+                }
+
+                // Gesamter Graph muss zusammenhängend sein
+                if (checkFullConnectivity(assignment)) {
+                    const solMap = new Map();
+                    for (let i = 0; i < numEdges; i++) {
+                        if (assignment[i] > 0) {
+                            solMap.set(edges[i].key, assignment[i]);
+                        }
+                    }
+                    solutions.push(solMap);
+                }
+                return;
+            }
+
+            const e = edges[edgeIdx];
+            const i1Key = `${e.r1},${e.c1}`;
+            const i2Key = `${e.r2},${e.c2}`;
+            const isl1 = engine.getIsland(e.r1, e.c1);
+            const isl2 = engine.getIsland(e.r2, e.c2);
+
+            // Aktuelle Grade ohne diese Kante berechnen
+            let deg1 = 0;
+            for (const ei of islandEdges.get(i1Key)) {
+                if (ei !== edgeIdx) deg1 += assignment[ei];
+            }
+            let deg2 = 0;
+            for (const ei of islandEdges.get(i2Key)) {
+                if (ei !== edgeIdx) deg2 += assignment[ei];
+            }
+
+            // Mögliche Optionen für diese Kante (0, 1, 2)
+            // Prüfen, ob eine kreuzende Kante bereits > 0 gesetzt ist
+            let crossingActive = false;
+            for (const cIdx of crossingMask[edgeIdx]) {
+                if (assignment[cIdx] > 0) {
+                    crossingActive = true;
+                    break;
+                }
+            }
+
+            const allowedCounts = [];
+            // 0 ist immer erlaubt
+            allowedCounts.push(0);
+
+            if (!crossingActive) {
+                for (let count = 1; count <= HASHI_MAX_BRIDGES; count++) {
+                    if (deg1 + count <= isl1.value && deg2 + count <= isl2.value) {
+                        allowedCounts.push(count);
+                    }
+                }
+            }
+
+            // Bevorzugt höhere Werte testen für schnellere Konvergenz bei Heuristik
+            for (let i = allowedCounts.length - 1; i >= 0; i--) {
+                const count = allowedCounts[i];
+                assignment[edgeIdx] = count;
+
+                // Pruning: Kann eine der beiden Inseln ihren Zielwert überhaupt noch erreichen?
+                let canReach1 = true;
+                let maxPossible1 = deg1 + count;
+                for (const ei of islandEdges.get(i1Key)) {
+                    if (ei > edgeIdx) maxPossible1 += 2;
+                }
+                if (maxPossible1 < isl1.value) canReach1 = false;
+
+                let canReach2 = true;
+                let maxPossible2 = deg2 + count;
+                for (const ei of islandEdges.get(i2Key)) {
+                    if (ei > edgeIdx) maxPossible2 += 2;
+                }
+                if (maxPossible2 < isl2.value) canReach2 = false;
+
+                if (canReach1 && canReach2) {
+                    search(edgeIdx + 1);
+                }
+            }
+
+            assignment[edgeIdx] = 0;
+        }
+
+        // Falls wir ein leeres Puzzle lösen wollen, setzen wir alle auf 0 zurück
+        assignment.fill(0);
+        search(0);
+        return solutions;
+    }
+
+    /**
+     * Findet den didaktisch und strategisch besten logischen Hinweis
+     * Liefert standardisiertes Hint-Objekt:
+     * {
+     *   type: 'bridge_add'|'bridge_remove'|'mistake',
+     *   strategy: string,
+     *   title: string,
+     *   r: number, c: number,
+     *   edgeKey: string,
+     *   count: number,
+     *   highlightCells: [{r, c}],
+     *   message: string,
+     *   description: string
+     * }
+     */
+    static findLogicalHint(engine, options = {}) {
+        // 1. FEHLER ZUERST PRÜFEN
+        const mistake = engine.findMistakes();
+        if (mistake) return mistake;
+
+        const islands = engine.getIslandsList();
+        if (islands.length === 0) return null;
+
+        // Hilfsdaten aufbauen
+        const focusCell = options.focusCell || null;
+
+        // 2. STRATEGIE: MAXIMUM-FILL / TAUBENSCHLAG-PRINZIP (Pigeonhole)
+        // Deckt automatisch 8er-Mitte, 7er-Mitte, 4er-Ecke, 3er-Ecke, 6er-Rand, 5er-Rand ab!
+        for (const isl of islands) {
+            const needed = engine.getIslandRemaining(isl.r, isl.c);
+            if (needed <= 0) continue;
+
+            const neighbors = engine.getReachableIslands(isl.r, isl.c);
+            if (neighbors.length === 0) continue;
+
+            // Berechne maximale Kapazität jedes Nachbarn
+            const neighborCaps = neighbors.map(n => {
+                const currentCount = engine.getBridgeCount(isl.r, isl.c, n.r, n.c);
+                const neighborRemaining = engine.getIslandRemaining(n.r, n.c);
+                // Kann höchstens bis 2 Brücken erweitert werden und nicht mehr als Nachbar noch braucht
+                const addable = Math.max(0, Math.min(HASHI_MAX_BRIDGES - currentCount, neighborRemaining));
+                return {
+                    neighbor: n,
+                    currentCount,
+                    addable,
+                    key: HashiEngine.getEdgeKey(isl.r, isl.c, n.r, n.c)
+                };
+            });
+
+            // Wenn es nur 1 Nachbarn gibt: alle benötigten Brücken müssen dorthin
+            if (neighborCaps.length === 1) {
+                const nc = neighborCaps[0];
+                if (nc.addable > 0) {
+                    const toAdd = Math.min(needed, nc.addable);
+                    const targetCount = nc.currentCount + toAdd;
+                    return {
+                        type: 'bridge_add',
+                        strategy: 'Einziger verbleibender Nachbar',
+                        title: 'Erzwungene Brücke',
+                        r: isl.r,
+                        c: isl.c,
+                        edgeKey: nc.key,
+                        count: targetCount,
+                        highlightCells: [{ r: isl.r, c: isl.c }, { r: nc.neighbor.r, c: nc.neighbor.c }],
+                        message: `Insel (${isl.r + 1},${isl.c + 1}) benötigt noch ${needed} Brücke(n) und hat nur einen einzigen erreichbaren Nachbarn.`,
+                        description: `Insel (${isl.r + 1},${isl.c + 1}) hat keine andere Ausweichmöglichkeit. Setze eine Brücke zu Insel (${nc.neighbor.r + 1},${nc.neighbor.c + 1}).`
+                    };
+                }
+            }
+
+            // Für jeden Nachbarn prüfen, ob die anderen zusammen nicht ausreichen
+            const totalAddableOthers = neighborCaps.reduce((sum, nc) => sum + nc.addable, 0);
+
+            for (const nc of neighborCaps) {
+                if (nc.addable <= 0) continue;
+                const othersCap = totalAddableOthers - nc.addable;
+                if (needed > othersCap) {
+                    const forcedAdd = needed - othersCap;
+                    const targetCount = nc.currentCount + forcedAdd;
+                    if (targetCount > nc.currentCount) {
+                        let stratName = 'Taubenschlag-Prinzip (Kapazität)';
+                        let detailText = `Selbst wenn alle anderen Nachbarn maximal belegt werden, fehlen noch ${forcedAdd} Brücke(n).`;
+                        if (isl.value === 8) {
+                            stratName = 'Die 8er-Insel';
+                            detailText = 'Eine 8 benötigt zu allen 4 Nachbarn jeweils eine Doppelbrücke.';
+                        } else if (isl.value === 7) {
+                            stratName = 'Die 7er-Insel';
+                            detailText = 'Eine 7 benötigt zu jedem ihrer 4 Nachbarn mindestens eine Brücke.';
+                        } else if (isl.value === 4 && neighbors.length === 2) {
+                            stratName = '4er-Eckinsel';
+                            detailText = 'Eine 4 mit nur 2 Nachbarn benötigt zu beiden eine Doppelbrücke.';
+                        } else if (isl.value === 3 && neighbors.length === 2) {
+                            stratName = '3er-Eckinsel';
+                            detailText = 'Eine 3 mit 2 Nachbarn benötigt zu beiden mindestens eine einfache Brücke.';
+                        } else if (isl.value === 6 && neighbors.length === 3) {
+                            stratName = '6er-Randinsel';
+                            detailText = 'Eine 6 mit 3 Nachbarn benötigt zu allen 3 Nachbarn jeweils eine Doppelbrücke.';
+                        } else if (isl.value === 5 && neighbors.length === 3) {
+                            stratName = '5er-Randinsel';
+                            detailText = 'Eine 5 mit 3 Nachbarn benötigt zu jedem Nachbarn mindestens eine einfache Brücke.';
+                        }
+
+                        return {
+                            type: 'bridge_add',
+                            strategy: stratName,
+                            title: stratName,
+                            r: isl.r,
+                            c: isl.c,
+                            edgeKey: nc.key,
+                            count: targetCount,
+                            highlightCells: [{ r: isl.r, c: isl.c }, { r: nc.neighbor.r, c: nc.neighbor.c }],
+                            message: `Insel (${isl.r + 1},${isl.c + 1}) erfordert mindestens ${targetCount} Brücke(n) zu (${nc.neighbor.r + 1},${nc.neighbor.c + 1}).`,
+                            description: detailText
+                        };
+                    }
+                }
+            }
+        }
+
+        // 3. STRATEGIE: ISOLATIONS-VERHINDERUNG (Zusammenhang sichern)
+        // Wenn zwei Inseln mit Restwert 1 miteinander verbunden werden, obwohl es noch andere unverbundene Inseln gibt,
+        // würde ein isoliertes 2er-Paar entstehen!
+        const totalIslands = islands.length;
+        if (totalIslands > 2) {
+            for (const isl of islands) {
+                const rem = engine.getIslandRemaining(isl.r, isl.c);
+                if (rem !== 1) continue;
+
+                const neighbors = engine.getReachableIslands(isl.r, isl.c);
+                for (const n of neighbors) {
+                    const nRem = engine.getIslandRemaining(n.r, n.c);
+                    if (nRem === 1) {
+                        // Prüfen ob die beiden bereits die einzigen noch unvollständigen Inseln sind
+                        let otherIncomplete = 0;
+                        for (const other of islands) {
+                            if (`${other.r},${other.c}` !== `${isl.r},${isl.c}` &&
+                                `${other.r},${other.c}` !== `${n.r},${n.c}`) {
+                                if (engine.getIslandRemaining(other.r, other.c) > 0) {
+                                    otherIncomplete++;
+                                }
+                            }
+                        }
+
+                        // Wenn es noch andere unvollständige Inseln gibt, dürfen isl und n
+                        // sich NICHT gegenseitig abschließen, falls sie sonst keinen Anschluss haben!
+                        if (otherIncomplete > 0 && engine.getIslandDegree(isl.r, isl.c) === 0 && engine.getIslandDegree(n.r, n.c) === 0) {
+                            // Eine direkte Verbindung würde ein isoliertes Paar erzeugen
+                            const otherNeighborsIsl = neighbors.filter(nb => `${nb.r},${nb.c}` !== `${n.r},${n.c}`);
+                            if (otherNeighborsIsl.length === 1) {
+                                const forcedNeighbor = otherNeighborsIsl[0];
+                                const key = HashiEngine.getEdgeKey(isl.r, isl.c, forcedNeighbor.r, forcedNeighbor.c);
+                                return {
+                                    type: 'bridge_add',
+                                    strategy: 'Isolations-Vermeidung',
+                                    title: 'Netzwerk-Zusammenhang',
+                                    r: isl.r,
+                                    c: isl.c,
+                                    edgeKey: key,
+                                    count: 1,
+                                    highlightCells: [{ r: isl.r, c: isl.c }, { r: forcedNeighbor.r, c: forcedNeighbor.c }],
+                                    message: `Insel (${isl.r + 1},${isl.c + 1}) darf nicht mit (${n.r + 1},${n.c + 1}) verbunden werden, da sie sich sonst isolieren würden.`,
+                                    description: `Verbinde Insel (${isl.r + 1},${isl.c + 1}) stattdessen mit Insel (${forcedNeighbor.r + 1},${forcedNeighbor.c + 1}).`
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. FALLBACK: NÄCHSTER SCHRITT AUS DER REFERENZLÖSUNG
+        let solution = engine.getSolution();
+        if (!solution) {
+            const found = HashiSolver.solve(engine, 1);
+            if (found.length > 0) solution = found[0];
+        }
+
+        if (solution) {
+            for (const [key, solCount] of solution.entries()) {
+                const currentCount = engine.bridges.get(key) || 0;
+                if (solCount > currentCount) {
+                    const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(key);
+                    return {
+                        type: 'bridge_add',
+                        strategy: 'Nächster logischer Schritt',
+                        title: 'Brücke setzen',
+                        r: r1,
+                        c: c1,
+                        edgeKey: key,
+                        count: currentCount + 1,
+                        highlightCells: [{ r: r1, c: c1 }, { r: r2, c: c2 }],
+                        message: `Hier kann eine Brücke zwischen (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}) platziert werden.`,
+                        description: `Setze eine Brücke zwischen den Inseln (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}).`
+                    };
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+// === Source: js\puzzles\hashi\generator.js ===
+/**
+ * Hashiwokakero (Bridges / Brücken) Puzzle Generator
+ * Generiert deterministisch eindeutig lösbare Hashi-Puzzles
+ * mit zusammenhängendem Inselnetzwerk in verschiedenen Schwierigkeitsgraden.
+ */
+
+
+
+
+class HashiGenerator {
+    /**
+     * Deterministischer PRNG (Mulberry32)
+     */
+    static seededRandom(seed) {
+        let s = (seed || 1) | 0;
+        return function() {
+            s = (s + 0x6D2B79F5) | 0;
+            let t = Math.imul(s ^ (s >>> 15), 1 | s);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    /**
+     * Fisher-Yates Shuffle
+     */
+    static shuffle(arr, rng) {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    /**
+     * Generiert ein Hashi-Puzzle mit eindeutiger Lösung
+     * @param {Object} options
+     *   rows: number (optional, Standard 7)
+     *   cols: number (optional, Standard 7)
+     *   size: number (optional, setzt rows & cols)
+     *   difficulty: 'easy'|'medium'|'hard'
+     *   seed: number (optional)
+     * @returns {Object} Puzzle-Konfiguration
+     */
+    static generatePuzzle(options = {}) {
+        const difficulty = options.difficulty || 'medium';
+        const size = options.size || (difficulty === 'easy' ? 6 : difficulty === 'hard' ? 9 : 7);
+        const rows = options.rows || size;
+        const cols = options.cols || size;
+        const seed = options.seed !== undefined ? options.seed : (Date.now() & 0xFFFFFF);
+
+        const rng = HashiGenerator.seededRandom(seed);
+
+        let targetIslands;
+        if (difficulty === 'easy') {
+            targetIslands = Math.max(4, Math.min(8, Math.floor(rows * cols * 0.18)));
+        } else if (difficulty === 'hard') {
+            targetIslands = Math.max(8, Math.min(18, Math.floor(rows * cols * 0.22)));
+        } else {
+            targetIslands = Math.max(6, Math.min(13, Math.floor(rows * cols * 0.20)));
+        }
+
+        const maxAttempts = 120;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const currentRng = HashiGenerator.seededRandom((seed + attempt * 1013) | 0);
+
+            // 1. Inseln & Brücken-Netzwerk per Random Walk / Spanning Tree aufbauen
+            const network = HashiGenerator.buildRandomNetwork(rows, cols, targetIslands, currentRng);
+            if (!network) continue;
+
+            // 2. Puzzle aus dem Netzwerk extrahieren
+            const puzzleCandidate = {
+                rows,
+                cols,
+                islands: network.islands,
+                solution: network.solutionBridges
+            };
+
+            // 3. Eindeutigkeit mit HashiSolver prüfen
+            const solutions = HashiSolver.solve(puzzleCandidate, 2);
+            if (solutions.length === 1) {
+                return {
+                    rows,
+                    cols,
+                    size,
+                    difficulty,
+                    seed,
+                    islands: network.islands,
+                    solution: network.solutionBridgesArray
+                };
+            }
+        }
+
+        // Fallback: Solides deterministisches Standard-Netzwerk generieren
+        return HashiGenerator.generateFallbackPuzzle(rows, cols, difficulty, seed);
+    }
+
+    /**
+     * Baut ein zusammenhängendes kreuzungsfreies Netzwerk aus Inseln und Brücken
+     */
+    static buildRandomNetwork(rows, cols, targetIslandCount, rng) {
+        const islandsMap = new Map(); // "r,c" -> { r, c }
+        const edgesMap = new Map();   // "r1,c1-r2,c2" -> count (1 oder 2)
+
+        // Start-Insel in der Nähe des Zentrums platzieren
+        const startR = Math.floor(rows / 4) + Math.floor(rng() * Math.max(1, Math.floor(rows / 2)));
+        const startC = Math.floor(cols / 4) + Math.floor(rng() * Math.max(1, Math.floor(cols / 2)));
+        islandsMap.set(`${startR},${startC}`, { r: startR, c: startC });
+
+        const dirs = [
+            { dr: -1, dc: 0 },
+            { dr: 1, dc: 0 },
+            { dr: 0, dc: -1 },
+            { dr: 0, dc: 1 }
+        ];
+
+        let attempts = 0;
+        const maxTreeAttempts = targetIslandCount * 30;
+
+        while (islandsMap.size < targetIslandCount && attempts < maxTreeAttempts) {
+            attempts++;
+            const currentIslands = Array.from(islandsMap.values());
+            const source = currentIslands[Math.floor(rng() * currentIslands.length)];
+            const dir = dirs[Math.floor(rng() * dirs.length)];
+
+            // Zufälliger Abstand (2 bis 4 Felder, damit Brücken sichtbar sind)
+            const dist = 2 + Math.floor(rng() * 3);
+            const targetR = source.r + dir.dr * dist;
+            const targetC = source.c + dir.dc * dist;
+
+            if (targetR < 0 || targetR >= rows || targetC < 0 || targetC >= cols) continue;
+
+            const targetKey = `${targetR},${targetC}`;
+            if (islandsMap.has(targetKey)) continue;
+
+            // Prüfen, ob keine andere Insel auf dem direkten Segment liegt
+            let pathBlocked = false;
+            for (let step = 1; step < dist; step++) {
+                const intermediateKey = `${source.r + dir.dr * step},${source.c + dir.dc * step}`;
+                if (islandsMap.has(intermediateKey)) {
+                    pathBlocked = true;
+                    break;
+                }
+            }
+            if (pathBlocked) continue;
+
+            // Kreuzungsprüfung mit bestehenden Kanten
+            let crossesExisting = false;
+            for (const existingKey of edgesMap.keys()) {
+                const existing = HashiEngine.parseEdgeKey(existingKey);
+                if (HashiEngine.edgesCross(source.r, source.c, targetR, targetC, existing.r1, existing.c1, existing.r2, existing.c2)) {
+                    crossesExisting = true;
+                    break;
+                }
+            }
+            if (crossesExisting) continue;
+
+            // Neue Insel und Brücke hinzufügen
+            islandsMap.set(targetKey, { r: targetR, c: targetC });
+            const edgeKey = HashiEngine.getEdgeKey(source.r, source.c, targetR, targetC);
+            // 1 oder 2 Brücken zufällig (60% 1, 40% 2)
+            const bridgeCount = rng() < 0.4 ? HASHI_BRIDGE_DOUBLE : HASHI_BRIDGE_SINGLE;
+            edgesMap.set(edgeKey, bridgeCount);
+        }
+
+        if (islandsMap.size < 4) return null;
+
+        // Zusätzliche Brücken zwischen existierenden Inseln einfügen für Zyklen
+        const islandList = Array.from(islandsMap.values());
+        for (let i = 0; i < islandList.length; i++) {
+            for (let j = i + 1; j < islandList.length; j++) {
+                const islA = islandList[i];
+                const islB = islandList[j];
+
+                // Nur orthogonal
+                if (islA.r !== islB.r && islA.c !== islB.c) continue;
+
+                const edgeKey = HashiEngine.getEdgeKey(islA.r, islA.c, islB.r, islB.c);
+                if (edgesMap.has(edgeKey)) continue;
+
+                // Prüfen ob Insel dazwischen liegt
+                const minR = Math.min(islA.r, islB.r);
+                const maxR = Math.max(islA.r, islB.r);
+                const minC = Math.min(islA.c, islB.c);
+                const maxC = Math.max(islA.c, islB.c);
+
+                let blocked = false;
+                for (const other of islandList) {
+                    if ((other.r === islA.r && other.c === islA.c) || (other.r === islB.r && other.c === islB.c)) continue;
+                    if (islA.r === islB.r && other.r === islA.r && other.c > minC && other.c < maxC) {
+                        blocked = true;
+                        break;
+                    }
+                    if (islA.c === islB.c && other.c === islA.c && other.r > minR && other.r < maxR) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (blocked) continue;
+
+                // Kreuzung mit bestehenden Brücken prüfen
+                let crosses = false;
+                for (const existingKey of edgesMap.keys()) {
+                    const existing = HashiEngine.parseEdgeKey(existingKey);
+                    if (HashiEngine.edgesCross(islA.r, islA.c, islB.r, islB.c, existing.r1, existing.c1, existing.r2, existing.c2)) {
+                        crosses = true;
+                        break;
+                    }
+                }
+                if (crosses) continue;
+
+                // Chance, eine zusätzliche Brücke hinzuzufügen
+                if (rng() < 0.25) {
+                    const count = rng() < 0.35 ? HASHI_BRIDGE_DOUBLE : HASHI_BRIDGE_SINGLE;
+                    edgesMap.set(edgeKey, count);
+                }
+            }
+        }
+
+        // Inselwerte berechnen als Summe der Brücken
+        const islandsWithValues = [];
+        const solutionBridgesArray = [];
+
+        for (const [key, count] of edgesMap.entries()) {
+            const parsed = HashiEngine.parseEdgeKey(key);
+            solutionBridgesArray.push({
+                r1: parsed.r1, c1: parsed.c1,
+                r2: parsed.r2, c2: parsed.c2,
+                count
+            });
+        }
+
+        for (const isl of islandsMap.values()) {
+            let deg = 0;
+            for (const [edgeKey, count] of edgesMap.entries()) {
+                const p = HashiEngine.parseEdgeKey(edgeKey);
+                if ((p.r1 === isl.r && p.c1 === isl.c) || (p.r2 === isl.r && p.c2 === isl.c)) {
+                    deg += count;
+                }
+            }
+            if (deg > 0 && deg <= 8) {
+                islandsWithValues.push({
+                    r: isl.r,
+                    c: isl.c,
+                    value: deg
+                });
+            }
+        }
+
+        if (islandsWithValues.length < 4) return null;
+
+        return {
+            islands: islandsWithValues,
+            solutionBridges: edgesMap,
+            solutionBridgesArray
+        };
+    }
+
+    /**
+     * Deterministischer Fallback, falls stochastische Generierung scheitert
+     */
+    static generateFallbackPuzzle(rows, cols, difficulty, seed) {
+        // Schönes, symmetrisches 4- bis 6-Insel-Netzwerk
+        const islands = [
+            { r: 1, c: 1, value: 2 },
+            { r: 1, c: cols - 2, value: 3 },
+            { r: rows - 2, c: 1, value: 2 },
+            { r: rows - 2, c: cols - 2, value: 3 }
+        ];
+
+        const solution = [
+            { r1: 1, c1: 1, r2: 1, c2: cols - 2, count: 1 },
+            { r1: 1, c1: 1, r2: rows - 2, c2: 1, count: 1 },
+            { r1: 1, c1: cols - 2, r2: rows - 2, c2: cols - 2, count: 2 },
+            { r1: rows - 2, c1: 1, r2: rows - 2, c2: cols - 2, count: 1 }
+        ];
+
+        return {
+            rows,
+            cols,
+            size: Math.min(rows, cols),
+            difficulty,
+            seed,
+            islands,
+            solution
+        };
+    }
+}
+
+// === Source: js\puzzles\hashi\renderer.js ===
+/**
+ * Hashiwokakero (Bridges / Brücken) Visual Renderer
+ * SVG-basierte Vektorgrafik mit Insel-Knoten, 1er/2er-Brückenlinien,
+ * Wisch-/Tap-Interaktion, Status-Glow bei Erfüllung und Fehler-Pulsieren.
+ */
+
+
+
+function getHashiSymbolSvg(extraClass = '') {
+    return `<svg class="hashi-symbol-icon ${extraClass}" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="6" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="18" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <line x1="9.5" y1="10.5" x2="14.5" y2="10.5" stroke="currentColor" stroke-width="1.8"/>
+        <line x1="9.5" y1="13.5" x2="14.5" y2="13.5" stroke="currentColor" stroke-width="1.8"/>
+    </svg>`;
+}
+
+class HashiRenderer {
+    static getSymbolSvg(val, extraClass = '') {
+        return getHashiSymbolSvg(extraClass);
+    }
+
+    /**
+     * Rendert das vollständige SVG-Spielfeld
+     */
+    static renderBoard(container, engine, state, onCellInteraction) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        const rows = engine.rows;
+        const cols = engine.cols;
+
+        const boardWrap = document.createElement('div');
+        boardWrap.className = `hashi-board-wrapper hashi-grid-${cols}x${rows}`;
+        boardWrap.id = 'hashiBoard';
+        boardWrap.style.touchAction = 'none';
+
+        const cellSize = 56;
+        const pad = 36;
+        const totalW = (cols - 1) * cellSize + pad * 2;
+        const totalH = (rows - 1) * cellSize + pad * 2;
+        const islandRadius = 18;
+
+        const getX = (c) => pad + c * cellSize;
+        const getY = (r) => pad + r * cellSize;
+
+        let svgHtml = `<svg class="hashi-svg" viewBox="0 0 ${totalW} ${totalH}" preserveAspectRatio="xMidYMid meet">`;
+
+        // 1. LAYER: HINTERGRUND-GITTERPUNKTE
+        svgHtml += `<g class="hashi-bg-dots">`;
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (!engine.hasIsland(r, c)) {
+                    svgHtml += `<circle cx="${getX(c)}" cy="${getY(r)}" r="1.5" class="hashi-grid-dot"/>`;
+                }
+            }
+        }
+        svgHtml += `</g>`;
+
+        // 2. LAYER: BRÜCKEN
+        svgHtml += `<g class="hashi-bridges-layer">`;
+        const activeBridges = state.solutionRevealed && engine.getSolution() ?
+            engine.getSolution() : engine.bridges;
+
+        for (const [key, count] of activeBridges.entries()) {
+            if (count <= 0) continue;
+            const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(key);
+            const x1 = getX(c1);
+            const y1 = getY(r1);
+            const x2 = getX(c2);
+            const y2 = getY(r2);
+            const isHoriz = r1 === r2;
+
+            const isHintEdge = !state.solutionRevealed && state.currentHint &&
+                (state.currentHint.edgeKey === key);
+
+            svgHtml += `<g class="hashi-bridge-group bridge-count-${count} ${isHintEdge ? 'hint-highlight-edge' : ''}" data-edge-key="${key}">`;
+
+            if (count === HASHI_BRIDGE_SINGLE) {
+                svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="hashi-bridge-line single"/>`;
+            } else if (count === HASHI_BRIDGE_DOUBLE) {
+                const offset = 4;
+                if (isHoriz) {
+                    svgHtml += `<line x1="${x1}" y1="${y1 - offset}" x2="${x2}" y2="${y2 - offset}" class="hashi-bridge-line double"/>`;
+                    svgHtml += `<line x1="${x1}" y1="${y1 + offset}" x2="${x2}" y2="${y2 + offset}" class="hashi-bridge-line double"/>`;
+                } else {
+                    svgHtml += `<line x1="${x1 - offset}" y1="${y1}" x2="${x2 - offset}" y2="${y2}" class="hashi-bridge-line double"/>`;
+                    svgHtml += `<line x1="${x1 + offset}" y1="${y1}" x2="${x2 + offset}" y2="${y2}" class="hashi-bridge-line double"/>`;
+                }
+            }
+            svgHtml += `</g>`;
+        }
+        svgHtml += `</g>`;
+
+        // 3. LAYER: INTERAKTIONS-HITBOXEN FÜR KANTEN
+        svgHtml += `<g class="hashi-hitboxes-layer">`;
+        const allPossibleEdges = engine.getAllPossibleEdges();
+        for (const edgeKey of allPossibleEdges) {
+            const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(edgeKey);
+            const x1 = getX(c1);
+            const y1 = getY(r1);
+            const x2 = getX(c2);
+            const y2 = getY(r2);
+
+            svgHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="hashi-edge-hitbox" stroke="transparent" stroke-width="24" cursor="pointer" data-edge-key="${edgeKey}"/>`;
+        }
+        svgHtml += `</g>`;
+
+        // 4. LAYER: INSELN
+        svgHtml += `<g class="hashi-islands-layer">`;
+        const selectedIsland = state.selectedIsland || null;
+
+        for (const isl of engine.getIslandsList()) {
+            const cx = getX(isl.c);
+            const cy = getY(isl.r);
+            const degree = engine.getIslandDegree(isl.r, isl.c);
+            const isSatisfied = degree === isl.value;
+            const isOverfilled = degree > isl.value;
+            const isSelected = selectedIsland && selectedIsland.r === isl.r && selectedIsland.c === isl.c;
+
+            const isHintTarget = !state.solutionRevealed && state.currentHint &&
+                state.currentHint.highlightCells &&
+                state.currentHint.highlightCells.some(h => h.r === isl.r && h.c === isl.c);
+
+            const groupClasses = `hashi-island-group ${isSatisfied ? 'satisfied' : ''} ${isOverfilled ? 'overfilled' : ''} ${isSelected ? 'selected' : ''} ${isHintTarget ? 'hint-target' : ''}`;
+
+            svgHtml += `<g class="${groupClasses}" data-r="${isl.r}" data-c="${isl.c}" cursor="pointer">`;
+            if (isSatisfied || isSelected || isHintTarget) {
+                svgHtml += `<circle cx="${cx}" cy="${cy}" r="${islandRadius + 4}" class="hashi-island-glow-ring"/>`;
+            }
+            svgHtml += `<circle cx="${cx}" cy="${cy}" r="${islandRadius}" class="hashi-island-circle"/>`;
+            svgHtml += `<text x="${cx}" y="${cy + 1}" text-anchor="middle" dominant-baseline="central" class="hashi-island-text">${isl.value}</text>`;
+            svgHtml += `</g>`;
+        }
+        svgHtml += `</g>`;
+
+        svgHtml += `</svg>`;
+        boardWrap.innerHTML = svgHtml;
+
+        // Event-Listener an die DOM-Elemente binden
+        // 1. Kanten-Hitboxen
+        const hitLines = boardWrap.querySelectorAll('.hashi-edge-hitbox');
+        hitLines.forEach(hitLine => {
+            const edgeKey = hitLine.dataset.edgeKey;
+            const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(edgeKey);
+            hitLine.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (state.solutionRevealed) return;
+                engine.cycleBridge(r1, c1, r2, c2);
+                if (typeof onCellInteraction === 'function') {
+                    onCellInteraction({ type: 'bridge_cycle', r1, c1, r2, c2 });
+                }
+            });
+        });
+
+        // 2. Insel-Gruppen
+        const islandGroups = boardWrap.querySelectorAll('.hashi-island-group');
+        islandGroups.forEach(g => {
+            const r = Number(g.dataset.r);
+            const c = Number(g.dataset.c);
+            g.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (state.solutionRevealed) return;
+
+                if (!state.selectedIsland) {
+                    state.selectedIsland = { r, c };
+                    HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                } else if (state.selectedIsland.r === r && state.selectedIsland.c === c) {
+                    state.selectedIsland = null;
+                    HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                } else {
+                    const prev = state.selectedIsland;
+                    const neighbors = engine.getOrthogonalNeighbors(prev.r, prev.c);
+                    const isNeighbor = neighbors.some(n => n.r === r && n.c === c);
+
+                    if (isNeighbor) {
+                        engine.cycleBridge(prev.r, prev.c, r, c);
+                        state.selectedIsland = null;
+                        if (typeof onCellInteraction === 'function') {
+                            onCellInteraction({ type: 'bridge_cycle', r1: prev.r, c1: prev.c, r2: r, c2: c });
+                        }
+                    } else {
+                        state.selectedIsland = { r, c };
+                        HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                    }
+                }
+            });
+        });
+
+        container.appendChild(boardWrap);
+    }
+
+    /**
+     * Keypad-Rendering (für Hashi minimal / Status-Keypad)
+     */
+    static renderKeypad(container, engine, state, onKeyInput) {
+        if (!container) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        const bar = document.createElement('div');
+        bar.className = 'hashi-action-bar';
+
+        const infoSpan = document.createElement('span');
+        infoSpan.className = 'hashi-action-info';
+        infoSpan.textContent = state.selectedIsland ?
+            `Insel (${state.selectedIsland.r + 1},${state.selectedIsland.c + 1}) gewählt — tippe Nachbar an` :
+            'Tippe auf zwei Inseln oder eine Linie, um Brücken zu bauen';
+        bar.appendChild(infoSpan);
+
+        if (state.selectedIsland) {
+            const deselectBtn = document.createElement('button');
+            deselectBtn.className = 'hashi-deselect-btn';
+            deselectBtn.textContent = '✕ Abwählen';
+            deselectBtn.addEventListener('click', () => {
+                state.selectedIsland = null;
+                if (typeof onKeyInput === 'function') onKeyInput(null);
+            });
+            bar.appendChild(deselectBtn);
+        }
+
+        container.appendChild(bar);
+    }
+
+    /**
+     * Spielregeln im Modal
+     */
+    static getRules(lang = 'de') {
+        if (lang === 'en') {
+            return `<div class="rules-content">
+                <h3>Hashiwokakero (Bridges) Rules</h3>
+                <ul>
+                    <li><strong>Islands:</strong> The circles are islands. The number indicates how many bridges must connect to that island.</li>
+                    <li><strong>Bridges:</strong> Bridges run only horizontally or vertically between islands. Between any two islands, there can be at most <strong>two bridges</strong>.</li>
+                    <li><strong>No Crossings:</strong> Bridges may never cross each other or pass through another island.</li>
+                    <li><strong>Single Connected Network:</strong> When finished, all islands must be connected into one single network.</li>
+                </ul>
+            </div>`;
+        }
+        return `<div class="rules-content">
+            <h3>Hashiwokakero (Brücken) Regeln</h3>
+            <ul>
+                <li><strong>Inseln:</strong> Die Kreise stellen Inseln dar. Die Zahl zeigt, wie viele Brücken genau an dieser Insel anliegen müssen.</li>
+                <li><strong>Brücken:</strong> Brücken verlaufen ausschließlich waagerecht oder senkrecht. Zwischen zwei Inseln sind maximal <strong>zwei parallele Brücken</strong> erlaubt.</li>
+                <li><strong>Kreuzungsverbot:</strong> Brücken dürfen sich niemals kreuzen und dürfen nicht durch andere Inseln hindurchführen.</li>
+                <li><strong>Zusammenhängendes Netz:</strong> Am Ende müssen alle Inseln über das Brückennetz miteinander verbunden sein (keine isolierten Inselgruppen).</li>
+            </ul>
+        </div>`;
+    }
+}
+
+// === Source: js\puzzles\hashi\data\i18n.js ===
+/**
+ * Hashiwokakero (Brücken) Lokalisierung (DE/EN)
+ */
+
+const HASHI_I18N = {
+    de: {
+        puzzle_name: "Hashi",
+        puzzle_desc: "Verbinde Inseln mit waagerechten und senkrechten Brücken",
+        chapter_1_name: "Archipel",
+        chapter_1_desc: "6×6 & 7×7 Grundlagen",
+        chapter_2_name: "Seefahrt",
+        chapter_2_desc: "7×7 & 8×8 Fortgeschritten",
+        chapter_3_name: "Expedition",
+        chapter_3_desc: "8×8 & 9×9 Herausforderung",
+        chapter_4_name: "Ozean-Meister",
+        chapter_4_desc: "10×10 & 12×12 Meister",
+        island_degree: "Brücken",
+        error_overfilled: "Zu viele Brücken an Insel",
+        error_crossing: "Brücken kreuzen sich",
+        error_disconnected: "Inseln nicht zusammenhängend",
+        tutorial_basics: "Grundlagen",
+        tutorial_badge: "8 Lektionen"
+    },
+    en: {
+        puzzle_name: "Hashi",
+        puzzle_desc: "Connect islands with horizontal and vertical bridges",
+        chapter_1_name: "Archipelago",
+        chapter_1_desc: "6×6 & 7×7 Basics",
+        chapter_2_name: "Seafaring",
+        chapter_2_desc: "7×7 & 8×8 Advanced",
+        chapter_3_name: "Expedition",
+        chapter_3_desc: "8×8 & 9×9 Challenge",
+        chapter_4_name: "Ocean Master",
+        chapter_4_desc: "10×10 & 12×12 Master",
+        island_degree: "Bridges",
+        error_overfilled: "Too many bridges on island",
+        error_crossing: "Bridges cross each other",
+        error_disconnected: "Islands not fully connected",
+        tutorial_basics: "Basics",
+        tutorial_badge: "8 Lessons"
+    }
+};
+
+// === Source: js\puzzles\hashi\data\levels.js ===
+/**
+ * Hashiwokakero (Brücken) Level & Tagesrätsel-Generierung
+ * 240 deterministische Kampagnen-Level in 4 thematischen Kapiteln
+ */
+
+
+
+function getHashiCampaignLevel(levelIndex) {
+    // 240 Level in 4 Kapiteln:
+    // Kapitel 1 „Archipel“ (Level 1–60): 6×6 & 7×7 Easy/Medium
+    // Kapitel 2 „Seefahrt“ (Level 61–120): 7×7 & 8×8 Medium
+    // Kapitel 3 „Expedition“ (Level 121–180): 8×8 & 9×9 Medium/Hard
+    // Kapitel 4 „Ozean-Meister“ (Level 181–240): 10×10 & 12×12 Hard
+    let size, difficulty;
+    if (levelIndex < 30) {
+        size = 6;
+        difficulty = 'easy';
+    } else if (levelIndex < 60) {
+        size = 7;
+        difficulty = 'easy';
+    } else if (levelIndex < 90) {
+        size = 7;
+        difficulty = 'medium';
+    } else if (levelIndex < 120) {
+        size = 8;
+        difficulty = 'medium';
+    } else if (levelIndex < 150) {
+        size = 8;
+        difficulty = 'hard';
+    } else if (levelIndex < 180) {
+        size = 9;
+        difficulty = 'hard';
+    } else if (levelIndex < 210) {
+        size = 10;
+        difficulty = 'hard';
+    } else {
+        size = 12;
+        difficulty = 'hard';
+    }
+
+    const seed = 80000 + (levelIndex + 1) * 137;
+    const generated = HashiGenerator.generatePuzzle({ size, rows: size, cols: size, difficulty, seed });
+
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1}`,
+        ...generated
+    };
+}
+
+/**
+ * Erzeugt das synchrone Tagesrätsel basierend auf dem Datum (JJJJ-MM-TT)
+ */
+function getHashiDailyPuzzle(dateStr) {
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10);
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+    const size = isWeekend ? 10 : 7;
+    const difficulty = isWeekend ? 'hard' : 'medium';
+
+    const generated = HashiGenerator.generatePuzzle({ size, rows: size, cols: size, difficulty, seed });
+    return {
+        id: `daily_${dateStr}`,
+        date: dateStr,
+        name: `Tagesrätsel (${dateStr})`,
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\hashi\data\tutorial.js ===
+/**
+ * Hashiwokakero (Brücken) Interaktives Tutorial
+ * 8 didaktische Lektionen für Anfänger und Fortgeschrittene
+ */
+
+const HASHI_TUTORIAL_STEPS = [
+    {
+        id: 1,
+        title: "1. Inseln & Brücken 🌉",
+        subtitle: "Die Grundregeln von Hashiwokakero",
+        description: `Willkommen bei **Hashiwokakero (Brücken)**!\n\nJeder Kreis ist eine **Insel**. Die Zahl auf der Insel gibt an, wie viele **Brücken** genau an dieser Insel anliegen müssen.\n\n*Aufgabe: Verbinde die beiden Inseln mit einer einfachen Brücke.*`,
+        rows: 4, cols: 4, size: 4,
+        islands: [
+            { r: 1, c: 0, value: 1 },
+            { r: 1, c: 3, value: 1 }
+        ],
+        solution: [
+            { r1: 1, c1: 0, r2: 1, c2: 3, count: 1 }
+        ],
+        targetEdge: { r1: 1, c1: 0, r2: 1, c2: 3, count: 1 },
+        explanation: "Hervorragend! Beide Inseln haben nun ihren geforderten Wert 1 erreicht."
+    },
+    {
+        id: 2,
+        title: "2. Einfache & Doppelbrücken ═",
+        subtitle: "Bis zu zwei Brücken pro Verbindung",
+        description: `Zwischen zwei Inseln dürfen **maximal zwei parallele Brücken** verlaufen.\n\nTippe noch einmal auf die Brücke oder die beiden Inseln, um eine **Doppelbrücke** zu bauen!\n\n*Aufgabe: Erhöhe die Verbindung zu einer Doppelbrücke.*`,
+        rows: 4, cols: 4, size: 4,
+        islands: [
+            { r: 1, c: 0, value: 2 },
+            { r: 1, c: 3, value: 2 }
+        ],
+        solution: [
+            { r1: 1, c1: 0, r2: 1, c2: 3, count: 2 }
+        ],
+        targetEdge: { r1: 1, c1: 0, r2: 1, c2: 3, count: 2 },
+        explanation: "Perfekt! Eine Doppelbrücke verbindet beide 2er-Inseln optimal."
+    },
+    {
+        id: 3,
+        title: "3. Kreuzungsverbot ✕",
+        subtitle: "Brücken dürfen sich niemals kreuzen",
+        description: `Brücken verlaufen immer **nur waagerecht oder senkrecht**.\n\nSie dürfen sich **niemals kreuzen**! Eine bestehende Brücke schneidet den Weg für alle senkrechten Querverbindungen ab.\n\n*Aufgabe: Verbinde die horizontalen und vertikalen Inseln kreuzungsfrei.*`,
+        rows: 5, cols: 5, size: 5,
+        islands: [
+            { r: 0, c: 0, value: 1 },
+            { r: 0, c: 4, value: 2 },
+            { r: 4, c: 0, value: 1 },
+            { r: 4, c: 4, value: 2 }
+        ],
+        solution: [
+            { r1: 0, c1: 0, r2: 0, c2: 4, count: 1 },
+            { r1: 0, c1: 4, r2: 4, c2: 4, count: 1 },
+            { r1: 4, c1: 0, r2: 4, c2: 4, count: 1 }
+        ],
+        explanation: "Sehr gut! Keine Brücke kreuzt eine andere."
+    },
+    {
+        id: 4,
+        title: "4. Zusammenhang 🔗",
+        subtitle: "Alle Inseln müssen ein einziges Netz bilden",
+        description: `Es dürfen keine getrennten Inselgruppen entstehen.\n\nAlle Inseln müssen über Brückenpfade **miteinander verbunden** sein.\n\n*Aufgabe: Schließe alle Inseln zu einem einzigen Netzwerk zusammen.*`,
+        rows: 5, cols: 5, size: 5,
+        islands: [
+            { r: 0, c: 0, value: 2 },
+            { r: 0, c: 4, value: 2 },
+            { r: 4, c: 0, value: 2 },
+            { r: 4, c: 4, value: 2 }
+        ],
+        solution: [
+            { r1: 0, c1: 0, r2: 0, c2: 4, count: 1 },
+            { r1: 0, c1: 4, r2: 4, c2: 4, count: 1 },
+            { r1: 4, c1: 4, r2: 4, c2: 0, count: 1 },
+            { r1: 4, c1: 0, r2: 0, c2: 0, count: 1 }
+        ],
+        explanation: "Klasse! Alle 4 Inseln bilden einen zusammenhängenden Kreis."
+    },
+    {
+        id: 5,
+        title: "5. Erfüllte Inseln 🟢",
+        subtitle: "Glow-Effekt bei vollständiger Belegung",
+        description: `Sobald eine Insel genau ihre geforderte Anzahl an Brücken hat, leuchtet sie grün auf.\n\nAn eine erfüllte Insel darf keine weitere Brücke angeschlossen werden.\n\n*Aufgabe: Vervollständige die Brücken für die 3er-Insel.*`,
+        rows: 5, cols: 5, size: 5,
+        islands: [
+            { r: 0, c: 2, value: 3 },
+            { r: 0, c: 0, value: 1 },
+            { r: 0, c: 4, value: 2 },
+            { r: 3, c: 2, value: 1 },
+            { r: 3, c: 4, value: 1 }
+        ],
+        solution: [
+            { r1: 0, c1: 0, r2: 0, c2: 2, count: 1 },
+            { r1: 0, c1: 2, r2: 0, c2: 4, count: 1 },
+            { r1: 0, c1: 2, r2: 3, c2: 2, count: 1 },
+            { r1: 0, c1: 4, r2: 3, c2: 4, count: 1 }
+        ],
+        explanation: "Perfekt! Alle Inseln sind erfüllt und grün umrandet."
+    },
+    {
+        id: 6,
+        title: "6. Erzwungene Brücken 💡",
+        subtitle: "Wenn Nachbarn nicht ausweichen können",
+        description: `Wenn eine Insel mit Wert **3** nur zwei Nachbarn hat, muss sie zu **beiden** Nachbarn mindestens eine Brücke schicken!\n\nDenn selbst eine Doppelbrücke zu einem Nachbarn lässt noch eine Brücke für den anderen übrig.\n\n*Aufgabe: Nutze diese Deduktion bei der 3er-Eckinsel.*`,
+        rows: 5, cols: 5, size: 5,
+        islands: [
+            { r: 0, c: 0, value: 3 },
+            { r: 0, c: 4, value: 2 },
+            { r: 4, c: 0, value: 2 },
+            { r: 4, c: 4, value: 1 }
+        ],
+        solution: [
+            { r1: 0, c1: 0, r2: 0, c2: 4, count: 2 },
+            { r1: 0, c1: 0, r2: 4, c2: 0, count: 1 },
+            { r1: 4, c1: 0, r2: 4, c2: 4, count: 1 }
+        ],
+        explanation: "Genau richtig deduziert! Die 3 in der Ecke zwingt Brücken in beide Richtungen."
+    },
+    {
+        id: 7,
+        title: "7. Ecken & Ränder 📐",
+        subtitle: "4er in der Ecke, 6er am Rand",
+        description: `Eine **4 in einer Ecke** hat nur 2 Nachbarn. Da jede Verbindung maximal 2 Brücken tragen kann ($2 + 2 = 4$), müssen **beide Doppelbrücken** sofort gesetzt werden!\n\n*Aufgabe: Löse das Eck-Puzzle sofort mit Doppelbrücken.*`,
+        rows: 5, cols: 5, size: 5,
+        islands: [
+            { r: 0, c: 0, value: 4 },
+            { r: 0, c: 4, value: 2 },
+            { r: 4, c: 0, value: 3 },
+            { r: 4, c: 4, value: 1 }
+        ],
+        solution: [
+            { r1: 0, c1: 0, r2: 0, c2: 4, count: 2 },
+            { r1: 0, c1: 0, r2: 4, c2: 0, count: 2 },
+            { r1: 4, c1: 0, r2: 4, c2: 4, count: 1 }
+        ],
+        explanation: "Ausgezeichnet! 4 in der Ecke bedeutet immer zwei Doppelbrücken."
+    },
+    {
+        id: 8,
+        title: "8. Die 8er-Insel 👑",
+        subtitle: "Das Maximum im Spiel",
+        description: `Eine Insel mit dem Wert **8** ist der König von Hashi!\n\nDa es nur 4 Richtungen gibt und maximal 2 Brücken pro Richtung erlaubt sind ($4 \\times 2 = 8$), muss eine 8 **in alle 4 Richtungen sofort eine Doppelbrücke** erhalten!\n\n*Aufgabe: Setze alle 4 Doppelbrücken an der 8er-Insel.*`,
+        rows: 5, cols: 5, size: 5,
+        islands: [
+            { r: 2, c: 2, value: 8 },
+            { r: 0, c: 2, value: 2 },
+            { r: 4, c: 2, value: 2 },
+            { r: 2, c: 0, value: 2 },
+            { r: 2, c: 4, value: 2 }
+        ],
+        solution: [
+            { r1: 2, c1: 2, r2: 0, c2: 2, count: 2 },
+            { r1: 2, c1: 2, r2: 4, c2: 2, count: 2 },
+            { r1: 2, c1: 2, r2: 2, c2: 0, count: 2 },
+            { r1: 2, c1: 2, r2: 2, c2: 4, count: 2 }
+        ],
+        explanation: "Gratulation! Du beherrschst alle grundlegenden und strategischen Regeln von Hashiwokakero!"
+    }
+];
+
+// === Source: js\puzzles\hashi\index.js ===
+/**
+ * Hashiwokakero (Bridges / Brücken) Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für Hashiwokakero (6×6 bis 12×12).
+ */
+
+
+
+
+
+
+
+
+
+const HashiPlugin = {
+    id: 'hashi',
+    name: 'Hashi',
+    icon: '🌉',
+    description: 'Verbinde Inseln mit Brücken',
+    badge: 'Neu',
+    cssPath: './css/puzzles/hashi.css',
+
+    getSizes: () => [
+        { id: 6, label: '6 × 6 (Kompakt)', gridSize: 6 },
+        { id: 7, label: '7 × 7 (Standard)', gridSize: 7 },
+        { id: 8, label: '8 × 8 (Mittel)', gridSize: 8 },
+        { id: 9, label: '9 × 9 (Groß)', gridSize: 9 },
+        { id: 10, label: '10 × 10 (Experte)', gridSize: 10 },
+        { id: 12, label: '12 × 12 (Meister)', gridSize: 12 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [HASHI_BRIDGE_NONE, HASHI_BRIDGE_SINGLE, HASHI_BRIDGE_DOUBLE],
+
+    getInputConfig: () => ({
+        type: 'cycle',
+        allowKeypad: false,
+        keys: [HASHI_BRIDGE_NONE, HASHI_BRIDGE_SINGLE, HASHI_BRIDGE_DOUBLE]
+    }),
+
+    createEngine: (size = 7) => new HashiEngine(size, size),
+    generatePuzzle: (opts) => HashiGenerator.generatePuzzle(opts),
+    solvePuzzle: (engine, max = 1) => HashiSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => HashiRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => HashiRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass) => HashiRenderer.getSymbolSvg(val, extraClass),
+
+    getHint: (engine, options) => HashiSolver.findLogicalHint(engine, options),
+    getRules: (lang) => HashiRenderer.getRules(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 240,
+        chapters: [
+            { id: 0, name: 'Archipel', levelRange: [0, 59], desc: '6×6 & 7×7 Grundlagen' },
+            { id: 1, name: 'Seefahrt', levelRange: [60, 119], desc: '7×7 & 8×8 Fortgeschritten' },
+            { id: 2, name: 'Expedition', levelRange: [120, 179], desc: '8×8 & 9×9 Herausforderung' },
+            { id: 3, name: 'Ozean-Meister', levelRange: [180, 239], desc: '10×10 & 12×12 Meister' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getHashiCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getHashiDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: HASHI_TUTORIAL_STEPS, badge: '8 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => HASHI_I18N[lang] || {}
 };
 
 // === Source: js\puzzles\minesweeper\engine.js ===
@@ -80709,6 +84824,8 @@ const puzzleRegistry = new PuzzleRegistry();
 
 
 
+
+
 class CortexApp {
     constructor() {
         // Storage Migration
@@ -80717,6 +84834,8 @@ class CortexApp {
         // Plugins registrieren
         puzzleRegistry.register(AkariPlugin);
         puzzleRegistry.register(CrownsPlugin);
+        puzzleRegistry.register(FutoshikiPlugin);
+        puzzleRegistry.register(HashiPlugin);
         puzzleRegistry.register(NonogramPlugin);
         puzzleRegistry.register(SlitherlinkPlugin);
         puzzleRegistry.register(SudokuPlugin);
@@ -80858,6 +84977,10 @@ class CortexApp {
                 this.freePlaySize = 8;
             } else if (pluginId === 'crowns') {
                 this.freePlaySize = 6;
+            } else if (pluginId === 'hashi') {
+                this.freePlaySize = 7;
+            } else if (pluginId === 'futoshiki') {
+                this.freePlaySize = 5;
             } else {
                 this.freePlaySize = sizes[0].id;
             }
@@ -82061,7 +86184,7 @@ class CortexApp {
         if (descEl) descEl.textContent = hint.message || hint.description || '';
 
         if (btnApply) {
-            const hasMove = (hint.value !== undefined || hint.expectedVal !== undefined);
+            const hasMove = (hint.value !== undefined || hint.expectedVal !== undefined || hint.edgeKey !== undefined || hint.count !== undefined);
             btnApply.style.display = hasMove ? 'block' : 'none';
             btnApply.onclick = () => {
                 audio.vibrate(25);
@@ -82069,7 +86192,21 @@ class CortexApp {
 
                 const valToSet = hint.value !== undefined ? hint.value : hint.expectedVal;
 
-                if (hint.edgeType !== undefined && hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
+                if (hint.edgeKey !== undefined && typeof this.engine.setBridge === 'function') {
+                    // Hashi Brücken-Hinweis
+                    const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(hint.edgeKey);
+                    const bridgeCount = hint.count !== undefined ? hint.count : (this.engine.getBridgeCount(r1, c1, r2, c2) + 1);
+                    this.engine.setBridge(r1, c1, r2, c2, bridgeCount);
+                    this.movesCount++;
+                    if (bridgeCount > 0) {
+                        if (audio.playSun) audio.playSun(); else audio.playClear();
+                    } else {
+                        audio.playClear();
+                    }
+                    this.renderGrid();
+                    this.checkCompletion();
+                    this.saveActiveGameState();
+                } else if (hint.edgeType !== undefined && hint.r !== undefined && hint.c !== undefined && valToSet !== undefined) {
                     // Slitherlink Kanten-Hinweis
                     this.hintPlacedEdge = { type: hint.edgeType, r: hint.r, c: hint.c };
                     this.hintPlacedCell = null;
@@ -82322,6 +86459,22 @@ class CortexApp {
                 initialGrid: this.engine.initialGrid,
                 solution: this.engine.solution
             };
+        } else if (this.activePlugin.id === 'hashi') {
+            return {
+                size: this.engine.size,
+                rows: this.engine.rows,
+                cols: this.engine.cols,
+                islands: typeof this.engine.getIslandsList === 'function' ? this.engine.getIslandsList() : [],
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'futoshiki') {
+            return {
+                size: this.engine.size,
+                initialGrid: this.engine.initialGrid,
+                hConstraints: this.engine.hConstraints,
+                vConstraints: this.engine.vConstraints,
+                solution: this.engine.solution
+            };
         }
         return null;
     }
@@ -82344,7 +86497,9 @@ class CortexApp {
             puzzleData: puzzleData,
             engineState: {
                 grid: this.engine.grid ? this.engine.grid.map(row => [...row]) : null,
-                notes: this.engine.notes ? this.engine.notes.map(row => row.map(set => Array.from(set || []))) : null,
+                notes: this.engine.notes && Array.isArray(this.engine.notes) ? this.engine.notes.map(row => row.map(set => Array.from(set || []))) : null,
+                hashiBridges: (this.engine.bridges instanceof Map) ? Array.from(this.engine.bridges.entries()) : null,
+                hashiNotes: (this.engine.notes instanceof Map) ? Array.from(this.engine.notes.entries()).map(([k, s]) => [k, Array.from(s || [])]) : null,
                 hEdges: this.engine.hEdges ? this.engine.hEdges.map(row => [...row]) : null,
                 vEdges: this.engine.vEdges ? this.engine.vEdges.map(row => [...row]) : null,
                 hNotes: this.engine.hNotes ? this.engine.hNotes.map(row => row.map(set => Array.from(set || []))) : null,
@@ -82405,6 +86560,12 @@ class CortexApp {
         }
         if (session.engineState?.vNotes && Array.isArray(session.engineState.vNotes)) {
             this.engine.vNotes = session.engineState.vNotes.map(row => row.map(arr => new Set(arr || [])));
+        }
+        if (Array.isArray(session.engineState?.hashiBridges) && this.engine.bridges instanceof Map) {
+            this.engine.bridges = new Map(session.engineState.hashiBridges);
+        }
+        if (Array.isArray(session.engineState?.hashiNotes) && this.engine.notes instanceof Map) {
+            this.engine.notes = new Map(session.engineState.hashiNotes.map(([k, arr]) => [k, new Set(arr || [])]));
         }
         if (Array.isArray(session.engineState?.undoStack)) {
             this.engine.undoStack = session.engineState.undoStack;
@@ -82740,7 +86901,7 @@ class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns', 'hashi', 'futoshiki']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
         const akariStats = StatsManager.getPuzzleStats('akari');
@@ -82748,6 +86909,8 @@ class CortexApp {
         const slitherlinkStats = StatsManager.getPuzzleStats('slitherlink');
         const minesweeperStats = StatsManager.getPuzzleStats('minesweeper');
         const crownsStats = StatsManager.getPuzzleStats('crowns');
+        const hashiStats = StatsManager.getPuzzleStats('hashi');
+        const futoshikiStats = StatsManager.getPuzzleStats('futoshiki');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -82766,6 +86929,10 @@ class CortexApp {
             displayStats = minesweeperStats;
         } else if (currentTab === 'crowns') {
             displayStats = crownsStats;
+        } else if (currentTab === 'hashi') {
+            displayStats = hashiStats;
+        } else if (currentTab === 'futoshiki') {
+            displayStats = futoshikiStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -82825,6 +86992,19 @@ class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 9, labelKey: 'stats_best_time_9' }
                 ];
+            } else if (currentTab === 'hashi') {
+                sizesToShow = [
+                    { id: 7, labelKey: 'stats_best_time_7' },
+                    { id: 9, labelKey: 'stats_best_time_9' },
+                    { id: 11, labelKey: 'stats_best_time_11' }
+                ];
+            } else if (currentTab === 'futoshiki') {
+                sizesToShow = [
+                    { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 5, labelKey: 'stats_best_time_5' },
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 7, labelKey: 'stats_best_time_7' }
+                ];
             } else {
                 // Gesamt-Tab
                 sizesToShow = [
@@ -82835,6 +87015,7 @@ class CortexApp {
                     { id: 8, labelKey: 'stats_best_time_8' },
                     { id: 9, labelKey: 'stats_best_time_9' },
                     { id: 10, labelKey: 'stats_best_time_10' },
+                    { id: 11, labelKey: 'stats_best_time_11' },
                     { id: 14, labelKey: 'stats_best_time_14' },
                     { id: 16, labelKey: 'stats_best_time_16' }
                 ];
@@ -83154,6 +87335,16 @@ if (typeof window !== 'undefined') {
   if (typeof CrownsSolver !== 'undefined') window.CrownsSolver = CrownsSolver;
   if (typeof CrownsGenerator !== 'undefined') window.CrownsGenerator = CrownsGenerator;
   if (typeof CrownsPlugin !== 'undefined') window.CrownsPlugin = CrownsPlugin;
+  if (typeof HashiEngine !== 'undefined') window.HashiEngine = HashiEngine;
+  if (typeof HashiSolver !== 'undefined') window.HashiSolver = HashiSolver;
+  if (typeof HashiGenerator !== 'undefined') window.HashiGenerator = HashiGenerator;
+  if (typeof HashiRenderer !== 'undefined') window.HashiRenderer = HashiRenderer;
+  if (typeof HashiPlugin !== 'undefined') window.HashiPlugin = HashiPlugin;
+  if (typeof FutoshikiEngine !== 'undefined') window.FutoshikiEngine = FutoshikiEngine;
+  if (typeof FutoshikiSolver !== 'undefined') window.FutoshikiSolver = FutoshikiSolver;
+  if (typeof FutoshikiGenerator !== 'undefined') window.FutoshikiGenerator = FutoshikiGenerator;
+  if (typeof FutoshikiRenderer !== 'undefined') window.FutoshikiRenderer = FutoshikiRenderer;
+  if (typeof FutoshikiPlugin !== 'undefined') window.FutoshikiPlugin = FutoshikiPlugin;
   if (typeof puzzleRegistry !== 'undefined') window.puzzleRegistry = puzzleRegistry;
 }
 

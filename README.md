@@ -1,12 +1,12 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.6.1-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.7.0-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
 [![Security](https://img.shields.io/badge/Security-10.0%2F10%20Perfekt-brightgreen.svg)](SECURITY.md)
 
-Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink**, **Minesweeper** und **Crowns**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones, Android Auto (Cockpit-Modus) und Web-Browser.
+Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink**, **Minesweeper**, **Crowns**, **Hashiwokakero / Brücken** und **Futoshiki / Ungleich**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones, Android Auto (Cockpit-Modus) und Web-Browser.
 
 ---
 
@@ -22,6 +22,8 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Slitherlink (Loop / Fences)**: Größen von 4×4 bis 10×10 mit Kanten-Hinweiszahlen ($0 \dots 3$), intelligenter Wischgesten-Steuerung (Drag-to-Draw) und Kreuz-Markierungen.
   - **Minesweeper (Minenfeld)**: Größen von 8×8 bis 16×30 mit Zahlen ($0 \dots 8$), kaskadierendem Flood-Fill bei 0-Feldern und Flaggen-Markierung (🚩).
   - **Crowns (Queens / Kronen)**: Größen von 5×5 bis 9×9 mit bunten Farbregionen, nahtlosem Vektor-Grid, Kronen (👑) und Sperr-Kreuzen (✕).
+  - **Hashiwokakero (Hashi / Brücken)**: Größen von 7×7 bis 11×11 mit Inseln ($1 \dots 8$), orthogonalen Einfach- & Doppelbrücken, Kreuzungsfreiheit und vollständigem Graph-Zusammenhang (🌉).
+  - **Futoshiki (Ungleich / More or Less)**: Lateinische Quadrate von 4×4 bis 7×7 mit Ziffern ($1 \dots N$), horizontalen und vertikalen Ungleichheits-Operatoren (`<`, `>`) und Keypad-Restwertanzeige (⚖️).
 - 🎓 **Interaktive Tutorials & Lösungsstrategien**:
   - **Tango**: Grundlagen (6 Schritte), Mathematik (8 Lektionen) und Meister-Muster (14 Lektionen).
   - **Sudoku**: Grundlagen (Reihen, Spalten, Blöcke) und Fortgeschrittene Lektionen (*Naked Pairs*, *Hidden Singles*, Block-Interferenzen).
@@ -30,6 +32,8 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Slitherlink**: Grundlagen (6 Lektionen: 0er-Zellen, 3er-Ecken, Grad-2-Regel) und Fortgeschrittene Lektionen (3 Meistermuster & Sub-Loop-Ausschluss).
   - **Minesweeper**: Grundlagen (6 Lektionen: Zahlenhinweise, Long-Press-Flaggen, 0er-Kettenreaktion, Randlogik).
   - **Crowns**: Grundlagen (7 Lektionen: Zeilen-/Spaltenregeln, Regionen-Monopol, 8er-Nachbarschaftsschutz, Ausschluss-Kreuze).
+  - **Hashiwokakero**: Grundlagen (8 Lektionen: Einfach- & Doppelbrücken, Taubenschlag-Prinzip an Ecken/Rändern, Isolations-Vermeidung, Netzwerk-Zusammenhang).
+  - **Futoshiki**: Grundlagen (7 Lektionen: Lateinisches Quadrat, Ungleichheits-Ketten, Extremwerte 1 & N, Naked & Hidden Singles).
 - ✏️ **Notizen-Modus (Kandidaten & Entwürfe)**:
   - Ermöglicht das Festhalten von temporären Markierungen und Annahmen direkt auf dem Spielfeld.
 - 💡 **Intelligenter Hinweis-Assistent & Lösungsaufdeckung**:
@@ -79,9 +83,40 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 2. **Keine Berührung**: Kronen dürfen sich weder horizontal, vertikal noch diagonal berühren (8er-Nachbarschaftsschutz).
 3. **Flächen-Ausschluss (✕)**: Felder, die keine Krone enthalten können, werden mit einem Kreuz gesperrt.
 
+### 🌉 Hashiwokakero (Hashi / Brücken)
+1. **Inselwerte**: Jede Insel enthält eine Zahl ($1 \dots 8$), die der genauen Anzahl der an ihr andockenden Brücken entspricht.
+2. **Orthogonale Brücken**: Brücken verlaufen ausschließlich waagerecht oder senkrecht zwischen zwei Inseln; maximal zwei Brücken dürfen zwei Inseln verbinden.
+3. **Kreuzungsfreiheit**: Brücken dürfen sich niemals kreuzen und keine anderen Inseln überqueren.
+4. **Ein einziges Netzwerk**: Alle Inseln müssen am Ende zu einem einzigen, zusammenhängenden Netzwerk verbunden sein.
+
+### ⚖️ Futoshiki (Ungleich)
+1. **Lateinisches Quadrat**: In jeder Zeile und Spalte des $N \times N$-Gitters darf jede Zahl von $1$ bis $N$ genau einmal vorkommen.
+2. **Ungleichungen**: Alle Relationszeichen (`<`, `>`) zwischen benachbarten Zellen müssen strikt erfüllt sein.
+3. **Eindeutigkeit**: Jedes Rätsel besitzt genau eine logisch deduzierbare Lösung ohne Raterei.
+
 ---
 
 ## 📜 Changelog
+
+### v2.7.0 – 2026-10-16
+* 🌉 **Neues Puzzle-Plugin: Hashiwokakero (Hashi / Brücken)**:
+  * Vollständige Integration des 8. Logikrätsels mit 240 Kampagnen-Leveln in 4 Kapiteln, täglichem synchronen Rätsel und freiem Spiel (7×7, 9×9, 11×11).
+  * **Graph-Engine & Vektor-Brücken**: Orthogonale Sichtlinienberechnung, 0/1/2-Brücken-Zustände mit Undo/Redo, Vermeidung von Linienkreuzungen und vollständige BFS-Zusammenhangsprüfung.
+  * **Intelligente Solver- & Hint-Engine**: Backtracking-Löser mit Eindeutigkeitsprüfung, Taubenschlag-Logik (8er-Inseln, 4er-Ecken, 6er-Ränder, 3er-Ecken), Einzige-Nachbar-Ableitungen und Isolations-Vermeidung.
+  * **Responsive SVG-Visualisierung**: Interaktive Insel-Knoten mit dynamischen Glow-Ringen, Live-Fortschrittsanzeige (aktuelle Brücken vs. Zielwert) und nahtloser Touch-/Klick-Steuerung.
+  * **8 interaktive Tutorial-Lektionen**: Vom Setzen von Brücken über Rand- und Ecklogik bis zur Erkennung isolierter Teilgraphen.
+* ⚖️ **Neues Puzzle-Plugin: Futoshiki (Ungleich / More or Less)**:
+  * Vollständige Integration des 9. Logikrätsels mit 240 Kampagnen-Leveln in 4 Kapiteln, täglichem synchronen Rätsel und freiem Spiel (4×4 bis 7×7).
+  * **Constraint-Engine & AC-3 Solver**: Lateinisches Quadrat mit Zeilen-/Spalten-Eindeutigkeit, horizontalen und vertikalen Ungleichheits-Operatoren (`<`, `>`) und Arc-Consistency (AC-3) Constraint Propagation.
+  * **Logische Hint-Engine**: Schrittweise Ableitungen mit Naked Singles, Hidden Singles in Zeilen/Spalten und Naked Pairs.
+  * **Responsive CSS-Grid-Darstellung**: $(2N-1) \times (2N-1)$-Gitter mit markanten Vergleichspfeilen, Fehlerhervorhebung bei Regelkonflikten und ergonomischem Ziffern-Keypad mit Restwert-Badges.
+  * **7 interaktive Tutorial-Lektionen**: Grundlagen der Zifferneindeutigkeit, Auswertung von Relationsketten und Extremwert-Deduktionen.
+* 🏆 **Vollständige Plattform-Integration**:
+  * 240 Kampagnen-Level pro neuem Plugin mit 100 % garantierter eindeutiger Lösbarkeit.
+  * Erweiterte Statistik-Tabs mit separater Erfassung für Hashi und Futoshiki inklusive Bestzeiten.
+  * Vollständige deutsch/englische Lokalisierung (i18n).
+  * Persistente Speicherung des aktiven Spielstands für unterbrechungsfreies Weiterspielen.
+  * 100 % offline, werbefrei und DSGVO-konform.
 
 ### v2.6.1 – 2026-10-06
 * 🏆 **Kampagnen-Erweiterung auf 240 Level pro Puzzle-Plugin**:
