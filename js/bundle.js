@@ -5419,6 +5419,24 @@ class FutoshikiEngine {
     }
 
     /**
+     * Setzt den Wert einer Zelle oder schaltet eine Notiz um (Cortex Plugin Interface)
+     */
+    setCellValue(r, c, val, isNote = false) {
+        return this.setCell(r, c, val, isNote);
+    }
+
+    /**
+     * Schaltet den Wert einer Zelle zyklisch weiter (0 -> 1 -> ... -> N -> 0)
+     */
+    cycleCellValue(r, c) {
+        if (this.locked[r][c]) return null;
+        const current = this.grid[r][c];
+        const next = (current + 1) % (this.maxValue + 1);
+        this.setCellValue(r, c, next, false);
+        return next;
+    }
+
+    /**
      * Setzt den Wert einer Zelle oder schaltet eine Notiz um
      */
     setCell(r, c, val, isNote = false) {
@@ -6740,9 +6758,7 @@ class FutoshikiRenderer {
                     }
 
                     if (typeof onCellInteraction === 'function') {
-                        cellEl.addEventListener('click', () => {
-                            onCellInteraction({ r, c, target: 'cell' });
-                        });
+                        onCellInteraction(cellEl, r, c);
                     }
 
                     gridEl.appendChild(cellEl);
@@ -7341,6 +7357,7 @@ class HashiEngine {
     constructor(rows = 7, cols = 7) {
         this.rows = rows;
         this.cols = cols;
+        this.size = Math.min(rows, cols);
         // Map<"r,c", { r, c, value }>
         this.islands = new Map();
         // Map<"r1,c1-r2,c2", count: 0|1|2>
@@ -7390,6 +7407,7 @@ class HashiEngine {
     loadPuzzle({ rows = 7, cols = 7, islands = [], bridges = null, locked = null, solution = null }) {
         this.rows = rows;
         this.cols = cols;
+        this.size = Math.min(rows, cols);
         this.islands = new Map();
         this.bridges = new Map();
         this.locked = new Set();
@@ -8892,7 +8910,9 @@ class HashiRenderer {
 
         // 4. LAYER: INSELN
         svgHtml += `<g class="hashi-islands-layer">`;
-        const selectedIsland = state.selectedIsland || null;
+        const getApp = () => (typeof window !== 'undefined' ? (window.cortexApp || window.tangoApp || window.app) : null);
+        const app = getApp();
+        const selectedIsland = state.selectedIsland || state.selectedCell || (app ? app.selectedCell : null);
 
         for (const isl of engine.getIslandsList()) {
             const cx = getX(isl.c);
@@ -8931,8 +8951,18 @@ class HashiRenderer {
                 e.stopPropagation();
                 if (state.solutionRevealed) return;
                 engine.cycleBridge(r1, c1, r2, c2);
-                if (typeof onCellInteraction === 'function') {
-                    onCellInteraction({ type: 'bridge_cycle', r1, c1, r2, c2 });
+                if (typeof audio !== 'undefined') {
+                    if (audio.vibrate) audio.vibrate(20);
+                    if (audio.playClear) audio.playClear();
+                }
+                const activeApp = getApp();
+                if (activeApp) {
+                    activeApp.movesCount++;
+                    activeApp.renderGrid();
+                    activeApp.checkCompletion();
+                    activeApp.saveActiveGameState();
+                } else {
+                    HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
                 }
             });
         });
@@ -8946,26 +8976,57 @@ class HashiRenderer {
                 e.stopPropagation();
                 if (state.solutionRevealed) return;
 
-                if (!state.selectedIsland) {
-                    state.selectedIsland = { r, c };
-                    HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
-                } else if (state.selectedIsland.r === r && state.selectedIsland.c === c) {
-                    state.selectedIsland = null;
-                    HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                const activeApp = getApp();
+                const curSel = state.selectedIsland || state.selectedCell || (activeApp ? activeApp.selectedCell : null);
+
+                if (!curSel) {
+                    if (activeApp) {
+                        activeApp.selectedCell = { r, c };
+                        if (typeof audio !== 'undefined' && audio.vibrate) audio.vibrate(15);
+                        activeApp.renderGrid();
+                    } else {
+                        state.selectedIsland = { r, c };
+                        HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                    }
+                } else if (curSel.r === r && curSel.c === c) {
+                    if (activeApp) {
+                        activeApp.selectedCell = null;
+                        if (typeof audio !== 'undefined' && audio.vibrate) audio.vibrate(15);
+                        activeApp.renderGrid();
+                    } else {
+                        state.selectedIsland = null;
+                        HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                    }
                 } else {
-                    const prev = state.selectedIsland;
+                    const prev = curSel;
                     const neighbors = engine.getOrthogonalNeighbors(prev.r, prev.c);
                     const isNeighbor = neighbors.some(n => n.r === r && n.c === c);
 
                     if (isNeighbor) {
                         engine.cycleBridge(prev.r, prev.c, r, c);
-                        state.selectedIsland = null;
-                        if (typeof onCellInteraction === 'function') {
-                            onCellInteraction({ type: 'bridge_cycle', r1: prev.r, c1: prev.c, r2: r, c2: c });
+                        if (typeof audio !== 'undefined') {
+                            if (audio.vibrate) audio.vibrate(20);
+                            if (audio.playClear) audio.playClear();
+                        }
+                        if (activeApp) {
+                            activeApp.selectedCell = null;
+                            activeApp.movesCount++;
+                            activeApp.renderGrid();
+                            activeApp.checkCompletion();
+                            activeApp.saveActiveGameState();
+                        } else {
+                            state.selectedIsland = null;
+                            HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
                         }
                     } else {
-                        state.selectedIsland = { r, c };
-                        HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                        if (activeApp) {
+                            activeApp.selectedCell = { r, c };
+                            if (typeof audio !== 'undefined' && audio.vibrate) audio.vibrate(15);
+                            activeApp.renderGrid();
+                        } else {
+                            state.selectedIsland = { r, c };
+                            HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                        }
                     }
                 }
             });
@@ -8981,23 +9042,33 @@ class HashiRenderer {
         if (!container) return;
         while (container.firstChild) container.removeChild(container.firstChild);
 
+        const getApp = () => (typeof window !== 'undefined' ? (window.cortexApp || window.tangoApp || window.app) : null);
+        const activeApp = getApp();
+        const selectedIsland = state.selectedIsland || state.selectedCell || (activeApp ? activeApp.selectedCell : null);
+
         const bar = document.createElement('div');
         bar.className = 'hashi-action-bar';
 
         const infoSpan = document.createElement('span');
         infoSpan.className = 'hashi-action-info';
-        infoSpan.textContent = state.selectedIsland ?
-            `Insel (${state.selectedIsland.r + 1},${state.selectedIsland.c + 1}) gewählt — tippe Nachbar an` :
+        infoSpan.textContent = selectedIsland ?
+            `Insel (${selectedIsland.r + 1},${selectedIsland.c + 1}) gewählt — tippe Nachbar an` :
             'Tippe auf zwei Inseln oder eine Linie, um Brücken zu bauen';
         bar.appendChild(infoSpan);
 
-        if (state.selectedIsland) {
+        if (selectedIsland) {
             const deselectBtn = document.createElement('button');
             deselectBtn.className = 'hashi-deselect-btn';
             deselectBtn.textContent = '✕ Abwählen';
             deselectBtn.addEventListener('click', () => {
-                state.selectedIsland = null;
-                if (typeof onKeyInput === 'function') onKeyInput(null);
+                if (activeApp) {
+                    activeApp.selectedCell = null;
+                    activeApp.renderGrid();
+                } else {
+                    state.selectedIsland = null;
+                    state.selectedCell = null;
+                    if (typeof onKeyInput === 'function') onKeyInput(null);
+                }
             });
             bar.appendChild(deselectBtn);
         }
@@ -84899,7 +84970,8 @@ class CortexApp {
             const msgEl = document.getElementById('debugErrorText');
             if (container && msgEl) {
                 container.style.display = 'block';
-                msgEl.textContent = `Fehler: ${e.message || e}`;
+                const errDetail = e.error ? (e.error.stack || e.error.message || e.error) : (e.message || e);
+                msgEl.textContent = `Fehler: ${errDetail}`;
             }
         });
         window.addEventListener('unhandledrejection', (e) => {
@@ -84907,7 +84979,8 @@ class CortexApp {
             const msgEl = document.getElementById('debugErrorText');
             if (container && msgEl) {
                 container.style.display = 'block';
-                msgEl.textContent = `Promise Fehler: ${e.reason?.message || e.reason}`;
+                const reasonDetail = e.reason ? (e.reason.stack || e.reason.message || e.reason) : 'Unbekannter Promise-Fehler';
+                msgEl.textContent = `Promise Fehler: ${reasonDetail}`;
             }
         });
 
@@ -84931,6 +85004,7 @@ class CortexApp {
         const restored = this.restoreActiveGameState();
         if (!restored) {
             // Starte Spielstand im Hintergrund vorbereitet
+            const completed = this.getCompletedLevels();
             const totalLevels = this.activePlugin?.getCampaignConfig ? (this.activePlugin.getCampaignConfig().totalLevels || 240) : 240;
             this.prepareCampaignLevel(completed.length < totalLevels ? completed.length : 0);
 

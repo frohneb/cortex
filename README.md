@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.7.0-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.7.1-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -97,6 +97,13 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.7.1 – 2026-10-17
+* 🐛 **Fehlerbehebung für Hashiwokakero & Futoshiki**:
+  * **Interaktions-Fehler behoben**: Beseitigung des „Script error.“ beim Auswählen und Spielen von Hashiwokakero und Futoshiki.
+  * **FutoshikiRenderer & Engine**: Anbindung an das Cortex Cell-Event-System (`onCellInteraction(cellEl, r, c)`), Implementierung von `setCellValue()` und `cycleCellValue()` für flüssige Zifferneingabe über Keypad und Zelltaps.
+  * **HashiRenderer**: Vollständige Event-Entkopplung bei Brücken- und Inselklicks mit synchroner Spielstand-Aktualisierung (`movesCount`, `checkCompletion`, `saveActiveGameState`) und nativer Island-Auswahl (`selectedCell`).
+  * **Robuste Initialisierung**: Absicherung von `prepareCampaignLevel` bei frischem App-Start gegen `ReferenceError` und erweiterte Stack-Trace-Diagnose im Fehler-Banner.
 
 ### v2.7.0 – 2026-10-16
 * 🌉 **Neues Puzzle-Plugin: Hashiwokakero (Hashi / Brücken)**:

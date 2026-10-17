@@ -13,6 +13,7 @@ export class HashiEngine {
     constructor(rows = 7, cols = 7) {
         this.rows = rows;
         this.cols = cols;
+        this.size = Math.min(rows, cols);
         // Map<"r,c", { r, c, value }>
         this.islands = new Map();
         // Map<"r1,c1-r2,c2", count: 0|1|2>
@@ -62,6 +63,7 @@ export class HashiEngine {
     loadPuzzle({ rows = 7, cols = 7, islands = [], bridges = null, locked = null, solution = null }) {
         this.rows = rows;
         this.cols = cols;
+        this.size = Math.min(rows, cols);
         this.islands = new Map();
         this.bridges = new Map();
         this.locked = new Set();

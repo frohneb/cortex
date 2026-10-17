@@ -99,7 +99,8 @@ export class CortexApp {
             const msgEl = document.getElementById('debugErrorText');
             if (container && msgEl) {
                 container.style.display = 'block';
-                msgEl.textContent = `Fehler: ${e.message || e}`;
+                const errDetail = e.error ? (e.error.stack || e.error.message || e.error) : (e.message || e);
+                msgEl.textContent = `Fehler: ${errDetail}`;
             }
         });
         window.addEventListener('unhandledrejection', (e) => {
@@ -107,7 +108,8 @@ export class CortexApp {
             const msgEl = document.getElementById('debugErrorText');
             if (container && msgEl) {
                 container.style.display = 'block';
-                msgEl.textContent = `Promise Fehler: ${e.reason?.message || e.reason}`;
+                const reasonDetail = e.reason ? (e.reason.stack || e.reason.message || e.reason) : 'Unbekannter Promise-Fehler';
+                msgEl.textContent = `Promise Fehler: ${reasonDetail}`;
             }
         });
 
@@ -131,6 +133,7 @@ export class CortexApp {
         const restored = this.restoreActiveGameState();
         if (!restored) {
             // Starte Spielstand im Hintergrund vorbereitet
+            const completed = this.getCompletedLevels();
             const totalLevels = this.activePlugin?.getCampaignConfig ? (this.activePlugin.getCampaignConfig().totalLevels || 240) : 240;
             this.prepareCampaignLevel(completed.length < totalLevels ? completed.length : 0);
 

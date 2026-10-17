@@ -144,6 +144,24 @@ export class FutoshikiEngine {
     }
 
     /**
+     * Setzt den Wert einer Zelle oder schaltet eine Notiz um (Cortex Plugin Interface)
+     */
+    setCellValue(r, c, val, isNote = false) {
+        return this.setCell(r, c, val, isNote);
+    }
+
+    /**
+     * Schaltet den Wert einer Zelle zyklisch weiter (0 -> 1 -> ... -> N -> 0)
+     */
+    cycleCellValue(r, c) {
+        if (this.locked[r][c]) return null;
+        const current = this.grid[r][c];
+        const next = (current + 1) % (this.maxValue + 1);
+        this.setCellValue(r, c, next, false);
+        return next;
+    }
+
+    /**
      * Setzt den Wert einer Zelle oder schaltet eine Notiz um
      */
     setCell(r, c, val, isNote = false) {

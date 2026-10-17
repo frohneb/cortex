@@ -178,9 +178,7 @@ export class FutoshikiRenderer {
                     }
 
                     if (typeof onCellInteraction === 'function') {
-                        cellEl.addEventListener('click', () => {
-                            onCellInteraction({ r, c, target: 'cell' });
-                        });
+                        onCellInteraction(cellEl, r, c);
                     }
 
                     gridEl.appendChild(cellEl);

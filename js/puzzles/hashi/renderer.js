@@ -113,7 +113,9 @@ export class HashiRenderer {
 
         // 4. LAYER: INSELN
         svgHtml += `<g class="hashi-islands-layer">`;
-        const selectedIsland = state.selectedIsland || null;
+        const getApp = () => (typeof window !== 'undefined' ? (window.cortexApp || window.tangoApp || window.app) : null);
+        const app = getApp();
+        const selectedIsland = state.selectedIsland || state.selectedCell || (app ? app.selectedCell : null);
 
         for (const isl of engine.getIslandsList()) {
             const cx = getX(isl.c);
@@ -152,8 +154,18 @@ export class HashiRenderer {
                 e.stopPropagation();
                 if (state.solutionRevealed) return;
                 engine.cycleBridge(r1, c1, r2, c2);
-                if (typeof onCellInteraction === 'function') {
-                    onCellInteraction({ type: 'bridge_cycle', r1, c1, r2, c2 });
+                if (typeof audio !== 'undefined') {
+                    if (audio.vibrate) audio.vibrate(20);
+                    if (audio.playClear) audio.playClear();
+                }
+                const activeApp = getApp();
+                if (activeApp) {
+                    activeApp.movesCount++;
+                    activeApp.renderGrid();
+                    activeApp.checkCompletion();
+                    activeApp.saveActiveGameState();
+                } else {
+                    HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
                 }
             });
         });
@@ -167,26 +179,57 @@ export class HashiRenderer {
                 e.stopPropagation();
                 if (state.solutionRevealed) return;
 
-                if (!state.selectedIsland) {
-                    state.selectedIsland = { r, c };
-                    HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
-                } else if (state.selectedIsland.r === r && state.selectedIsland.c === c) {
-                    state.selectedIsland = null;
-                    HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                const activeApp = getApp();
+                const curSel = state.selectedIsland || state.selectedCell || (activeApp ? activeApp.selectedCell : null);
+
+                if (!curSel) {
+                    if (activeApp) {
+                        activeApp.selectedCell = { r, c };
+                        if (typeof audio !== 'undefined' && audio.vibrate) audio.vibrate(15);
+                        activeApp.renderGrid();
+                    } else {
+                        state.selectedIsland = { r, c };
+                        HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                    }
+                } else if (curSel.r === r && curSel.c === c) {
+                    if (activeApp) {
+                        activeApp.selectedCell = null;
+                        if (typeof audio !== 'undefined' && audio.vibrate) audio.vibrate(15);
+                        activeApp.renderGrid();
+                    } else {
+                        state.selectedIsland = null;
+                        HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                    }
                 } else {
-                    const prev = state.selectedIsland;
+                    const prev = curSel;
                     const neighbors = engine.getOrthogonalNeighbors(prev.r, prev.c);
                     const isNeighbor = neighbors.some(n => n.r === r && n.c === c);
 
                     if (isNeighbor) {
                         engine.cycleBridge(prev.r, prev.c, r, c);
-                        state.selectedIsland = null;
-                        if (typeof onCellInteraction === 'function') {
-                            onCellInteraction({ type: 'bridge_cycle', r1: prev.r, c1: prev.c, r2: r, c2: c });
+                        if (typeof audio !== 'undefined') {
+                            if (audio.vibrate) audio.vibrate(20);
+                            if (audio.playClear) audio.playClear();
+                        }
+                        if (activeApp) {
+                            activeApp.selectedCell = null;
+                            activeApp.movesCount++;
+                            activeApp.renderGrid();
+                            activeApp.checkCompletion();
+                            activeApp.saveActiveGameState();
+                        } else {
+                            state.selectedIsland = null;
+                            HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
                         }
                     } else {
-                        state.selectedIsland = { r, c };
-                        HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                        if (activeApp) {
+                            activeApp.selectedCell = { r, c };
+                            if (typeof audio !== 'undefined' && audio.vibrate) audio.vibrate(15);
+                            activeApp.renderGrid();
+                        } else {
+                            state.selectedIsland = { r, c };
+                            HashiRenderer.renderBoard(container, engine, state, onCellInteraction);
+                        }
                     }
                 }
             });
@@ -202,23 +245,33 @@ export class HashiRenderer {
         if (!container) return;
         while (container.firstChild) container.removeChild(container.firstChild);
 
+        const getApp = () => (typeof window !== 'undefined' ? (window.cortexApp || window.tangoApp || window.app) : null);
+        const activeApp = getApp();
+        const selectedIsland = state.selectedIsland || state.selectedCell || (activeApp ? activeApp.selectedCell : null);
+
         const bar = document.createElement('div');
         bar.className = 'hashi-action-bar';
 
         const infoSpan = document.createElement('span');
         infoSpan.className = 'hashi-action-info';
-        infoSpan.textContent = state.selectedIsland ?
-            `Insel (${state.selectedIsland.r + 1},${state.selectedIsland.c + 1}) gewählt — tippe Nachbar an` :
+        infoSpan.textContent = selectedIsland ?
+            `Insel (${selectedIsland.r + 1},${selectedIsland.c + 1}) gewählt — tippe Nachbar an` :
             'Tippe auf zwei Inseln oder eine Linie, um Brücken zu bauen';
         bar.appendChild(infoSpan);
 
-        if (state.selectedIsland) {
+        if (selectedIsland) {
             const deselectBtn = document.createElement('button');
             deselectBtn.className = 'hashi-deselect-btn';
             deselectBtn.textContent = '✕ Abwählen';
             deselectBtn.addEventListener('click', () => {
-                state.selectedIsland = null;
-                if (typeof onKeyInput === 'function') onKeyInput(null);
+                if (activeApp) {
+                    activeApp.selectedCell = null;
+                    activeApp.renderGrid();
+                } else {
+                    state.selectedIsland = null;
+                    state.selectedCell = null;
+                    if (typeof onKeyInput === 'function') onKeyInput(null);
+                }
             });
             bar.appendChild(deselectBtn);
         }
