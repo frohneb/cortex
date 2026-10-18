@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.7.1-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.7.2-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -97,6 +97,15 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.7.2 – 2026-10-18
+* 💡 **Optimierung des Hinweissystems für Futoshiki & Hashiwokakero**:
+  * **Futoshiki-Hinweiskonsistenz**: Priorisierte und deterministische Lösungsfindung bei ausgewählter Zelle (`focusCell`), Vermeidung von abwechselnden oder widersprüchlichen Hinweisen für dieselbe Position durch feste Hierarchie (Naked Single > Hidden Single Zeile > Hidden Single Spalte > Fallback) sowie strikte Konsistenzprüfung gegen die Referenzlösung.
+  * **Tutorial-Korrekturen (Futoshiki)**: Behebung inkonsistenter Vorgaben und Lösungsbelegungen in Schritt 3 (Duplikatkorrektur) und Schritt 7 (widerspruchsfreie Ungleichungen und eindeutige Lösbarkeit).
+  * **Hashi-Hinweislogik**: Priorisierung von Hinweisen auf die aktuell fokussierte Insel (`focusCell`) und Deckelung empfohlener Brücken (`hint.count`) auf den maximalen Referenzlösungswert.
+  * **Hashi-Generator**: Beseitigung kollinearer Überlappungen und Verhinderung von Brücken über Zwischeninseln bei der prozeduralen Level-Erzeugung.
+* 🏷️ **Bereinigung der Aktions-Badges**:
+  * Entfernung der *„Neu“*-Labels aus den Plugin-Definitionen von Hashiwokakero, Futoshiki und Crowns für eine ruhige, aufgeräumte Spielauswahl.
 
 ### v2.7.1 – 2026-10-17
 * 🐛 **Fehlerbehebung für Hashiwokakero & Futoshiki**:

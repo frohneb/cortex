@@ -21,7 +21,6 @@ export const HashiPlugin = {
     name: 'Hashi',
     icon: '🌉',
     description: 'Verbinde Inseln mit Brücken',
-    badge: 'Neu',
     cssPath: './css/puzzles/hashi.css',
 
     getSizes: () => [

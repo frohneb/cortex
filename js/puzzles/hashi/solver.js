@@ -233,9 +233,26 @@ export class HashiSolver {
         // Hilfsdaten aufbauen
         const focusCell = options.focusCell || null;
 
+        // Referenzlösung für Konsistenzsicherung abrufen
+        let solution = engine.getSolution();
+        if (!solution) {
+            const found = HashiSolver.solve(engine, 1);
+            if (found.length > 0) solution = found[0];
+        }
+
+        // Inseln nach focusCell priorisieren
+        let sortedIslands = [...islands];
+        if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number') {
+            sortedIslands.sort((a, b) => {
+                const aFocus = (a.r === focusCell.r && a.c === focusCell.c) ? 1 : 0;
+                const bFocus = (b.r === focusCell.r && b.c === focusCell.c) ? 1 : 0;
+                return bFocus - aFocus;
+            });
+        }
+
         // 2. STRATEGIE: MAXIMUM-FILL / TAUBENSCHLAG-PRINZIP (Pigeonhole)
         // Deckt automatisch 8er-Mitte, 7er-Mitte, 4er-Ecke, 3er-Ecke, 6er-Rand, 5er-Rand ab!
-        for (const isl of islands) {
+        for (const isl of sortedIslands) {
             const needed = engine.getIslandRemaining(isl.r, isl.c);
             if (needed <= 0) continue;
 
@@ -261,19 +278,25 @@ export class HashiSolver {
                 const nc = neighborCaps[0];
                 if (nc.addable > 0) {
                     const toAdd = Math.min(needed, nc.addable);
-                    const targetCount = nc.currentCount + toAdd;
-                    return {
-                        type: 'bridge_add',
-                        strategy: 'Einziger verbleibender Nachbar',
-                        title: 'Erzwungene Brücke',
-                        r: isl.r,
-                        c: isl.c,
-                        edgeKey: nc.key,
-                        count: targetCount,
-                        highlightCells: [{ r: isl.r, c: isl.c }, { r: nc.neighbor.r, c: nc.neighbor.c }],
-                        message: `Insel (${isl.r + 1},${isl.c + 1}) benötigt noch ${needed} Brücke(n) und hat nur einen einzigen erreichbaren Nachbarn.`,
-                        description: `Insel (${isl.r + 1},${isl.c + 1}) hat keine andere Ausweichmöglichkeit. Setze eine Brücke zu Insel (${nc.neighbor.r + 1},${nc.neighbor.c + 1}).`
-                    };
+                    let targetCount = nc.currentCount + toAdd;
+                    if (solution && solution.has(nc.key)) {
+                        const solCount = solution.get(nc.key);
+                        if (targetCount > solCount) targetCount = solCount;
+                    }
+                    if (targetCount > nc.currentCount) {
+                        return {
+                            type: 'bridge_add',
+                            strategy: 'Einziger verbleibender Nachbar',
+                            title: 'Erzwungene Brücke',
+                            r: isl.r,
+                            c: isl.c,
+                            edgeKey: nc.key,
+                            count: targetCount,
+                            highlightCells: [{ r: isl.r, c: isl.c }, { r: nc.neighbor.r, c: nc.neighbor.c }],
+                            message: `Insel (${isl.r + 1},${isl.c + 1}) benötigt noch ${needed} Brücke(n) und hat nur einen einzigen erreichbaren Nachbarn.`,
+                            description: `Insel (${isl.r + 1},${isl.c + 1}) hat keine andere Ausweichmöglichkeit. Setze eine Brücke zu Insel (${nc.neighbor.r + 1},${nc.neighbor.c + 1}).`
+                        };
+                    }
                 }
             }
 
@@ -285,7 +308,11 @@ export class HashiSolver {
                 const othersCap = totalAddableOthers - nc.addable;
                 if (needed > othersCap) {
                     const forcedAdd = needed - othersCap;
-                    const targetCount = nc.currentCount + forcedAdd;
+                    let targetCount = nc.currentCount + forcedAdd;
+                    if (solution && solution.has(nc.key)) {
+                        const solCount = solution.get(nc.key);
+                        if (targetCount > solCount) targetCount = solCount;
+                    }
                     if (targetCount > nc.currentCount) {
                         let stratName = 'Taubenschlag-Prinzip (Kapazität)';
                         let detailText = `Selbst wenn alle anderen Nachbarn maximal belegt werden, fehlen noch ${forcedAdd} Brücke(n).`;
@@ -331,7 +358,7 @@ export class HashiSolver {
         // würde ein isoliertes 2er-Paar entstehen!
         const totalIslands = islands.length;
         if (totalIslands > 2) {
-            for (const isl of islands) {
+            for (const isl of sortedIslands) {
                 const rem = engine.getIslandRemaining(isl.r, isl.c);
                 if (rem !== 1) continue;
 
@@ -378,13 +405,31 @@ export class HashiSolver {
         }
 
         // 4. FALLBACK: NÄCHSTER SCHRITT AUS DER REFERENZLÖSUNG
-        let solution = engine.getSolution();
-        if (!solution) {
-            const found = HashiSolver.solve(engine, 1);
-            if (found.length > 0) solution = found[0];
-        }
-
         if (solution) {
+            // Falls focusCell gewählt: fehlende Brücke zu focusCell bevorzugen
+            if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number') {
+                for (const [key, solCount] of solution.entries()) {
+                    const currentCount = engine.bridges.get(key) || 0;
+                    if (solCount > currentCount) {
+                        const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(key);
+                        if ((r1 === focusCell.r && c1 === focusCell.c) || (r2 === focusCell.r && c2 === focusCell.c)) {
+                            return {
+                                type: 'bridge_add',
+                                strategy: 'Nächster logischer Schritt',
+                                title: 'Brücke setzen',
+                                r: r1,
+                                c: c1,
+                                edgeKey: key,
+                                count: currentCount + 1,
+                                highlightCells: [{ r: r1, c: c1 }, { r: r2, c: c2 }],
+                                message: `Hier kann eine Brücke zwischen (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}) platziert werden.`,
+                                description: `Setze eine Brücke zwischen den Inseln (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}).`
+                            };
+                        }
+                    }
+                }
+            }
+
             for (const [key, solCount] of solution.entries()) {
                 const currentCount = engine.bridges.get(key) || 0;
                 if (solCount > currentCount) {

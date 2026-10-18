@@ -95,9 +95,9 @@ export const FUTOSHIKI_TUTORIAL_STEPS = [
         ],
         solution: [
             [4, 1, 2, 3],
-            [3, 2, 4, 1],
-            [2, 4, 1, 3],
-            [1, 3, 3, 2]
+            [3, 4, 1, 2],
+            [2, 3, 4, 1],
+            [1, 2, 3, 4]
         ],
         targetCells: [{ r: 1, c: 0, val: 3 }],
         explanation: "Klasse! Da 4 > 3 ist, stimmt die Relation."
@@ -205,9 +205,9 @@ export const FUTOSHIKI_TUTORIAL_STEPS = [
         description: `Du beherrschst nun alle Grundregeln von Futoshiki!\n\nLöse dieses vollständige 4×4 Rätsel, indem du logisch Ungleichungen und Zeilen-/Spaltenregeln verknüpfst.`,
         size: 4,
         initialGrid: [
+            [1, 0, 0, 0],
             [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
+            [3, 0, 0, 0],
             [0, 0, 0, 0]
         ],
         hConstraints: [
@@ -223,9 +223,9 @@ export const FUTOSHIKI_TUTORIAL_STEPS = [
         ],
         solution: [
             [1, 4, 3, 2],
-            [2, 1, 4, 3],
-            [4, 3, 2, 1],
-            [3, 2, 1, 4]
+            [2, 3, 4, 1],
+            [3, 2, 1, 4],
+            [4, 1, 2, 3]
         ],
         explanation: "Herzlichen Glückwunsch! Du bist bereit für die Futoshiki-Kampagne und die Tagesrätsel!"
     }

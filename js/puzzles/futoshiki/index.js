@@ -19,7 +19,6 @@ export const FutoshikiPlugin = {
     name: 'Futoshiki',
     icon: '🔣',
     description: 'Zahlen & Ungleichungen (4×4 bis 7×7)',
-    badge: 'Neu',
     cssPath: './css/puzzles/futoshiki.css',
 
     getSizes: () => [

@@ -16,7 +16,6 @@ export const CrownsPlugin = {
     name: 'Crowns',
     icon: '👑',
     description: 'Platziere Kronen in farbigen Regionen',
-    badge: 'Neu',
     cssPath: './css/puzzles/crowns.css',
 
     getSizes: () => [

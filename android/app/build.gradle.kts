@@ -11,8 +11,8 @@ android {
         applicationId = "com.tango.game"
         minSdk = 24
         targetSdk = 34
-        versionCode = 44
-        versionName = "2.7.1"
+        versionCode = 45
+        versionName = "2.7.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

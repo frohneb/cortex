@@ -5214,7 +5214,6 @@ const CrownsPlugin = {
     name: 'Crowns',
     icon: '👑',
     description: 'Platziere Kronen in farbigen Regionen',
-    badge: 'Neu',
     cssPath: './css/puzzles/crowns.css',
 
     getSizes: () => [
@@ -6165,6 +6164,13 @@ class FutoshikiSolver {
         const grid = engine.grid;
         const focusCell = options.focusCell || null;
 
+        // Referenzlösung für Konsistenzsicherung abrufen
+        let solution = engine.getSolution();
+        if (!solution) {
+            const found = FutoshikiSolver.solve(engine, 1);
+            if (found.length > 0) solution = found[0];
+        }
+
         // Vollständige Kandidaten berechnen
         const candidates = FutoshikiSolver.computeCandidates(engine);
 
@@ -6174,6 +6180,7 @@ class FutoshikiSolver {
             for (let c = 0; c < size; c++) {
                 if (grid[r][c] === FUTOSHIKI_EMPTY && candidates[r][c].size === 1) {
                     const val = Array.from(candidates[r][c])[0];
+                    if (solution && solution[r][c] !== val) continue;
                     nakedSingles.push({
                         type: 'naked_single',
                         strategy: 'Naked Single (Eindeutige Ziffer)',
@@ -6189,15 +6196,8 @@ class FutoshikiSolver {
             }
         }
 
-        if (nakedSingles.length > 0) {
-            if (focusCell) {
-                const focused = nakedSingles.find(h => h.r === focusCell.r && h.c === focusCell.c);
-                if (focused) return focused;
-            }
-            return nakedSingles[0];
-        }
-
         // 3. STRATEGIE: HIDDEN SINGLE (Zeile)
+        const hiddenSinglesRow = [];
         for (let r = 0; r < size; r++) {
             for (let v = 1; v <= size; v++) {
                 // Bereits in Zeile gesetzt?
@@ -6219,7 +6219,8 @@ class FutoshikiSolver {
 
                 if (possibleCols.length === 1) {
                     const c = possibleCols[0];
-                    return {
+                    if (solution && solution[r][c] !== v) continue;
+                    hiddenSinglesRow.push({
                         type: 'hidden_single_row',
                         strategy: 'Hidden Single (Zeile)',
                         title: 'Eindeutige Zeilenposition',
@@ -6229,12 +6230,13 @@ class FutoshikiSolver {
                         highlightCells: [{ r, c }],
                         message: `In Zeile ${r + 1} kann die Ziffer ${v} nur noch auf Feld (${r + 1},${c + 1}) stehen.`,
                         description: `In allen anderen freien Feldern der Zeile ist die ${v} durch Spaltenkonflikte oder Ungleichungen blockiert.`
-                    };
+                    });
                 }
             }
         }
 
         // 4. STRATEGIE: HIDDEN SINGLE (Spalte)
+        const hiddenSinglesCol = [];
         for (let c = 0; c < size; c++) {
             for (let v = 1; v <= size; v++) {
                 let alreadyPlaced = false;
@@ -6255,7 +6257,8 @@ class FutoshikiSolver {
 
                 if (possibleRows.length === 1) {
                     const r = possibleRows[0];
-                    return {
+                    if (solution && solution[r][c] !== v) continue;
+                    hiddenSinglesCol.push({
                         type: 'hidden_single_col',
                         strategy: 'Hidden Single (Spalte)',
                         title: 'Eindeutige Spaltenposition',
@@ -6265,27 +6268,31 @@ class FutoshikiSolver {
                         highlightCells: [{ r, c }],
                         message: `In Spalte ${c + 1} kann die Ziffer ${v} nur noch auf Feld (${r + 1},${c + 1}) stehen.`,
                         description: `In allen anderen freien Feldern der Spalte ist die ${v} blockiert.`
-                    };
+                    });
                 }
             }
         }
 
-        // 5. STRATEGIE: EXTREMWERTE / TRANSITIVE KETTEN
-        // Wenn eine Kette A < B < C existiert, kann A maximal size-2 und C minimal 3 sein.
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-                if (grid[r][c] !== FUTOSHIKI_EMPTY) continue;
-                // Hat diese Zelle eine Ungleichung, die Extremwerte verbietet?
-                // Z.B. cell < neighbor -> cell cannot be maxValue
-                const candSet = candidates[r][c];
-                if (c < size - 1 && engine.hConstraints[r][c] === CONSTRAINT_LT && candSet.has(size)) {
-                    // candSet has size, but it is strictly less than neighbor -> contradiction prevented by AC-3
-                }
-            }
+        // 5. PRIORISIERUNG FÜR AUSGEWÄHLTE ZELLE (focusCell)
+        if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number' &&
+            grid[focusCell.r] && grid[focusCell.r][focusCell.c] === FUTOSHIKI_EMPTY) {
+            const focusedNS = nakedSingles.find(h => h.r === focusCell.r && h.c === focusCell.c);
+            if (focusedNS) return focusedNS;
+
+            const focusedHSRow = hiddenSinglesRow.find(h => h.r === focusCell.r && h.c === focusCell.c);
+            if (focusedHSRow) return focusedHSRow;
+
+            const focusedHSCol = hiddenSinglesCol.find(h => h.r === focusCell.r && h.c === focusCell.c);
+            if (focusedHSCol) return focusedHSCol;
         }
 
-        // 6. STRATEGIE: NAKED PAIR (Zeile oder Spalte)
-        // Zwei Zellen in einer Zeile/Spalte teilen exakt dieselben 2 Kandidaten
+        // 6. ALLGEMEIN NÄCHSTER LOGISCHER SCHRITT
+        if (nakedSingles.length > 0) return nakedSingles[0];
+        if (hiddenSinglesRow.length > 0) return hiddenSinglesRow[0];
+        if (hiddenSinglesCol.length > 0) return hiddenSinglesCol[0];
+
+        // 7. STRATEGIE: NAKED PAIR (Zeile oder Spalte)
+        // Zwei Zellen in einer Zeile teilen exakt dieselben 2 Kandidaten
         for (let r = 0; r < size; r++) {
             for (let c1 = 0; c1 < size; c1++) {
                 if (grid[r][c1] === FUTOSHIKI_EMPTY && candidates[r][c1].size === 2) {
@@ -6294,7 +6301,6 @@ class FutoshikiSolver {
                             const arr1 = Array.from(candidates[r][c1]).sort().join(',');
                             const arr2 = Array.from(candidates[r][c2]).sort().join(',');
                             if (arr1 === arr2) {
-                                // Gibt es andere Zellen in der Zeile, die diese Kandidaten noch haben?
                                 const pairVals = Array.from(candidates[r][c1]);
                                 for (let cOther = 0; cOther < size; cOther++) {
                                     if (cOther !== c1 && cOther !== c2 && grid[r][cOther] === FUTOSHIKI_EMPTY) {
@@ -6318,14 +6324,26 @@ class FutoshikiSolver {
             }
         }
 
-        // 7. FALLBACK: NÄCHSTER SCHRITT AUS DER REFERENZLÖSUNG
-        let solution = engine.getSolution();
-        if (!solution) {
-            const found = FutoshikiSolver.solve(engine, 1);
-            if (found.length > 0) solution = found[0];
-        }
-
+        // 8. FALLBACK: NÄCHSTER SCHRITT AUS DER REFERENZLÖSUNG
         if (solution) {
+            // Falls focusCell gewählt und noch leer ist: gezielten Hinweis für focusCell geben
+            if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number' &&
+                grid[focusCell.r] && grid[focusCell.r][focusCell.c] === FUTOSHIKI_EMPTY) {
+                const val = solution[focusCell.r][focusCell.c];
+                return {
+                    type: 'place_number',
+                    strategy: 'Nächster logischer Schritt',
+                    title: 'Zahl einsetzen',
+                    r: focusCell.r,
+                    c: focusCell.c,
+                    value: val,
+                    expectedVal: val,
+                    highlightCells: [{ r: focusCell.r, c: focusCell.c }],
+                    message: `In Feld (${focusCell.r + 1},${focusCell.c + 1}) gehört die Ziffer ${val}.`,
+                    description: `Platziere die ${val} in Feld (${focusCell.r + 1},${focusCell.c + 1}).`
+                };
+            }
+
             for (let r = 0; r < size; r++) {
                 for (let c = 0; c < size; c++) {
                     if (grid[r][c] === FUTOSHIKI_EMPTY) {
@@ -7129,9 +7147,9 @@ const FUTOSHIKI_TUTORIAL_STEPS = [
         ],
         solution: [
             [4, 1, 2, 3],
-            [3, 2, 4, 1],
-            [2, 4, 1, 3],
-            [1, 3, 3, 2]
+            [3, 4, 1, 2],
+            [2, 3, 4, 1],
+            [1, 2, 3, 4]
         ],
         targetCells: [{ r: 1, c: 0, val: 3 }],
         explanation: "Klasse! Da 4 > 3 ist, stimmt die Relation."
@@ -7239,9 +7257,9 @@ const FUTOSHIKI_TUTORIAL_STEPS = [
         description: `Du beherrschst nun alle Grundregeln von Futoshiki!\n\nLöse dieses vollständige 4×4 Rätsel, indem du logisch Ungleichungen und Zeilen-/Spaltenregeln verknüpfst.`,
         size: 4,
         initialGrid: [
+            [1, 0, 0, 0],
             [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
+            [3, 0, 0, 0],
             [0, 0, 0, 0]
         ],
         hConstraints: [
@@ -7257,9 +7275,9 @@ const FUTOSHIKI_TUTORIAL_STEPS = [
         ],
         solution: [
             [1, 4, 3, 2],
-            [2, 1, 4, 3],
-            [4, 3, 2, 1],
-            [3, 2, 1, 4]
+            [2, 3, 4, 1],
+            [3, 2, 1, 4],
+            [4, 1, 2, 3]
         ],
         explanation: "Herzlichen Glückwunsch! Du bist bereit für die Futoshiki-Kampagne und die Tagesrätsel!"
     }
@@ -7284,7 +7302,6 @@ const FutoshikiPlugin = {
     name: 'Futoshiki',
     icon: '🔣',
     description: 'Zahlen & Ungleichungen (4×4 bis 7×7)',
-    badge: 'Neu',
     cssPath: './css/puzzles/futoshiki.css',
 
     getSizes: () => [
@@ -8331,9 +8348,26 @@ class HashiSolver {
         // Hilfsdaten aufbauen
         const focusCell = options.focusCell || null;
 
+        // Referenzlösung für Konsistenzsicherung abrufen
+        let solution = engine.getSolution();
+        if (!solution) {
+            const found = HashiSolver.solve(engine, 1);
+            if (found.length > 0) solution = found[0];
+        }
+
+        // Inseln nach focusCell priorisieren
+        let sortedIslands = [...islands];
+        if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number') {
+            sortedIslands.sort((a, b) => {
+                const aFocus = (a.r === focusCell.r && a.c === focusCell.c) ? 1 : 0;
+                const bFocus = (b.r === focusCell.r && b.c === focusCell.c) ? 1 : 0;
+                return bFocus - aFocus;
+            });
+        }
+
         // 2. STRATEGIE: MAXIMUM-FILL / TAUBENSCHLAG-PRINZIP (Pigeonhole)
         // Deckt automatisch 8er-Mitte, 7er-Mitte, 4er-Ecke, 3er-Ecke, 6er-Rand, 5er-Rand ab!
-        for (const isl of islands) {
+        for (const isl of sortedIslands) {
             const needed = engine.getIslandRemaining(isl.r, isl.c);
             if (needed <= 0) continue;
 
@@ -8359,19 +8393,25 @@ class HashiSolver {
                 const nc = neighborCaps[0];
                 if (nc.addable > 0) {
                     const toAdd = Math.min(needed, nc.addable);
-                    const targetCount = nc.currentCount + toAdd;
-                    return {
-                        type: 'bridge_add',
-                        strategy: 'Einziger verbleibender Nachbar',
-                        title: 'Erzwungene Brücke',
-                        r: isl.r,
-                        c: isl.c,
-                        edgeKey: nc.key,
-                        count: targetCount,
-                        highlightCells: [{ r: isl.r, c: isl.c }, { r: nc.neighbor.r, c: nc.neighbor.c }],
-                        message: `Insel (${isl.r + 1},${isl.c + 1}) benötigt noch ${needed} Brücke(n) und hat nur einen einzigen erreichbaren Nachbarn.`,
-                        description: `Insel (${isl.r + 1},${isl.c + 1}) hat keine andere Ausweichmöglichkeit. Setze eine Brücke zu Insel (${nc.neighbor.r + 1},${nc.neighbor.c + 1}).`
-                    };
+                    let targetCount = nc.currentCount + toAdd;
+                    if (solution && solution.has(nc.key)) {
+                        const solCount = solution.get(nc.key);
+                        if (targetCount > solCount) targetCount = solCount;
+                    }
+                    if (targetCount > nc.currentCount) {
+                        return {
+                            type: 'bridge_add',
+                            strategy: 'Einziger verbleibender Nachbar',
+                            title: 'Erzwungene Brücke',
+                            r: isl.r,
+                            c: isl.c,
+                            edgeKey: nc.key,
+                            count: targetCount,
+                            highlightCells: [{ r: isl.r, c: isl.c }, { r: nc.neighbor.r, c: nc.neighbor.c }],
+                            message: `Insel (${isl.r + 1},${isl.c + 1}) benötigt noch ${needed} Brücke(n) und hat nur einen einzigen erreichbaren Nachbarn.`,
+                            description: `Insel (${isl.r + 1},${isl.c + 1}) hat keine andere Ausweichmöglichkeit. Setze eine Brücke zu Insel (${nc.neighbor.r + 1},${nc.neighbor.c + 1}).`
+                        };
+                    }
                 }
             }
 
@@ -8383,7 +8423,11 @@ class HashiSolver {
                 const othersCap = totalAddableOthers - nc.addable;
                 if (needed > othersCap) {
                     const forcedAdd = needed - othersCap;
-                    const targetCount = nc.currentCount + forcedAdd;
+                    let targetCount = nc.currentCount + forcedAdd;
+                    if (solution && solution.has(nc.key)) {
+                        const solCount = solution.get(nc.key);
+                        if (targetCount > solCount) targetCount = solCount;
+                    }
                     if (targetCount > nc.currentCount) {
                         let stratName = 'Taubenschlag-Prinzip (Kapazität)';
                         let detailText = `Selbst wenn alle anderen Nachbarn maximal belegt werden, fehlen noch ${forcedAdd} Brücke(n).`;
@@ -8429,7 +8473,7 @@ class HashiSolver {
         // würde ein isoliertes 2er-Paar entstehen!
         const totalIslands = islands.length;
         if (totalIslands > 2) {
-            for (const isl of islands) {
+            for (const isl of sortedIslands) {
                 const rem = engine.getIslandRemaining(isl.r, isl.c);
                 if (rem !== 1) continue;
 
@@ -8476,13 +8520,31 @@ class HashiSolver {
         }
 
         // 4. FALLBACK: NÄCHSTER SCHRITT AUS DER REFERENZLÖSUNG
-        let solution = engine.getSolution();
-        if (!solution) {
-            const found = HashiSolver.solve(engine, 1);
-            if (found.length > 0) solution = found[0];
-        }
-
         if (solution) {
+            // Falls focusCell gewählt: fehlende Brücke zu focusCell bevorzugen
+            if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number') {
+                for (const [key, solCount] of solution.entries()) {
+                    const currentCount = engine.bridges.get(key) || 0;
+                    if (solCount > currentCount) {
+                        const { r1, c1, r2, c2 } = HashiEngine.parseEdgeKey(key);
+                        if ((r1 === focusCell.r && c1 === focusCell.c) || (r2 === focusCell.r && c2 === focusCell.c)) {
+                            return {
+                                type: 'bridge_add',
+                                strategy: 'Nächster logischer Schritt',
+                                title: 'Brücke setzen',
+                                r: r1,
+                                c: c1,
+                                edgeKey: key,
+                                count: currentCount + 1,
+                                highlightCells: [{ r: r1, c: c1 }, { r: r2, c: c2 }],
+                                message: `Hier kann eine Brücke zwischen (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}) platziert werden.`,
+                                description: `Setze eine Brücke zwischen den Inseln (${r1 + 1},${c1 + 1}) und (${r2 + 1},${c2 + 1}).`
+                            };
+                        }
+                    }
+                }
+            }
+
             for (const [key, solCount] of solution.entries()) {
                 const currentCount = engine.bridges.get(key) || 0;
                 if (solCount > currentCount) {
@@ -8656,16 +8718,55 @@ class HashiGenerator {
             }
             if (pathBlocked) continue;
 
-            // Kreuzungsprüfung mit bestehenden Kanten
-            let crossesExisting = false;
+            // Kreuzungs- und Überlappungsprüfung mit bestehenden Kanten
+            let invalidEdge = false;
             for (const existingKey of edgesMap.keys()) {
                 const existing = HashiEngine.parseEdgeKey(existingKey);
+                // 1. Orthogonale Kreuzung
                 if (HashiEngine.edgesCross(source.r, source.c, targetR, targetC, existing.r1, existing.c1, existing.r2, existing.c2)) {
-                    crossesExisting = true;
+                    invalidEdge = true;
                     break;
                 }
+                // 2. Kollineare Überlappung
+                if (source.r === targetR && existing.r1 === existing.r2 && source.r === existing.r1) {
+                    const minNew = Math.min(source.c, targetC);
+                    const maxNew = Math.max(source.c, targetC);
+                    const minExt = Math.min(existing.c1, existing.c2);
+                    const maxExt = Math.max(existing.c1, existing.c2);
+                    if (Math.max(minNew, minExt) < Math.min(maxNew, maxExt)) {
+                        invalidEdge = true;
+                        break;
+                    }
+                }
+                if (source.c === targetC && existing.c1 === existing.c2 && source.c === existing.c1) {
+                    const minNew = Math.min(source.r, targetR);
+                    const maxNew = Math.max(source.r, targetR);
+                    const minExt = Math.min(existing.r1, existing.r2);
+                    const maxExt = Math.max(existing.r1, existing.r2);
+                    if (Math.max(minNew, minExt) < Math.min(maxNew, maxExt)) {
+                        invalidEdge = true;
+                        break;
+                    }
+                }
+                // 3. Neue Insel (targetR, targetC) darf nicht mitten auf einer bestehenden Brücke liegen
+                if (existing.r1 === existing.r2 && targetR === existing.r1) {
+                    const minExt = Math.min(existing.c1, existing.c2);
+                    const maxExt = Math.max(existing.c1, existing.c2);
+                    if (targetC > minExt && targetC < maxExt) {
+                        invalidEdge = true;
+                        break;
+                    }
+                }
+                if (existing.c1 === existing.c2 && targetC === existing.c1) {
+                    const minExt = Math.min(existing.r1, existing.r2);
+                    const maxExt = Math.max(existing.r1, existing.r2);
+                    if (targetR > minExt && targetR < maxExt) {
+                        invalidEdge = true;
+                        break;
+                    }
+                }
             }
-            if (crossesExisting) continue;
+            if (invalidEdge) continue;
 
             // Neue Insel und Brücke hinzufügen
             islandsMap.set(targetKey, { r: targetR, c: targetC });
@@ -8710,13 +8811,30 @@ class HashiGenerator {
                 }
                 if (blocked) continue;
 
-                // Kreuzung mit bestehenden Brücken prüfen
+                // Kreuzung oder Überlappung mit bestehenden Brücken prüfen
                 let crosses = false;
                 for (const existingKey of edgesMap.keys()) {
                     const existing = HashiEngine.parseEdgeKey(existingKey);
                     if (HashiEngine.edgesCross(islA.r, islA.c, islB.r, islB.c, existing.r1, existing.c1, existing.r2, existing.c2)) {
                         crosses = true;
                         break;
+                    }
+                    // Kollineare Überlappung
+                    if (islA.r === islB.r && existing.r1 === existing.r2 && islA.r === existing.r1) {
+                        const minExt = Math.min(existing.c1, existing.c2);
+                        const maxExt = Math.max(existing.c1, existing.c2);
+                        if (Math.max(minC, minExt) < Math.min(maxC, maxExt)) {
+                            crosses = true;
+                            break;
+                        }
+                    }
+                    if (islA.c === islB.c && existing.c1 === existing.c2 && islA.c === existing.c1) {
+                        const minExt = Math.min(existing.r1, existing.r2);
+                        const maxExt = Math.max(existing.r1, existing.r2);
+                        if (Math.max(minR, minExt) < Math.min(maxR, maxExt)) {
+                            crosses = true;
+                            break;
+                        }
                     }
                 }
                 if (crosses) continue;
@@ -9397,7 +9515,6 @@ const HashiPlugin = {
     name: 'Hashi',
     icon: '🌉',
     description: 'Verbinde Inseln mit Brücken',
-    badge: 'Neu',
     cssPath: './css/puzzles/hashi.css',
 
     getSizes: () => [

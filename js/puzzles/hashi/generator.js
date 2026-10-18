@@ -151,16 +151,55 @@ export class HashiGenerator {
             }
             if (pathBlocked) continue;
 
-            // Kreuzungsprüfung mit bestehenden Kanten
-            let crossesExisting = false;
+            // Kreuzungs- und Überlappungsprüfung mit bestehenden Kanten
+            let invalidEdge = false;
             for (const existingKey of edgesMap.keys()) {
                 const existing = HashiEngine.parseEdgeKey(existingKey);
+                // 1. Orthogonale Kreuzung
                 if (HashiEngine.edgesCross(source.r, source.c, targetR, targetC, existing.r1, existing.c1, existing.r2, existing.c2)) {
-                    crossesExisting = true;
+                    invalidEdge = true;
                     break;
                 }
+                // 2. Kollineare Überlappung
+                if (source.r === targetR && existing.r1 === existing.r2 && source.r === existing.r1) {
+                    const minNew = Math.min(source.c, targetC);
+                    const maxNew = Math.max(source.c, targetC);
+                    const minExt = Math.min(existing.c1, existing.c2);
+                    const maxExt = Math.max(existing.c1, existing.c2);
+                    if (Math.max(minNew, minExt) < Math.min(maxNew, maxExt)) {
+                        invalidEdge = true;
+                        break;
+                    }
+                }
+                if (source.c === targetC && existing.c1 === existing.c2 && source.c === existing.c1) {
+                    const minNew = Math.min(source.r, targetR);
+                    const maxNew = Math.max(source.r, targetR);
+                    const minExt = Math.min(existing.r1, existing.r2);
+                    const maxExt = Math.max(existing.r1, existing.r2);
+                    if (Math.max(minNew, minExt) < Math.min(maxNew, maxExt)) {
+                        invalidEdge = true;
+                        break;
+                    }
+                }
+                // 3. Neue Insel (targetR, targetC) darf nicht mitten auf einer bestehenden Brücke liegen
+                if (existing.r1 === existing.r2 && targetR === existing.r1) {
+                    const minExt = Math.min(existing.c1, existing.c2);
+                    const maxExt = Math.max(existing.c1, existing.c2);
+                    if (targetC > minExt && targetC < maxExt) {
+                        invalidEdge = true;
+                        break;
+                    }
+                }
+                if (existing.c1 === existing.c2 && targetC === existing.c1) {
+                    const minExt = Math.min(existing.r1, existing.r2);
+                    const maxExt = Math.max(existing.r1, existing.r2);
+                    if (targetR > minExt && targetR < maxExt) {
+                        invalidEdge = true;
+                        break;
+                    }
+                }
             }
-            if (crossesExisting) continue;
+            if (invalidEdge) continue;
 
             // Neue Insel und Brücke hinzufügen
             islandsMap.set(targetKey, { r: targetR, c: targetC });
@@ -205,13 +244,30 @@ export class HashiGenerator {
                 }
                 if (blocked) continue;
 
-                // Kreuzung mit bestehenden Brücken prüfen
+                // Kreuzung oder Überlappung mit bestehenden Brücken prüfen
                 let crosses = false;
                 for (const existingKey of edgesMap.keys()) {
                     const existing = HashiEngine.parseEdgeKey(existingKey);
                     if (HashiEngine.edgesCross(islA.r, islA.c, islB.r, islB.c, existing.r1, existing.c1, existing.r2, existing.c2)) {
                         crosses = true;
                         break;
+                    }
+                    // Kollineare Überlappung
+                    if (islA.r === islB.r && existing.r1 === existing.r2 && islA.r === existing.r1) {
+                        const minExt = Math.min(existing.c1, existing.c2);
+                        const maxExt = Math.max(existing.c1, existing.c2);
+                        if (Math.max(minC, minExt) < Math.min(maxC, maxExt)) {
+                            crosses = true;
+                            break;
+                        }
+                    }
+                    if (islA.c === islB.c && existing.c1 === existing.c2 && islA.c === existing.c1) {
+                        const minExt = Math.min(existing.r1, existing.r2);
+                        const maxExt = Math.max(existing.r1, existing.r2);
+                        if (Math.max(minR, minExt) < Math.min(maxR, maxExt)) {
+                            crosses = true;
+                            break;
+                        }
                     }
                 }
                 if (crosses) continue;

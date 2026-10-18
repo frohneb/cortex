@@ -276,6 +276,13 @@ export class FutoshikiSolver {
         const grid = engine.grid;
         const focusCell = options.focusCell || null;
 
+        // Referenzlösung für Konsistenzsicherung abrufen
+        let solution = engine.getSolution();
+        if (!solution) {
+            const found = FutoshikiSolver.solve(engine, 1);
+            if (found.length > 0) solution = found[0];
+        }
+
         // Vollständige Kandidaten berechnen
         const candidates = FutoshikiSolver.computeCandidates(engine);
 
@@ -285,6 +292,7 @@ export class FutoshikiSolver {
             for (let c = 0; c < size; c++) {
                 if (grid[r][c] === FUTOSHIKI_EMPTY && candidates[r][c].size === 1) {
                     const val = Array.from(candidates[r][c])[0];
+                    if (solution && solution[r][c] !== val) continue;
                     nakedSingles.push({
                         type: 'naked_single',
                         strategy: 'Naked Single (Eindeutige Ziffer)',
@@ -300,15 +308,8 @@ export class FutoshikiSolver {
             }
         }
 
-        if (nakedSingles.length > 0) {
-            if (focusCell) {
-                const focused = nakedSingles.find(h => h.r === focusCell.r && h.c === focusCell.c);
-                if (focused) return focused;
-            }
-            return nakedSingles[0];
-        }
-
         // 3. STRATEGIE: HIDDEN SINGLE (Zeile)
+        const hiddenSinglesRow = [];
         for (let r = 0; r < size; r++) {
             for (let v = 1; v <= size; v++) {
                 // Bereits in Zeile gesetzt?
@@ -330,7 +331,8 @@ export class FutoshikiSolver {
 
                 if (possibleCols.length === 1) {
                     const c = possibleCols[0];
-                    return {
+                    if (solution && solution[r][c] !== v) continue;
+                    hiddenSinglesRow.push({
                         type: 'hidden_single_row',
                         strategy: 'Hidden Single (Zeile)',
                         title: 'Eindeutige Zeilenposition',
@@ -340,12 +342,13 @@ export class FutoshikiSolver {
                         highlightCells: [{ r, c }],
                         message: `In Zeile ${r + 1} kann die Ziffer ${v} nur noch auf Feld (${r + 1},${c + 1}) stehen.`,
                         description: `In allen anderen freien Feldern der Zeile ist die ${v} durch Spaltenkonflikte oder Ungleichungen blockiert.`
-                    };
+                    });
                 }
             }
         }
 
         // 4. STRATEGIE: HIDDEN SINGLE (Spalte)
+        const hiddenSinglesCol = [];
         for (let c = 0; c < size; c++) {
             for (let v = 1; v <= size; v++) {
                 let alreadyPlaced = false;
@@ -366,7 +369,8 @@ export class FutoshikiSolver {
 
                 if (possibleRows.length === 1) {
                     const r = possibleRows[0];
-                    return {
+                    if (solution && solution[r][c] !== v) continue;
+                    hiddenSinglesCol.push({
                         type: 'hidden_single_col',
                         strategy: 'Hidden Single (Spalte)',
                         title: 'Eindeutige Spaltenposition',
@@ -376,27 +380,31 @@ export class FutoshikiSolver {
                         highlightCells: [{ r, c }],
                         message: `In Spalte ${c + 1} kann die Ziffer ${v} nur noch auf Feld (${r + 1},${c + 1}) stehen.`,
                         description: `In allen anderen freien Feldern der Spalte ist die ${v} blockiert.`
-                    };
+                    });
                 }
             }
         }
 
-        // 5. STRATEGIE: EXTREMWERTE / TRANSITIVE KETTEN
-        // Wenn eine Kette A < B < C existiert, kann A maximal size-2 und C minimal 3 sein.
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-                if (grid[r][c] !== FUTOSHIKI_EMPTY) continue;
-                // Hat diese Zelle eine Ungleichung, die Extremwerte verbietet?
-                // Z.B. cell < neighbor -> cell cannot be maxValue
-                const candSet = candidates[r][c];
-                if (c < size - 1 && engine.hConstraints[r][c] === CONSTRAINT_LT && candSet.has(size)) {
-                    // candSet has size, but it is strictly less than neighbor -> contradiction prevented by AC-3
-                }
-            }
+        // 5. PRIORISIERUNG FÜR AUSGEWÄHLTE ZELLE (focusCell)
+        if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number' &&
+            grid[focusCell.r] && grid[focusCell.r][focusCell.c] === FUTOSHIKI_EMPTY) {
+            const focusedNS = nakedSingles.find(h => h.r === focusCell.r && h.c === focusCell.c);
+            if (focusedNS) return focusedNS;
+
+            const focusedHSRow = hiddenSinglesRow.find(h => h.r === focusCell.r && h.c === focusCell.c);
+            if (focusedHSRow) return focusedHSRow;
+
+            const focusedHSCol = hiddenSinglesCol.find(h => h.r === focusCell.r && h.c === focusCell.c);
+            if (focusedHSCol) return focusedHSCol;
         }
 
-        // 6. STRATEGIE: NAKED PAIR (Zeile oder Spalte)
-        // Zwei Zellen in einer Zeile/Spalte teilen exakt dieselben 2 Kandidaten
+        // 6. ALLGEMEIN NÄCHSTER LOGISCHER SCHRITT
+        if (nakedSingles.length > 0) return nakedSingles[0];
+        if (hiddenSinglesRow.length > 0) return hiddenSinglesRow[0];
+        if (hiddenSinglesCol.length > 0) return hiddenSinglesCol[0];
+
+        // 7. STRATEGIE: NAKED PAIR (Zeile oder Spalte)
+        // Zwei Zellen in einer Zeile teilen exakt dieselben 2 Kandidaten
         for (let r = 0; r < size; r++) {
             for (let c1 = 0; c1 < size; c1++) {
                 if (grid[r][c1] === FUTOSHIKI_EMPTY && candidates[r][c1].size === 2) {
@@ -405,7 +413,6 @@ export class FutoshikiSolver {
                             const arr1 = Array.from(candidates[r][c1]).sort().join(',');
                             const arr2 = Array.from(candidates[r][c2]).sort().join(',');
                             if (arr1 === arr2) {
-                                // Gibt es andere Zellen in der Zeile, die diese Kandidaten noch haben?
                                 const pairVals = Array.from(candidates[r][c1]);
                                 for (let cOther = 0; cOther < size; cOther++) {
                                     if (cOther !== c1 && cOther !== c2 && grid[r][cOther] === FUTOSHIKI_EMPTY) {
@@ -429,14 +436,26 @@ export class FutoshikiSolver {
             }
         }
 
-        // 7. FALLBACK: NÄCHSTER SCHRITT AUS DER REFERENZLÖSUNG
-        let solution = engine.getSolution();
-        if (!solution) {
-            const found = FutoshikiSolver.solve(engine, 1);
-            if (found.length > 0) solution = found[0];
-        }
-
+        // 8. FALLBACK: NÄCHSTER SCHRITT AUS DER REFERENZLÖSUNG
         if (solution) {
+            // Falls focusCell gewählt und noch leer ist: gezielten Hinweis für focusCell geben
+            if (focusCell && typeof focusCell.r === 'number' && typeof focusCell.c === 'number' &&
+                grid[focusCell.r] && grid[focusCell.r][focusCell.c] === FUTOSHIKI_EMPTY) {
+                const val = solution[focusCell.r][focusCell.c];
+                return {
+                    type: 'place_number',
+                    strategy: 'Nächster logischer Schritt',
+                    title: 'Zahl einsetzen',
+                    r: focusCell.r,
+                    c: focusCell.c,
+                    value: val,
+                    expectedVal: val,
+                    highlightCells: [{ r: focusCell.r, c: focusCell.c }],
+                    message: `In Feld (${focusCell.r + 1},${focusCell.c + 1}) gehört die Ziffer ${val}.`,
+                    description: `Platziere die ${val} in Feld (${focusCell.r + 1},${focusCell.c + 1}).`
+                };
+            }
+
             for (let r = 0; r < size; r++) {
                 for (let c = 0; c < size; c++) {
                     if (grid[r][c] === FUTOSHIKI_EMPTY) {
