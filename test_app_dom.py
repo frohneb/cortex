@@ -39,8 +39,8 @@ class TestTangoAppDOM(unittest.TestCase):
     def setUp(self):
         self.index_path = BASE_DIR / "index.html"
         self.app_js_path = BASE_DIR / "js" / "ui" / "app.js"
-        self.i18n_js_path = BASE_DIR / "js" / "data" / "i18n.js"
-        self.audio_js_path = BASE_DIR / "js" / "ui" / "audio.js"
+        self.i18n_js_path = BASE_DIR / "js" / "shared" / "i18n.js"
+        self.audio_js_path = BASE_DIR / "js" / "shared" / "audio.js"
 
     def test_index_html_structure(self):
         """Überprüft, ob alle notwendigen DOM-Container in index.html vorhanden sind"""
@@ -195,13 +195,13 @@ class TestTangoAppDOM(unittest.TestCase):
 
     def test_tutorial_pro_step4_validity(self):
         """Überprüft, dass Lektion 4 in Tutorial Pro zwei unterschiedliche Ziel-Zellen ohne Kantenwiderspruch hat"""
-        pro_content = (BASE_DIR / "js" / "data" / "tutorial_pro.js").read_text(encoding='utf-8')
+        pro_content = (BASE_DIR / "js" / "puzzles" / "tango" / "data" / "tutorial_pro.js").read_text(encoding='utf-8')
         self.assertIn('{ r: 0, c: 1, val: MOON }', pro_content, "Lektion 4 muss Zielzelle (0,1) = MOON enthalten")
         self.assertIn('{ r: 2, c: 1, val: SUN }', pro_content, "Lektion 4 muss Zielzelle (2,1) = SUN enthalten")
 
     def test_tutorial_pro_step5_validity(self):
         """Überprüft, dass Lektion 5 in Tutorial Pro mathematisch korrekte Zielzellen zur Zeilen-Eindeutigkeit hat"""
-        pro_content = (BASE_DIR / "js" / "data" / "tutorial_pro.js").read_text(encoding='utf-8')
+        pro_content = (BASE_DIR / "js" / "puzzles" / "tango" / "data" / "tutorial_pro.js").read_text(encoding='utf-8')
         self.assertIn('{ r: 1, c: 2, val: MOON }', pro_content, "Lektion 5 muss Zielzelle (1,2) = MOON enthalten")
         self.assertIn('{ r: 1, c: 3, val: SUN }', pro_content, "Lektion 5 muss Zielzelle (1,3) = SUN enthalten")
 
@@ -213,7 +213,7 @@ class TestTangoAppDOM(unittest.TestCase):
 
     def test_tutorial_pro_all_8_lessons_exist(self):
         """Überprüft, dass alle 8 Pro-Lektionen im Tutorial Pro Datenmodul vorhanden sind"""
-        pro_content = (BASE_DIR / "js" / "data" / "tutorial_pro.js").read_text(encoding='utf-8')
+        pro_content = (BASE_DIR / "js" / "puzzles" / "tango" / "data" / "tutorial_pro.js").read_text(encoding='utf-8')
         for idx in range(1, 9):
             self.assertIn(f'title: "Pro {idx}:', pro_content, f"Lektion Pro {idx} muss in tutorial_pro.js existieren")
 
@@ -312,19 +312,19 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('.tut-btn-icon', css_content, "main.css muss CSS für .tut-btn-icon definieren")
         self.assertIn('.tut-btn-text', css_content, "main.css muss CSS für .tut-btn-text definieren")
 
-    def test_version_number_consistency_v2_7_2(self):
-        """Überprüft, dass Version 2.7.2 (Code 45) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v2_7_3(self):
+        """Überprüft, dass Version 2.7.3 (Code 46) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('cortex-app-v2.7.2', sw_content, "sw.js muss Cache cortex-app-v2.7.2 enthalten")
-        self.assertIn('id="appVersionBadge">v2.7.2</span>', html_content, "index.html muss appVersionBadge v2.7.2 anzeigen")
-        self.assertTrue('versionName = "2.7.2"' in gradle_content, "build.gradle.kts muss versionName 2.7.2 enthalten")
-        self.assertTrue('versionCode = 45' in gradle_content, "build.gradle.kts muss versionCode 45 enthalten")
-        self.assertTrue('android:versionName="2.7.2"' in manifest_content, "AndroidManifest.xml muss versionName 2.7.2 enthalten")
-        self.assertTrue('android:versionCode="45"' in manifest_content, "AndroidManifest.xml muss versionCode 45 enthalten")
+        self.assertIn('cortex-app-v2.7.3', sw_content, "sw.js muss Cache cortex-app-v2.7.3 enthalten")
+        self.assertIn('id="appVersionBadge">v2.7.3</span>', html_content, "index.html muss appVersionBadge v2.7.3 anzeigen")
+        self.assertTrue('versionName = "2.7.3"' in gradle_content, "build.gradle.kts muss versionName 2.7.3 enthalten")
+        self.assertTrue('versionCode = 46' in gradle_content, "build.gradle.kts muss versionCode 46 enthalten")
+        self.assertTrue('android:versionName="2.7.3"' in manifest_content, "AndroidManifest.xml muss versionName 2.7.3 enthalten")
+        self.assertTrue('android:versionCode="46"' in manifest_content, "AndroidManifest.xml muss versionCode 46 enthalten")
 
     def test_locked_cells_darker_background_styling(self):
         """Überprüft, dass main.css spezifische dunklere Hintergründe für Start- und gesperrte Zellen definiert"""

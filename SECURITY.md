@@ -1,9 +1,9 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 18.10.2026 (Release-Audit v2.7.2)  
+**Audit Datum:** 19.10.2026 (Release-Audit v2.7.3)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
-**Version:** 2.7.2 (versionCode 45)  
-**APK SHA-256:** `2ceb8c9ac04d4c38a90aa675327b476b6380bc93162a9d756ed619d0954705fb`  
+**Version:** 2.7.3 (versionCode 46)  
+**APK SHA-256:** `0f5bc2e6ab19ec564c7e8c8c8f0ddd06d689864313f71864cb46960504dfc04e`  
 **Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---
@@ -57,7 +57,7 @@ Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip (Minimalprinzip
 * **`android:allowBackup="false"`**: Verhindert unberechtigtes Auslesen von Spieldaten über ADB-Backups.
 * **`android:usesCleartextTraffic="false"`**: Unverschlüsselter Netzwerkverkehr ist systemseitig deaktiviert.
 * **`android:debuggable="false"`**: Keine Debug-Flags im Produktions-Build.
-* **`versionCode="43"` & `versionName="2.7.0"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
+* **`versionCode="46"` & `versionName="2.7.3"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
 
 ---
 

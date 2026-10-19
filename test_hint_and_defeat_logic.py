@@ -34,9 +34,9 @@ class TestHintAndDefeatLogic(unittest.TestCase):
 <body>
 <div id="output">Running...</div>
 <script type="module">
-import {{ TangoEngine, SUN, MOON, EMPTY }} from './js/core/engine.js';
-import {{ TangoSolver }} from './js/core/solver.js';
-import {{ getCampaignLevel }} from './js/data/levels.js';
+import {{ TangoEngine, SUN, MOON, EMPTY }} from './js/puzzles/tango/engine.js';
+import {{ TangoSolver }} from './js/puzzles/tango/solver.js';
+import {{ getTangoCampaignLevel as getCampaignLevel }} from './js/puzzles/tango/data/levels.js';
 import {{ puzzleRegistry }} from './js/shell/puzzle-registry.js';
 import {{ TangoPlugin }} from './js/puzzles/tango/index.js';
 import {{ SudokuPlugin }} from './js/puzzles/sudoku/index.js';

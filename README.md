@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.7.2-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.7.3-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -97,6 +97,13 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.7.3 – 2026-10-19
+* 🧹 **Projekt-Bereinigung & Codebase-Entschlackung**:
+  * **Entfernung verwaister Legacy-Module**: Vollständiges Löschen alter Verzeichnisse und Dateien aus dem ursprünglichen Tango-Monolithen (`js/core/`, `js/data/`, `js/ui/audio.js`, `js/ui/animations.js`), die durch die modulare Cortex-Puzzle-Architektur (`js/puzzles/tango/` und `js/shared/`) längst abgelöst wurden.
+  * **Bereinigung redundanter Build- & Script-Artefakte**: Entfernen des alten Tango-Icon-Generators (`generate_icons.py`), des ungenutzten Kotlin-Stubs (`MainActivity.kt`) und temporärer Testskripte (`verify_campaign.py`).
+  * **Härtung der Build- & Git-Konfiguration**: Aufnahme von `android/build/` und `android/app/build/` in `.gitignore` sowie Entfernung versehentlich getrackter Build-Reports.
+  * **Synchronisation der Test-Suiten**: Umstellung aller Testpfade in `test_hint_and_defeat_logic.py`, `test_app_dom.py`, `test_sudoku.py` und `test_cr_cs_guidelines.py` auf die aktiven Module und Verifikation der Versionskonsistenz v2.7.3 (Code 46).
 
 ### v2.7.2 – 2026-10-18
 * 💡 **Optimierung des Hinweissystems für Futoshiki & Hashiwokakero**:

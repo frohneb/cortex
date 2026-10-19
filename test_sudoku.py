@@ -200,16 +200,16 @@ class TestSudokuPlugin(unittest.TestCase):
         self.assertIn('SUDOKU_TUTORIAL_STEPS', content)
         self.assertIn('SUDOKU_TUTORIAL_ADVANCED_STEPS', content)
 
-    def test_campaign_120_levels_and_daily_rotation(self):
-        """Testet, dass die 120 Kampagnen-Level und das Tagesrätsel im Plugin-Index definiert sind"""
+    def test_campaign_levels_and_daily_rotation(self):
+        """Testet, dass die 240 Kampagnen-Level und das Tagesrätsel im Plugin-Index definiert sind"""
         from pathlib import Path
         levels_file = Path(__file__).parent / "js" / "puzzles" / "sudoku" / "data" / "levels.js"
         content = levels_file.read_text(encoding='utf-8')
 
         self.assertIn('function getSudokuCampaignLevel', content)
         self.assertIn('function getSudokuDailyPuzzle', content)
-        self.assertIn('levelIndex < 15', content)
-        self.assertIn('levelIndex < 30', content)
+        self.assertIn('levelIndex < 25', content)
+        self.assertIn('levelIndex < 45', content)
         self.assertIn('levelIndex < 60', content)
 
 
