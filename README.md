@@ -269,14 +269,25 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 
 ---
 
+## 📱 Installation & Nutzung
+
+Detaillierte Schritt-für-Schritt-Anleitungen zur sofortigen Nutzung im Browser als **PWA (Progressive Web App)**, zur Erstellung und Installation der **nativen Android APK** sowie zur Freischaltung in **Android Auto („Play While Parked“)** findest du in der [Android-Anleitung](ANLEITUNG_ANDROID.md).
+
+---
+
 ## 🧪 Test-Suite & Build
 
 ```bash
-# Web-Bundle und Tests ausführen
+# 1. Web-Bundle erstellen
 python build_bundle.py
-python -m unittest test_akari.py test_sudoku.py test_cortex_plugins.py test_app_dom.py
 
-# Native Cortex.apk erstellen und sicherheitsüberprüfen
+# 2. Kern- und Plattform-Tests ausführen
+python -m unittest test_app_dom.py test_rules.py test_streak_logic.py test_hint_and_defeat_logic.py test_cr_cs_guidelines.py
+
+# 3. Alle Puzzle-Suiten testen (Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashi & Futoshiki)
+python -m unittest test_rules.py test_sudoku.py test_akari.py test_nonogram.py test_slitherlink.py test_minesweeper.py test_crowns.py test_hashi_futoshiki_phases.py test_cortex_plugins.py
+
+# 4. Native Cortex.apk erstellen und Deep-Scan Sicherheitsüberprüfung ausführen
 python build_apk.py
 python test_security_deep.py
 ```

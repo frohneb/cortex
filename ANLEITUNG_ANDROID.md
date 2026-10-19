@@ -1,6 +1,6 @@
-# 📱 Anleitung: Tango auf deinem Android-Handy installieren
+# 📱 Anleitung: Cortex auf deinem Android-Handy installieren
 
-Dieses Projekt ist **100 % werbefrei, offline-fähig und vollständig auf Deutsch übersetzt**. Du hast zwei komfortable Möglichkeiten, das Spiel auf deinem Android-Handy zu nutzen:
+Dieses Projekt ist **100 % werbefrei, offline-fähig und vollständig auf Deutsch übersetzt**. Du hast mehrere komfortable Möglichkeiten, das Spiel auf deinem Android-Handy zu nutzen:
 
 ---
 
@@ -10,7 +10,7 @@ Du musst keine komplizierte APK kompilieren. Die App nutzt moderne **Progressive
 
 ### Schritt-für-Schritt:
 1. **Lokalen Server auf deinem PC starten:**
-   Öffne ein Terminal im Projektordner `d:\Tango apk` und tippe:
+   Öffne ein Terminal im Projektordner `d:\Cortex` und tippe:
    ```bash
    python -m http.server 8080 --bind 0.0.0.0
    ```
@@ -23,19 +23,38 @@ Du musst keine komplizierte APK kompilieren. Die App nutzt moderne **Progressive
 4. **Als App installieren:**
    - Tippe in Chrome auf das **Drei-Punkte-Menü (⋮)** oben rechts.
    - Wähle **"App installieren"** oder **"Zum Startbildschirm hinzufügen"**.
-   - Die Tango-App erscheint nun mit eigenem Icon auf deinem Homescreen, öffnet sich im Vollbildmodus und läuft **vollständig offline**!
+   - Die Cortex-App erscheint nun mit eigenem Icon auf deinem Homescreen, öffnet sich im Vollbildmodus und läuft **vollständig offline**!
 
 ---
 
-## 🛠️ Option 2: Echte APK kompilieren mit Android Studio
+## 🛠️ Option 2: Echte APK erstellen & installieren
 
-Falls du eine `.apk`-Datei erstellen möchtest:
+Falls du eine eigenständige `.apk`-Datei auf deinem Smartphone installieren möchtest:
 
+### Variante A: Vollautomatischer Build per Python-Skript (Empfohlen)
+Im Projekt ist ein vollständiges Build-System integriert, das die APK direkt ohne Android Studio baut:
+1. **Web-Bundle erstellen:**
+   ```bash
+   python build_bundle.py
+   ```
+2. **APK kompilieren und signieren:**
+   ```bash
+   python build_apk.py
+   ```
+   Die fertige `Cortex.apk` liegt anschließend direkt im Projektordner.
+3. **Auf dem Smartphone installieren:**
+   - Entweder per USB via ADB:
+     ```bash
+     adb install Cortex.apk
+     ```
+   - Oder übertrage die `Cortex.apk` per USB-Kabel / Nachricht auf dein Smartphone und tippe die Datei im Dateimanager an.
+
+### Variante B: Manuell über Android Studio
 1. **Android Studio öffnen:**
-   - Wähle *File -> Open* und öffne den Ordner `d:\Tango apk\android`.
-2. **Web-Assets kopieren:**
-   - Kopiere die Dateien (`index.html`, `css/`, `js/`, `assets/`, `manifest.json`) in den Ordner:
-     `d:\Tango apk\android\app\src\main\assets\`
+   - Wähle *File -> Open* und öffne den Ordner `android/` (z. B. `d:\Cortex\android`).
+2. **Web-Assets vorbereiten:**
+   - Führe zuvor `python build_bundle.py` aus.
+   - Die Web-Dateien (`index.html`, `css/`, `js/bundle.js`, `assets/`, `manifest.json`) liegen unter `android/app/src/main/assets/`.
 3. **APK erstellen:**
    - Klicke im Menü auf **Build -> Build Bundle(s) / APK(s) -> Build APK(s)**.
    - Die fertige `.apk` liegt anschließend unter `android/app/build/outputs/apk/debug/app-debug.apk`.
@@ -67,11 +86,19 @@ Da Cortex als native APK manuell installiert wird (Sideloading) und nicht über 
 
 ---
 
-## 🧪 Automatisierte Regelüberprüfung ausführen
+## 🧪 Automatisierte Tests ausführen
 
-Um die lückenlose Einhaltung aller Tango-Regeln (Keine 3er-Reihen, Balance, Gleichheits- `=` und Gegenteilszeichen `×`, Solver-Eindeutigkeit) zu testen, führe einfach aus:
+Cortex verfügt über eine lückenlose Test-Suite für Regelkonformität, Plattformstabilität und Sicherheit:
 
-```bash
-python test_rules.py
-```
-Alle 8 automatisierten Testfälle laufen in wenigen Millisekunden durch und bestätigen die Regelkonsistenz!
+1. **Kern- und Plattform-Tests:**
+   ```bash
+   python -m unittest test_app_dom.py test_rules.py test_streak_logic.py test_hint_and_defeat_logic.py test_cr_cs_guidelines.py
+   ```
+2. **Sicherheits- & Deep-Scan-Audit (74 automatische Prüfungen):**
+   ```bash
+   python test_security_deep.py
+   ```
+3. **Einzeltests für alle Rätseltypen (Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashi & Futoshiki):**
+   ```bash
+   python -m unittest test_rules.py test_sudoku.py test_akari.py test_nonogram.py test_slitherlink.py test_minesweeper.py test_crowns.py test_hashi_futoshiki_phases.py test_cortex_plugins.py
+   ```
