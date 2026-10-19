@@ -7,11 +7,13 @@ trigger: always_on
 1. **Jede Änderung erfordert eine neue Versionsnummer**:
    - Erhöhe bei jedem Build die letzte Stelle der Versionsnummer an allen Positionen.
    - `index.html`: `#appVersionBadge` Text
-   - `sw.js`: `CACHE_NAME` (z.B. `tango-app-vX.Y.Z`)
+   - `sw.js`: `CACHE_NAME` (z.B. `cortex-app-vX.Y.Z`)
    - `android/app/build.gradle.kts`: `versionCode` (+1) und `versionName` ("X.Y.Z")
    - `android/app/src/main/AndroidManifest.xml`: `android:versionCode` und `android:versionName`
-   - `README.md`: Versions-Badge
+   - `README.md`: Versions-Badge und Changelog
+   - `SECURITY.md`: Version, versionCode, Audit-Datum, SHA-256 Hash und Fazit-Abschnitt
    - `test_app_dom.py`: Konsistenzprüfung für die neue Version anpassen
+   - `test_cr_cs_guidelines.py`: `test_cr_09` und `test_cs_09` für die neue Version anpassen
 
 2. **Anpassen der Readme**:
    - Frage mich ob du das Readme aktualisieren sollst

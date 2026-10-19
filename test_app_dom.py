@@ -326,6 +326,13 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertTrue('android:versionName="2.7.3"' in manifest_content, "AndroidManifest.xml muss versionName 2.7.3 enthalten")
         self.assertTrue('android:versionCode="46"' in manifest_content, "AndroidManifest.xml muss versionCode 46 enthalten")
 
+        # Prüfe SECURITY.md & README.md Konsistenz
+        security_content = (BASE_DIR / "SECURITY.md").read_text(encoding='utf-8')
+        readme_content = (BASE_DIR / "README.md").read_text(encoding='utf-8')
+        self.assertIn('Version-2.7.3', readme_content, "README.md muss Version-2.7.3 Badge enthalten")
+        self.assertIn('**Version:** 2.7.3 (versionCode 46)', security_content, "SECURITY.md muss Version 2.7.3 (versionCode 46) enthalten")
+        self.assertIn('(v2.7.3, versionCode 46)', security_content, "SECURITY.md muss (v2.7.3, versionCode 46) im Fazit enthalten")
+
     def test_locked_cells_darker_background_styling(self):
         """Überprüft, dass main.css spezifische dunklere Hintergründe für Start- und gesperrte Zellen definiert"""
         css_content = (BASE_DIR / "css" / "main.css").read_text(encoding='utf-8')
