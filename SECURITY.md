@@ -110,4 +110,4 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ## 🏆 Gesamtbewertung
 
-Die Anwendung **Cortex – Logikrätsel (v2.7.1, versionCode 44)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero und Futoshiki) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
+Die Anwendung **Cortex – Logikrätsel (v2.7.3, versionCode 46)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero und Futoshiki) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
