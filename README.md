@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.8.2-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.8.3-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -104,6 +104,12 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.8.3 – 2026-10-24
+* 🖼️ **Nonogramm: 100 % einheitliche Pixelfarbe für alle Themes (Rätsellogik wiederhergestellt)**:
+  * **Eliminierung der Vorab-Fehlerfärbung**: Das automatisierte Hervorheben vermeintlich fehlerhafter Kacheln in abweichender roter Signalfarbe wurde während des regulären Spiels vollständig entfernt. In Nonogrammen besitzen nun ausnahmslos alle gesetzten Kacheln dieselbe einheitliche Pixelfarbe des jeweiligen Themes (Modern Dark: Warmes Bernstein, AMOLED: Reinweiß, Light: Schieferblau, Wood: Warmes Gold, Cyberpunk: Neon-Pink).
+  * **Integrität des Bilderrätsels**: Stellt den eigentlichen Sinn des Nonogramms wieder her, sodass die Bildlösung nicht durch Farbaufteilungen vorzeitig verraten wird; das Lösen erfolgt rein deduktiv über Zeilen- und Spaltenzahlen.
+  * **Lösungsaufdeckung unberührt**: Erst bei freiwilliger Rätselaufgabe („Lösung aufdecken“) werden die vollständige Zielbelegung (Grün) und Fehler (Rot mit ✕) visualisiert.
 
 ### v2.8.2 – 2026-10-24
 * 🎨 **Theme-Stabilität & Farbhärtung (AMOLED & Warmes Holz)**:

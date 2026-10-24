@@ -287,7 +287,8 @@ export class NonogramEngine {
     }
 
     /**
-     * Prüft Fehler und Konflikte für AutoCheck
+     * Prüft Zeilen- und Spalten-Vollständigkeit für Clue-Hervorhebung
+     * Im Nonogramm gibt es keine Vorab-Färbung von Fehlern, da alle Kacheln dieselbe einheitliche Pixelfarbe besitzen.
      */
     validateRules() {
         const conflictCells = new Set();
@@ -306,18 +307,7 @@ export class NonogramEngine {
             }
         }
 
-        // Falls Target-Grid vorhanden, falsche gefüllte Kacheln markieren
-        if (this.target && this.target.length > 0) {
-            for (let r = 0; r < this.height; r++) {
-                for (let c = 0; c < this.width; c++) {
-                    if (this.grid[r][c] === NONO_FILLED && this.target[r][c] !== NONO_FILLED) {
-                        conflictCells.add(`${r},${c}`);
-                    }
-                }
-            }
-        }
-
-        return { conflictCells, satisfiedRows, satisfiedCols, isValid: conflictCells.size === 0 };
+        return { conflictCells, satisfiedRows, satisfiedCols, isValid: true };
     }
 
     getSolution() {

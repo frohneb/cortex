@@ -11336,7 +11336,8 @@ class NonogramEngine {
     }
 
     /**
-     * Prüft Fehler und Konflikte für AutoCheck
+     * Prüft Zeilen- und Spalten-Vollständigkeit für Clue-Hervorhebung
+     * Im Nonogramm gibt es keine Vorab-Färbung von Fehlern, da alle Kacheln dieselbe einheitliche Pixelfarbe besitzen.
      */
     validateRules() {
         const conflictCells = new Set();
@@ -11355,18 +11356,7 @@ class NonogramEngine {
             }
         }
 
-        // Falls Target-Grid vorhanden, falsche gefüllte Kacheln markieren
-        if (this.target && this.target.length > 0) {
-            for (let r = 0; r < this.height; r++) {
-                for (let c = 0; c < this.width; c++) {
-                    if (this.grid[r][c] === NONO_FILLED && this.target[r][c] !== NONO_FILLED) {
-                        conflictCells.add(`${r},${c}`);
-                    }
-                }
-            }
-        }
-
-        return { conflictCells, satisfiedRows, satisfiedCols, isValid: conflictCells.size === 0 };
+        return { conflictCells, satisfiedRows, satisfiedCols, isValid: true };
     }
 
     getSolution() {
@@ -11963,7 +11953,6 @@ class NonogramRenderer {
                 cellEl.dataset.c = c;
 
                 const val = engine.grid[r][c];
-                const isConflict = !state.solutionRevealed && validation.conflictCells.has(`${r},${c}`);
                 const isSelected = !state.solutionRevealed && state.selectedCell && state.selectedCell.r === r && state.selectedCell.c === c;
                 const isHintShimmer = !state.solutionRevealed && state.hintPlacedCell && state.hintPlacedCell.r === r && state.hintPlacedCell.c === c;
 
@@ -11971,7 +11960,6 @@ class NonogramRenderer {
                 if ((c + 1) % 5 === 0 && c < width - 1) cellEl.classList.add('major-edge-right');
                 if ((r + 1) % 5 === 0 && r < height - 1) cellEl.classList.add('major-edge-bottom');
 
-                if (isConflict) cellEl.classList.add('conflict');
                 if (isSelected) {
                     cellEl.classList.add('selected');
                     if (state.cellZoom) {

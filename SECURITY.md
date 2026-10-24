@@ -1,9 +1,9 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 24.10.2026 (Release-Audit v2.8.2)  
+**Audit Datum:** 24.10.2026 (Release-Audit v2.8.3)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
-**Version:** 2.8.2 (versionCode 49)  
-**APK SHA-256:** `1f46ac47f13c0e20ad7d9577d12aa41b18561054896a6e7e8712799016475233`  
+**Version:** 2.8.3 (versionCode 50)  
+**APK SHA-256:** `f8e331e56163658168763dcd6bacc43b6883dcc78fed9e450f4d9c090ebcc29c`  
 **Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---
@@ -57,7 +57,7 @@ Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip (Minimalprinzip
 * **`android:allowBackup="false"`**: Verhindert unberechtigtes Auslesen von Spieldaten über ADB-Backups.
 * **`android:usesCleartextTraffic="false"`**: Unverschlüsselter Netzwerkverkehr ist systemseitig deaktiviert.
 * **`android:debuggable="false"`**: Keine Debug-Flags im Produktions-Build.
-* **`versionCode="49"` & `versionName="2.8.2"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
+* **`versionCode="50"` & `versionName="2.8.3"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
 
 ---
 
@@ -110,4 +110,4 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ## 🏆 Gesamtbewertung
 
-Die Anwendung **Cortex – Logikrätsel (v2.8.2, versionCode 49)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero, Futoshiki und SumGrid) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
+Die Anwendung **Cortex – Logikrätsel (v2.8.3, versionCode 50)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero, Futoshiki und SumGrid) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.

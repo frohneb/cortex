@@ -361,31 +361,7 @@ body.theme-cyberpunk .nonogram-cell.selected.cell-zoom {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(0, 240, 255, 0.6) !important;
 }
 
-/* Fehler-Zelle (Conflict / Fehlerhafte Kacheln) - Hohe Spezifität für alle Themes */
-.nonogram-cell.conflict,
-.nonogram-cell.cell-filled.conflict,
-.nonogram-cell.cell-cross.conflict,
-body.theme-dark .nonogram-cell.conflict,
-body.theme-amoled .nonogram-cell.conflict,
-body.theme-light .nonogram-cell.conflict,
-body.theme-wood .nonogram-cell.conflict,
-body.theme-cyberpunk .nonogram-cell.conflict,
-body.theme-dark .nonogram-cell.cell-filled.conflict,
-body.theme-amoled .nonogram-cell.cell-filled.conflict,
-body.theme-light .nonogram-cell.cell-filled.conflict,
-body.theme-wood .nonogram-cell.cell-filled.conflict,
-body.theme-cyberpunk .nonogram-cell.cell-filled.conflict,
-body.theme-dark .nonogram-cell.cell-cross.conflict,
-body.theme-amoled .nonogram-cell.cell-cross.conflict,
-body.theme-light .nonogram-cell.cell-cross.conflict,
-body.theme-wood .nonogram-cell.cell-cross.conflict,
-body.theme-cyberpunk .nonogram-cell.cell-cross.conflict {
-    background-color: #ef4444 !important;
-    color: #ffffff !important;
-    border-color: #b91c1c !important;
-    box-shadow: inset 0 0 0 1.5px #b91c1c, 0 0 10px rgba(239, 68, 68, 0.6) !important;
-    animation: cellShake 0.4s ease;
-}
+
 
 /* Lösungsaufdeckung */
 .nonogram-cell.revealed-filled {
