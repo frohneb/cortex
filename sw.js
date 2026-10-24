@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cortex-app-v2.7.3';
+const CACHE_NAME = 'cortex-app-v2.8.0';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -13,6 +13,7 @@ const ASSETS_TO_CACHE = [
     './css/puzzles/crowns.css',
     './css/puzzles/hashi.css',
     './css/puzzles/futoshiki.css',
+    './css/puzzles/sumgrid.css',
     './js/bundle.js',
     './assets/favicon.svg',
     './assets/icons/icon-192.png',

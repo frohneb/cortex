@@ -22,6 +22,7 @@ import { MinesweeperPlugin } from '../puzzles/minesweeper/index.js';
 import { CrownsPlugin } from '../puzzles/crowns/index.js';
 import { HashiPlugin } from '../puzzles/hashi/index.js';
 import { FutoshikiPlugin } from '../puzzles/futoshiki/index.js';
+import { SumGridPlugin } from '../puzzles/sumgrid/index.js';
 import { getSunSvg, getMoonSvg } from '../puzzles/tango/renderer.js';
 
 export { formatTime, calculateStreaks, getSunSvg, getMoonSvg };
@@ -41,6 +42,7 @@ export class CortexApp {
         puzzleRegistry.register(SudokuPlugin);
         puzzleRegistry.register(TangoPlugin);
         puzzleRegistry.register(MinesweeperPlugin);
+        puzzleRegistry.register(SumGridPlugin);
 
         // Aktives Plugin laden
         const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
@@ -344,12 +346,47 @@ export class CortexApp {
         document.getElementById('tabMenuSettings')?.addEventListener('click', () => this.switchMenuTab('settings'));
 
         // Stats Sub-Tabs
+        const statsTabsContainer = document.querySelector('.stats-filter-tabs');
+        if (statsTabsContainer) {
+            statsTabsContainer.addEventListener('wheel', (e) => {
+                if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    statsTabsContainer.scrollLeft += e.deltaY;
+                }
+            }, { passive: false });
+
+            let isPointerDown = false;
+            let startX = 0;
+            let scrollStart = 0;
+            let hasDragged = false;
+
+            statsTabsContainer.addEventListener('mousedown', (e) => {
+                isPointerDown = true;
+                hasDragged = false;
+                startX = e.pageX - statsTabsContainer.offsetLeft;
+                scrollStart = statsTabsContainer.scrollLeft;
+            });
+
+            window.addEventListener('mouseup', () => {
+                isPointerDown = false;
+            });
+
+            statsTabsContainer.addEventListener('mousemove', (e) => {
+                if (!isPointerDown) return;
+                const x = e.pageX - statsTabsContainer.offsetLeft;
+                const walk = (x - startX) * 1.5;
+                if (Math.abs(walk) > 4) hasDragged = true;
+                statsTabsContainer.scrollLeft = scrollStart - walk;
+            });
+        }
+
         document.querySelectorAll('.stats-filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.stats-filter-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this.activeStatsTab = btn.dataset.statsTab || 'all';
                 this.updateMenuStats();
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             });
         });
 
@@ -934,7 +971,7 @@ export class CortexApp {
                 if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.vibrate(25);
                 else audio.playClear();
-            } else if (this.activePlugin.id === 'crowns') {
+            } else if (this.activePlugin.id === 'crowns' || this.activePlugin.id === 'sumgrid') {
                 if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.vibrate(25);
                 else audio.playClear();
@@ -986,7 +1023,7 @@ export class CortexApp {
             this.engine.toggleFlag(r, c);
             this.movesCount++;
             audio.vibrate(30);
-        } else if (this.activePlugin.id === 'crowns') {
+        } else if (this.activePlugin.id === 'crowns' || this.activePlugin.id === 'sumgrid') {
             if (this.isNoteMode) {
                 this.engine.setCellValue(r, c, 2, true);
             } else {
@@ -1037,6 +1074,9 @@ export class CortexApp {
                 else if (val === 2) audio.playMoon();
             } else if (this.activePlugin.id === 'akari') {
                 if (val === 1) audio.playBulb();
+                else if (val === 2) audio.vibrate(25);
+            } else if (this.activePlugin.id === 'sumgrid' || this.activePlugin.id === 'nonogram' || this.activePlugin.id === 'crowns') {
+                if (val === 1) audio.playSun();
                 else if (val === 2) audio.vibrate(25);
             } else {
                 audio.playDigit(val);
@@ -1447,7 +1487,7 @@ export class CortexApp {
                     } else if (this.activePlugin.id === 'minesweeper') {
                         if (valToSet === 1) audio.playClear();
                         else audio.vibrate(30);
-                    } else if (this.activePlugin.id === 'crowns') {
+                    } else if (this.activePlugin.id === 'crowns' || this.activePlugin.id === 'sumgrid') {
                         if (valToSet === 1) audio.playSun();
                         else audio.vibrate(25);
                     } else {
@@ -1676,6 +1716,15 @@ export class CortexApp {
                 initialGrid: this.engine.initialGrid,
                 hConstraints: this.engine.hConstraints,
                 vConstraints: this.engine.vConstraints,
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'sumgrid') {
+            return {
+                size: this.engine.size,
+                numbers: this.engine.numbers,
+                rowTargets: this.engine.rowTargets,
+                colTargets: this.engine.colTargets,
+                initialGrid: this.engine.initialGrid,
                 solution: this.engine.solution
             };
         }
@@ -2104,7 +2153,7 @@ export class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns', 'hashi', 'futoshiki']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns', 'hashi', 'futoshiki', 'sumgrid']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
         const akariStats = StatsManager.getPuzzleStats('akari');
@@ -2114,6 +2163,7 @@ export class CortexApp {
         const crownsStats = StatsManager.getPuzzleStats('crowns');
         const hashiStats = StatsManager.getPuzzleStats('hashi');
         const futoshikiStats = StatsManager.getPuzzleStats('futoshiki');
+        const sumgridStats = StatsManager.getPuzzleStats('sumgrid');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -2136,6 +2186,8 @@ export class CortexApp {
             displayStats = hashiStats;
         } else if (currentTab === 'futoshiki') {
             displayStats = futoshikiStats;
+        } else if (currentTab === 'sumgrid') {
+            displayStats = sumgridStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -2202,6 +2254,13 @@ export class CortexApp {
                     { id: 11, labelKey: 'stats_best_time_11' }
                 ];
             } else if (currentTab === 'futoshiki') {
+                sizesToShow = [
+                    { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 5, labelKey: 'stats_best_time_5' },
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 7, labelKey: 'stats_best_time_7' }
+                ];
+            } else if (currentTab === 'sumgrid') {
                 sizesToShow = [
                     { id: 4, labelKey: 'stats_best_time_4' },
                     { id: 5, labelKey: 'stats_best_time_5' },

@@ -1,9 +1,9 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 19.10.2026 (Release-Audit v2.7.3)  
+**Audit Datum:** 24.10.2026 (Release-Audit v2.8.0)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
-**Version:** 2.7.3 (versionCode 46)  
-**APK SHA-256:** `0f5bc2e6ab19ec564c7e8c8c8f0ddd06d689864313f71864cb46960504dfc04e`  
+**Version:** 2.8.0 (versionCode 47)  
+**APK SHA-256:** `f3717ff09492bd644884e653250b3feb8542f367c5e362d6466f53a0e8da11fa`  
 **Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---
@@ -28,7 +28,7 @@
 
 * **Signatur-Verfahren:** APK Signature Scheme v1, v2 und v3
 * **Zertifikats-Algorithmus:** SHA-256withRSA (2048 Bit)
-* **APK-Größe:** 0.70 MB (2062 KB Assets)
+* **APK-Größe:** 0.71 MB (2126 KB Assets)
 * **Integritätsprüfung:** Vollständig intakt, kein Debug-Zertifikat, keine unsicheren Modifikationen.
 * **Reproduzierbarkeit:** Automatisierter deterministischer Build via `build_apk.py`.
 
@@ -57,7 +57,7 @@ Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip (Minimalprinzip
 * **`android:allowBackup="false"`**: Verhindert unberechtigtes Auslesen von Spieldaten über ADB-Backups.
 * **`android:usesCleartextTraffic="false"`**: Unverschlüsselter Netzwerkverkehr ist systemseitig deaktiviert.
 * **`android:debuggable="false"`**: Keine Debug-Flags im Produktions-Build.
-* **`versionCode="46"` & `versionName="2.7.3"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
+* **`versionCode="47"` & `versionName="2.8.0"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
 
 ---
 
@@ -110,4 +110,4 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ## 🏆 Gesamtbewertung
 
-Die Anwendung **Cortex – Logikrätsel (v2.7.3, versionCode 46)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero und Futoshiki) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
+Die Anwendung **Cortex – Logikrätsel (v2.8.0, versionCode 47)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero, Futoshiki und SumGrid) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.

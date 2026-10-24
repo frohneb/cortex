@@ -1,12 +1,12 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.7.3-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.8.0-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
 [![Security](https://img.shields.io/badge/Security-10.0%2F10%20Perfekt-brightgreen.svg)](SECURITY.md)
 
-Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink**, **Minesweeper**, **Crowns**, **Hashiwokakero / Brücken** und **Futoshiki / Ungleich**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones, Android Auto (Cockpit-Modus) und Web-Browser.
+Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logikrätsel (**Tango**, **Sudoku**, **Akari / Light Up**, **Nonogramm / Picross**, **Slitherlink**, **Minesweeper**, **Crowns**, **Hashiwokakero / Brücken**, **Futoshiki / Ungleich** und **SumGrid / Kreuzsummen**) mit vollständiger deutscher und englischer Lokalisierung, interaktiven Tutorials, intelligentem Hinweis-System, Notizen-Modus, Wischgesten-Steuerung (Drag-to-Draw), pünktlichen System-Erinnerungen und optimiertem Touch-Layout für Android-Smartphones, Android Auto (Cockpit-Modus) und Web-Browser.
 
 ---
 
@@ -24,6 +24,7 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
   - **Crowns (Queens / Kronen)**: Größen von 5×5 bis 9×9 mit bunten Farbregionen, nahtlosem Vektor-Grid, Kronen (👑) und Sperr-Kreuzen (✕).
   - **Hashiwokakero (Hashi / Brücken)**: Größen von 7×7 bis 11×11 mit Inseln ($1 \dots 8$), orthogonalen Einfach- & Doppelbrücken, Kreuzungsfreiheit und vollständigem Graph-Zusammenhang (🌉).
   - **Futoshiki (Ungleich / More or Less)**: Lateinische Quadrate von 4×4 bis 7×7 mit Ziffern ($1 \dots N$), horizontalen und vertikalen Ungleichheits-Operatoren (`<`, `>`) und Keypad-Restwertanzeige (⚖️).
+  - **SumGrid (Kreuzsummen / Sum Cross)**: Gitter von 4×4 bis 7×7 mit Zeilen- und Spaltenzielsummen, Eliminierungslogik (Behalten/Streichen) und dynamischen Live-Statusbadgets (🧮).
 - 🎓 **Interaktive Tutorials & Lösungsstrategien**:
   - **Tango**: Grundlagen (6 Schritte), Mathematik (8 Lektionen) und Meister-Muster (14 Lektionen).
   - **Sudoku**: Grundlagen (Reihen, Spalten, Blöcke) und Fortgeschrittene Lektionen (*Naked Pairs*, *Hidden Singles*, Block-Interferenzen).
@@ -94,11 +95,27 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 2. **Ungleichungen**: Alle Relationszeichen (`<`, `>`) zwischen benachbarten Zellen müssen strikt erfüllt sein.
 3. **Eindeutigkeit**: Jedes Rätsel besitzt genau eine logisch deduzierbare Lösung ohne Raterei.
 
+### 🧮 SumGrid (Kreuzsummen / Sum Cross)
+1. **Zielsummen**: Die Summe aller aktiven (behaltenen) Zahlen in jeder Zeile und Spalte muss exakt die vorgegebene Zielsumme am Rand ergeben.
+2. **Zustände**: Zahlen können behalten (aktiv / grün), gestrichen (ausgeschlossen / ✕) oder neutral (offen) sein.
+3. **Kein Überhang**: Eine Zeile oder Spalte darf das Ziel zu keinem Zeitpunkt überschreiten; exakte Treffer leuchten grün mit Häkchen auf.
+4. **Eindeutigkeit**: Jedes Rätsel besitzt genau eine mathematisch verifizierte, eindeutige Lösung.
+
 ---
 
 ## 📜 Changelog
 
-### v2.7.3 – 2026-10-19
+### v2.8.0 – 2026-10-24
+* 🧮 **Neues Puzzle-Plugin: SumGrid (Zahlen-Kreuzsummen / Sum Cross)**:
+  * **Vollständige Plugin-Integration**: Einbindung des 10. vollwertigen Logikrätsels mit 240 handgefertigten Kampagnen-Leveln in 4 Kapiteln (4×4 bis 7×7), täglichem synchronen Rätsel und freiem Spiel.
+  * **Prozeduraler Generator & Solver**: Eindeutige Lösbarkeit durch mathematischen Constraint- und Branch-and-Bound-Solver garantiert.
+  * **Dynamische Randindikatoren**: Live-Feedback an den Rändern für Zeilen- und Spaltensummen (Zufriedenheit mit Häkchen, optische Warnung bei Überschreitung).
+  * **Didaktisches Tutorial**: 6 interaktive Lerneinheiten für Nullsummen, Vollsummen, Überhang-Ausschluss, Zeile-Spalte-Wechselwirkung und Differenz-Methode.
+  * **Harmonisches Design**: Ohne Werbe- oder „Neu“-Banner für eine ruhige, aufgeräumte Spieloberfläche.
+* 📊 **Fehlerbehebung für Statistik-Spielauswahl (Horizontales Scrollen)**:
+  * **Horizontales Scrollen aktiviert**: Beseitigung der Scroll-Blockade der Statistik-Sub-Tabs durch Aktivierung von `overflow-x: auto`, Touch-Wischgesten (`touch-action: pan-x`), Mausrad-Horizontallauf und Drag-to-Scroll für Desktop-Mausnutzer.
+  * **Auto-Scroll für aktive Tabs**: Automatisches, zentriertes Hineinscrollen des ausgewählten Spiel-Tabs (`scrollIntoView`).
+  * **SumGrid-Statistiken**: Vollständige Erfassung und Anzeige in den Gesamt- und Einzelstatistiken inklusive Bestzeiten (4×4 bis 7×7).
 * 🧹 **Projekt-Bereinigung & Codebase-Entschlackung**:
   * **Entfernung verwaister Legacy-Module**: Vollständiges Löschen alter Verzeichnisse und Dateien aus dem ursprünglichen Tango-Monolithen (`js/core/`, `js/data/`, `js/ui/audio.js`, `js/ui/animations.js`), die durch die modulare Cortex-Puzzle-Architektur (`js/puzzles/tango/` und `js/shared/`) längst abgelöst wurden.
   * **Bereinigung redundanter Build- & Script-Artefakte**: Entfernen des alten Tango-Icon-Generators (`generate_icons.py`), des ungenutzten Kotlin-Stubs (`MainActivity.kt`) und temporärer Testskripte (`verify_campaign.py`).

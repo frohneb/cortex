@@ -90,6 +90,7 @@ def build_apk():
             'css/puzzles/crowns.css',
             'css/puzzles/hashi.css',
             'css/puzzles/futoshiki.css',
+            'css/puzzles/sumgrid.css',
             'js/bundle.js',
             'assets/favicon.svg',
             'assets/favicon.png',

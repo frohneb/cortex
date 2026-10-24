@@ -312,26 +312,26 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('.tut-btn-icon', css_content, "main.css muss CSS für .tut-btn-icon definieren")
         self.assertIn('.tut-btn-text', css_content, "main.css muss CSS für .tut-btn-text definieren")
 
-    def test_version_number_consistency_v2_7_3(self):
-        """Überprüft, dass Version 2.7.3 (Code 46) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v2_8_0(self):
+        """Überprüft, dass Version 2.8.0 (Code 47) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('cortex-app-v2.7.3', sw_content, "sw.js muss Cache cortex-app-v2.7.3 enthalten")
-        self.assertIn('id="appVersionBadge">v2.7.3</span>', html_content, "index.html muss appVersionBadge v2.7.3 anzeigen")
-        self.assertTrue('versionName = "2.7.3"' in gradle_content, "build.gradle.kts muss versionName 2.7.3 enthalten")
-        self.assertTrue('versionCode = 46' in gradle_content, "build.gradle.kts muss versionCode 46 enthalten")
-        self.assertTrue('android:versionName="2.7.3"' in manifest_content, "AndroidManifest.xml muss versionName 2.7.3 enthalten")
-        self.assertTrue('android:versionCode="46"' in manifest_content, "AndroidManifest.xml muss versionCode 46 enthalten")
+        self.assertIn('cortex-app-v2.8.0', sw_content, "sw.js muss Cache cortex-app-v2.8.0 enthalten")
+        self.assertIn('id="appVersionBadge">v2.8.0</span>', html_content, "index.html muss appVersionBadge v2.8.0 anzeigen")
+        self.assertTrue('versionName = "2.8.0"' in gradle_content, "build.gradle.kts muss versionName 2.8.0 enthalten")
+        self.assertTrue('versionCode = 47' in gradle_content, "build.gradle.kts muss versionCode 47 enthalten")
+        self.assertTrue('android:versionName="2.8.0"' in manifest_content, "AndroidManifest.xml muss versionName 2.8.0 enthalten")
+        self.assertTrue('android:versionCode="47"' in manifest_content, "AndroidManifest.xml muss versionCode 47 enthalten")
 
         # Prüfe SECURITY.md & README.md Konsistenz
         security_content = (BASE_DIR / "SECURITY.md").read_text(encoding='utf-8')
         readme_content = (BASE_DIR / "README.md").read_text(encoding='utf-8')
-        self.assertIn('Version-2.7.3', readme_content, "README.md muss Version-2.7.3 Badge enthalten")
-        self.assertIn('**Version:** 2.7.3 (versionCode 46)', security_content, "SECURITY.md muss Version 2.7.3 (versionCode 46) enthalten")
-        self.assertIn('(v2.7.3, versionCode 46)', security_content, "SECURITY.md muss (v2.7.3, versionCode 46) im Fazit enthalten")
+        self.assertIn('Version-2.8.0', readme_content, "README.md muss Version-2.8.0 Badge enthalten")
+        self.assertIn('**Version:** 2.8.0 (versionCode 47)', security_content, "SECURITY.md muss Version 2.8.0 (versionCode 47) enthalten")
+        self.assertIn('(v2.8.0, versionCode 47)', security_content, "SECURITY.md muss (v2.8.0, versionCode 47) im Fazit enthalten")
 
     def test_locked_cells_darker_background_styling(self):
         """Überprüft, dass main.css spezifische dunklere Hintergründe für Start- und gesperrte Zellen definiert"""
@@ -371,6 +371,16 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('FutoshikiPlugin', shell_content, "app-shell.js muss FutoshikiPlugin importieren und registrieren")
         self.assertIn('hashi.css', sw_content, "sw.js muss hashi.css cachen")
         self.assertIn('futoshiki.css', sw_content, "sw.js muss futoshiki.css cachen")
+
+    def test_sumgrid_plugin_integration(self):
+        """Überprüft, dass SumGrid in app-shell.js registriert und index.html eingebunden ist"""
+        html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
+        shell_content = (BASE_DIR / "js" / "shell" / "app-shell.js").read_text(encoding='utf-8')
+        sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
+
+        self.assertIn('sumgrid.css', html_content, "index.html muss sumgrid.css einbinden")
+        self.assertIn('SumGridPlugin', shell_content, "app-shell.js muss SumGridPlugin importieren und registrieren")
+        self.assertIn('sumgrid.css', sw_content, "sw.js muss sumgrid.css cachen")
 
 
 if __name__ == "__main__":

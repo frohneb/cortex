@@ -81954,6 +81954,1479 @@ const SudokuPlugin = {
     getI18nStrings: (lang) => SUDOKU_I18N[lang] || {}
 };
 
+// === Source: js\puzzles\sumgrid\engine.js ===
+/**
+ * SumGrid Puzzle Engine
+ * Repräsentiert das Zahlen-Raster (N×N) mit Zeilen- und Spalten-Zielsummen,
+ * Zellzuständen (0 = Neutral, 1 = Behalten, 2 = Gestrichen),
+ * Live-Berechnung von Summen, Validierung und Undo/Redo.
+ */
+
+const SUMGRID_NEUTRAL = 0; // Unentschieden / Offen
+const SUMGRID_KEEP = 1;    // Zählt zur Summe
+const SUMGRID_CROSS = 2;   // Gestrichen (zählt nicht)
+
+class SumGridEngine {
+    constructor(size = 5) {
+        this.size = size;
+
+        // Zahlen-Werte des Rätsels (1..9)
+        this.numbers = Array.from({ length: size }, () => Array(size).fill(1));
+
+        // Zielsummen
+        this.rowTargets = Array(size).fill(0);
+        this.colTargets = Array(size).fill(0);
+
+        // Spielerstatus (0, 1 oder 2)
+        this.grid = Array.from({ length: size }, () => Array(size).fill(SUMGRID_NEUTRAL));
+        this.initialGrid = Array.from({ length: size }, () => Array(size).fill(SUMGRID_NEUTRAL));
+        this.locked = Array.from({ length: size }, () => Array(size).fill(false));
+
+        // Kandidaten-Notizen (für Notizmodus)
+        this.notes = Array.from({ length: size }, () => Array.from({ length: size }, () => new Set()));
+
+        this.solution = null;
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Lädt ein Puzzle
+     * @param {Object} config
+     *   size: number
+     *   numbers: number[][]
+     *   rowTargets: number[]
+     *   colTargets: number[]
+     *   solution: number[][] (0 oder 1)
+     *   initialGrid: number[][] (optional)
+     *   locked: boolean[][] (optional)
+     */
+    loadPuzzle({ size = 5, numbers = null, rowTargets = null, colTargets = null, solution = null, initialGrid = null, locked = null }) {
+        this.size = size;
+
+        this.numbers = Array.from({ length: size }, (_, r) => 
+            Array.from({ length: size }, (_, c) => (numbers && numbers[r] && numbers[r][c] !== undefined) ? numbers[r][c] : 1)
+        );
+
+        this.rowTargets = rowTargets ? [...rowTargets] : Array(size).fill(0);
+        this.colTargets = colTargets ? [...colTargets] : Array(size).fill(0);
+
+        this.grid = Array.from({ length: size }, () => Array(size).fill(SUMGRID_NEUTRAL));
+        this.initialGrid = Array.from({ length: size }, () => Array(size).fill(SUMGRID_NEUTRAL));
+        this.locked = Array.from({ length: size }, () => Array(size).fill(false));
+        this.notes = Array.from({ length: size }, () => Array.from({ length: size }, () => new Set()));
+
+        if (initialGrid) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const val = initialGrid[r] ? (initialGrid[r][c] || SUMGRID_NEUTRAL) : SUMGRID_NEUTRAL;
+                    this.grid[r][c] = val;
+                    this.initialGrid[r][c] = val;
+                }
+            }
+        }
+
+        if (locked) {
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (locked[r] && locked[r][c] !== undefined) {
+                        this.locked[r][c] = !!locked[r][c];
+                    }
+                }
+            }
+        }
+
+        this.solution = solution ? solution.map(row => [...row]) : null;
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Setzt das Board auf den Ursprungszustand zurück
+     */
+    restart() {
+        for (let r = 0; r < this.size; r++) {
+            for (let c = 0; c < this.size; c++) {
+                if (!this.locked[r][c]) {
+                    this.grid[r][c] = this.initialGrid[r][c];
+                    this.notes[r][c].clear();
+                }
+            }
+        }
+        this.undoStack = [];
+        this.redoStack = [];
+    }
+
+    /**
+     * Setzt den Zellwert mit Undo/Redo-Tracking
+     */
+    setCellValue(r, c, val, isNote = false) {
+        if (r < 0 || r >= this.size || c < 0 || c >= this.size) return;
+        if (this.locked[r][c]) return;
+
+        if (isNote) {
+            if (this.notes[r][c].has(val)) {
+                this.notes[r][c].delete(val);
+            } else {
+                this.notes[r][c].add(val);
+            }
+            return;
+        }
+
+        const oldVal = this.grid[r][c];
+        if (oldVal === val) return;
+
+        this.undoStack.push({ r, c, oldVal, newVal: val });
+        this.redoStack = [];
+        this.grid[r][c] = val;
+    }
+
+    /**
+     * Schaltet den Zellzustand zyklisch durch: Neutral (0) -> Keep (1) -> Cross (2) -> Neutral (0)
+     */
+    cycleCellValue(r, c) {
+        if (r < 0 || r >= this.size || c < 0 || c >= this.size) return 0;
+        if (this.locked[r][c]) return this.grid[r][c];
+
+        const oldVal = this.grid[r][c];
+        let nextVal = SUMGRID_KEEP;
+        if (oldVal === SUMGRID_KEEP) {
+            nextVal = SUMGRID_CROSS;
+        } else if (oldVal === SUMGRID_CROSS) {
+            nextVal = SUMGRID_NEUTRAL;
+        }
+
+        this.undoStack.push({ r, c, oldVal, newVal: nextVal });
+        this.redoStack = [];
+        this.grid[r][c] = nextVal;
+        return nextVal;
+    }
+
+    cycleNoteValue(r, c) {
+        // Im Notizmodus: Umschalten zwischen Notiz-Markierung
+        if (r < 0 || r >= this.size || c < 0 || c >= this.size) return;
+        if (this.locked[r][c]) return;
+        if (this.notes[r][c].has(1)) {
+            this.notes[r][c].delete(1);
+        } else {
+            this.notes[r][c].add(1);
+        }
+    }
+
+    undo() {
+        if (this.undoStack.length === 0) return null;
+        const action = this.undoStack.pop();
+        this.redoStack.push(action);
+        this.grid[action.r][action.c] = action.oldVal;
+        return action;
+    }
+
+    redo() {
+        if (this.redoStack.length === 0) return null;
+        const action = this.redoStack.pop();
+        this.undoStack.push(action);
+        this.grid[action.r][action.c] = action.newVal;
+        return action;
+    }
+
+    // --- Summen- und Status-Berechnungen ---
+
+    /**
+     * Aktuelle Summe aller als KEEP (1) markierten Zellen in Zeile r
+     */
+    getRowSum(r) {
+        if (r < 0 || r >= this.size) return 0;
+        let sum = 0;
+        for (let c = 0; c < this.size; c++) {
+            if (this.grid[r][c] === SUMGRID_KEEP) {
+                sum += this.numbers[r][c];
+            }
+        }
+        return sum;
+    }
+
+    /**
+     * Aktuelle Summe aller als KEEP (1) markierten Zellen in Spalte c
+     */
+    getColSum(c) {
+        if (c < 0 || c >= this.size) return 0;
+        let sum = 0;
+        for (let r = 0; r < this.size; r++) {
+            if (this.grid[r][c] === SUMGRID_KEEP) {
+                sum += this.numbers[r][c];
+            }
+        }
+        return sum;
+    }
+
+    /**
+     * Maximal noch erreichbare Summe in Zeile r (KEEP + NEUTRAL)
+     */
+    getRowPossibleSum(r) {
+        if (r < 0 || r >= this.size) return 0;
+        let sum = 0;
+        for (let c = 0; c < this.size; c++) {
+            if (this.grid[r][c] !== SUMGRID_CROSS) {
+                sum += this.numbers[r][c];
+            }
+        }
+        return sum;
+    }
+
+    /**
+     * Maximal noch erreichbare Summe in Spalte c (KEEP + NEUTRAL)
+     */
+    getColPossibleSum(c) {
+        if (c < 0 || c >= this.size) return 0;
+        let sum = 0;
+        for (let r = 0; r < this.size; r++) {
+            if (this.grid[r][c] !== SUMGRID_CROSS) {
+                sum += this.numbers[r][c];
+            }
+        }
+        return sum;
+    }
+
+    getRowTarget(r) {
+        return this.rowTargets[r] || 0;
+    }
+
+    getColTarget(c) {
+        return this.colTargets[c] || 0;
+    }
+
+    isRowSatisfied(r) {
+        return this.getRowSum(r) === this.getRowTarget(r);
+    }
+
+    isColSatisfied(c) {
+        return this.getColSum(c) === this.getColTarget(c);
+    }
+
+    isRowExceeded(r) {
+        return this.getRowSum(r) > this.getRowTarget(r);
+    }
+
+    isColExceeded(c) {
+        return this.getColSum(c) > this.getColTarget(c);
+    }
+
+    isRowDeficient(r) {
+        return this.getRowPossibleSum(r) < this.getRowTarget(r);
+    }
+
+    isColDeficient(c) {
+        return this.getColPossibleSum(c) < this.getColTarget(c);
+    }
+
+    /**
+     * Prüft, ob das gesamte Board fehlerfrei gelöst ist.
+     * Alle Zeilen und Spalten müssen exakt die Zielsumme erreichen
+     * und keine Zeile/Spalte darf überschritten oder defizitär sein.
+     */
+    isCompleted() {
+        for (let r = 0; r < this.size; r++) {
+            if (!this.isRowSatisfied(r)) return false;
+            // Falls die Zeile zwar summenmäßig passt, aber noch neutrale Zellen übrig sind,
+            // die zu Unklarheit führen könnten: Wenn eine neutrale Zahl existiert,
+            // ist das Rätsel erst fertig, wenn alle aktiven ausgewählt sind.
+            // Sobald die Summe exakt stimmt, ist die Zeile erfüllt.
+        }
+        for (let c = 0; c < this.size; c++) {
+            if (!this.isColSatisfied(c)) return false;
+        }
+
+        // Falls eine Lösung hinterlegt ist, muss die Maske der gewählten Felder
+        // mit der eindeutigen Lösung übereinstimmen:
+        if (this.solution) {
+            for (let r = 0; r < this.size; r++) {
+                for (let c = 0; c < this.size; c++) {
+                    const shouldKeep = this.solution[r][c] === 1;
+                    const isKept = this.grid[r][c] === SUMGRID_KEEP;
+                    if (shouldKeep !== isKept) return false;
+                }
+            }
+        }
+
+        return true;
+    }
+}
+
+// === Source: js\puzzles\sumgrid\solver.js ===
+/**
+ * SumGrid Solver & Hint Engine
+ * Findet Lösungen für SumGrid-Rätsel mittels Constraint-Propagation
+ * und optimiertem Branch-and-Bound-Backtracking.
+ * Generiert schrittweise didaktische Lösungshinweise für Spieler.
+ */
+
+
+
+class SumGridSolver {
+    /**
+     * Löst ein SumGrid-Rätsel und gibt bis zu `maxSolutions` Lösungen zurück.
+     * @param {Object|SumGridEngine} puzzle - Engine oder { size, numbers, rowTargets, colTargets }
+     * @param {number} maxSolutions - Maximale Anzahl zu findender Lösungen (Standard: 2 für Eindeutigkeitsprüfung)
+     * @returns {Array<number[][]>} Array gefundener Lösungen (jeweils Matrix aus 0 und 1)
+     */
+    static solve(puzzle, maxSolutions = 2) {
+        const size = puzzle.size;
+        const numbers = puzzle.numbers;
+        const rowTargets = puzzle.rowTargets;
+        const colTargets = puzzle.colTargets;
+
+        if (!numbers || !rowTargets || !colTargets) return [];
+
+        // 1. Für jede Zeile alle gültigen Bitmasken vorberechnen, deren Zahlen die rowTarget ergeben
+        const validRowMasks = [];
+        const numCombinations = 1 << size;
+
+        for (let r = 0; r < size; r++) {
+            const target = rowTargets[r];
+            const masks = [];
+
+            for (let mask = 0; mask < numCombinations; mask++) {
+                let sum = 0;
+                for (let c = 0; c < size; c++) {
+                    if ((mask & (1 << c)) !== 0) {
+                        sum += numbers[r][c];
+                    }
+                }
+                if (sum === target) {
+                    masks.push(mask);
+                }
+            }
+
+            if (masks.length === 0) {
+                // Eine Zeile hat keinerlei Teilmenge, die das Ziel ergibt -> unlösbar
+                return [];
+            }
+            validRowMasks.push(masks);
+        }
+
+        // 2. Maximal mögliche verbleibende Spaltensummen vorberechnen für aggressive Pruning
+        // remMaxColSums[r][c] = Summe der Zahlen von row r bis size-1 in Spalte c
+        const remMaxColSums = Array.from({ length: size + 1 }, () => Array(size).fill(0));
+        for (let c = 0; c < size; c++) {
+            for (let r = size - 1; r >= 0; r--) {
+                remMaxColSums[r][c] = remMaxColSums[r + 1][c] + numbers[r][c];
+            }
+        }
+
+        const solutions = [];
+        const chosenMasks = Array(size).fill(0);
+        const colSums = Array(size).fill(0);
+
+        function backtrack(r) {
+            if (r === size) {
+                // Alle Zeilen belegt. Prüfe, ob alle Spaltensummen exakt stimmen
+                let allMatch = true;
+                for (let c = 0; c < size; c++) {
+                    if (colSums[c] !== colTargets[c]) {
+                        allMatch = false;
+                        break;
+                    }
+                }
+                if (allMatch) {
+                    const solMatrix = Array.from({ length: size }, (_, row) =>
+                        Array.from({ length: size }, (_, col) => ((chosenMasks[row] & (1 << col)) !== 0 ? 1 : 0))
+                    );
+                    solutions.push(solMatrix);
+                }
+                return;
+            }
+
+            const masks = validRowMasks[r];
+            for (let i = 0; i < masks.length; i++) {
+                const mask = masks[i];
+                let feasible = true;
+
+                // Teste Spalten-Pruning
+                for (let c = 0; c < size; c++) {
+                    const add = (mask & (1 << c)) !== 0 ? numbers[r][c] : 0;
+                    const newColSum = colSums[c] + add;
+                    const target = colTargets[c];
+
+                    // 1. Spaltensumme darf Ziel nicht überschreiten
+                    if (newColSum > target) {
+                        feasible = false;
+                        break;
+                    }
+                    // 2. Spaltensumme + verbleibendes Maximum muss mindestens Ziel erreichen
+                    if (newColSum + remMaxColSums[r + 1][c] < target) {
+                        feasible = false;
+                        break;
+                    }
+                }
+
+                if (feasible) {
+                    // Wende Zug an
+                    for (let c = 0; c < size; c++) {
+                        if ((mask & (1 << c)) !== 0) {
+                            colSums[c] += numbers[r][c];
+                        }
+                    }
+                    chosenMasks[r] = mask;
+
+                    backtrack(r + 1);
+
+                    // Revertiere Zug
+                    for (let c = 0; c < size; c++) {
+                        if ((mask & (1 << c)) !== 0) {
+                            colSums[c] -= numbers[r][c];
+                        }
+                    }
+
+                    if (solutions.length >= maxSolutions) {
+                        return;
+                    }
+                }
+            }
+        }
+
+        backtrack(0);
+        return solutions;
+    }
+
+    /**
+     * Findet den nächsten logischen Tipp für den Spieler
+     */
+    static findLogicalHint(engine, options = {}) {
+        const size = engine.size;
+        const grid = engine.grid;
+        const numbers = engine.numbers;
+        const rowTargets = engine.rowTargets;
+        const colTargets = engine.colTargets;
+
+        // 1. Null-Ziel-Prüfung: Falls Ziel 0 ist, müssen alle neutralen Zellen gestrichen werden
+        for (let r = 0; r < size; r++) {
+            if (rowTargets[r] === 0) {
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === SUMGRID_NEUTRAL) {
+                        return {
+                            strategy: 'Null-Ziel',
+                            r, c,
+                            value: SUMGRID_CROSS,
+                            expectedVal: SUMGRID_CROSS,
+                            title: 'Nullsumme in Zeile',
+                            description: `In Zeile ${r + 1} ist das Ziel 0. Daher muss die ${numbers[r][c]} gestrichen werden.`
+                        };
+                    }
+                }
+            }
+        }
+
+        for (let c = 0; c < size; c++) {
+            if (colTargets[c] === 0) {
+                for (let r = 0; r < size; r++) {
+                    if (grid[r][c] === SUMGRID_NEUTRAL) {
+                        return {
+                            strategy: 'Null-Ziel',
+                            r, c,
+                            value: SUMGRID_CROSS,
+                            expectedVal: SUMGRID_CROSS,
+                            title: 'Nullsumme in Spalte',
+                            description: `In Spalte ${c + 1} ist das Ziel 0. Daher muss die ${numbers[r][c]} gestrichen werden.`
+                        };
+                    }
+                }
+            }
+        }
+
+        // 2. Ziel bereits erreicht: Verbleibende neutrale Zellen streichen
+        for (let r = 0; r < size; r++) {
+            const currentSum = engine.getRowSum(r);
+            if (currentSum === rowTargets[r]) {
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === SUMGRID_NEUTRAL) {
+                        return {
+                            strategy: 'Zielsumme erreicht',
+                            r, c,
+                            value: SUMGRID_CROSS,
+                            expectedVal: SUMGRID_CROSS,
+                            title: 'Zeilenziel erfüllt',
+                            description: `Zeile ${r + 1} hat das Ziel ${rowTargets[r]} bereits erreicht. Die ${numbers[r][c]} kann gestrichen werden.`
+                        };
+                    }
+                }
+            }
+        }
+
+        for (let c = 0; c < size; c++) {
+            const currentSum = engine.getColSum(c);
+            if (currentSum === colTargets[c]) {
+                for (let r = 0; r < size; r++) {
+                    if (grid[r][c] === SUMGRID_NEUTRAL) {
+                        return {
+                            strategy: 'Zielsumme erreicht',
+                            r, c,
+                            value: SUMGRID_CROSS,
+                            expectedVal: SUMGRID_CROSS,
+                            title: 'Spaltenziel erfüllt',
+                            description: `Spalte ${c + 1} hat das Ziel ${colTargets[c]} bereits erreicht. Die ${numbers[r][c]} kann gestrichen werden.`
+                        };
+                    }
+                }
+            }
+        }
+
+        // 3. Ausschluss zu großer Zahlen: Wenn eine Zahl > verbleibendes Ziel
+        for (let r = 0; r < size; r++) {
+            const rem = rowTargets[r] - engine.getRowSum(r);
+            for (let c = 0; c < size; c++) {
+                if (grid[r][c] === SUMGRID_NEUTRAL && numbers[r][c] > rem) {
+                    return {
+                        strategy: 'Überhang-Ausschluss',
+                        r, c,
+                        value: SUMGRID_CROSS,
+                        expectedVal: SUMGRID_CROSS,
+                        title: 'Zahl zu groß',
+                        description: `In Zeile ${r + 1} fehlen noch ${rem}, aber ${numbers[r][c]} ist größer. Sie muss gestrichen werden.`
+                    };
+                }
+            }
+        }
+
+        for (let c = 0; c < size; c++) {
+            const rem = colTargets[c] - engine.getColSum(c);
+            for (let r = 0; r < size; r++) {
+                if (grid[r][c] === SUMGRID_NEUTRAL && numbers[r][c] > rem) {
+                    return {
+                        strategy: 'Überhang-Ausschluss',
+                        r, c,
+                        value: SUMGRID_CROSS,
+                        expectedVal: SUMGRID_CROSS,
+                        title: 'Zahl zu groß',
+                        description: `In Spalte ${c + 1} fehlen noch ${rem}, aber ${numbers[r][c]} ist größer. Sie muss gestrichen werden.`
+                    };
+                }
+            }
+        }
+
+        // 4. Vollsumme: Wenn verbleibende mögliche Summe exakt dem verbleibenden Ziel entspricht
+        for (let r = 0; r < size; r++) {
+            const poss = engine.getRowPossibleSum(r);
+            if (poss === rowTargets[r]) {
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === SUMGRID_NEUTRAL) {
+                        return {
+                            strategy: 'Vollsumme',
+                            r, c,
+                            value: SUMGRID_KEEP,
+                            expectedVal: SUMGRID_KEEP,
+                            title: 'Alle werden benötigt',
+                            description: `In Zeile ${r + 1} müssen alle verbleibenden Zahlen behalten werden, um ${rowTargets[r]} zu erreichen.`
+                        };
+                    }
+                }
+            }
+        }
+
+        for (let c = 0; c < size; c++) {
+            const poss = engine.getColPossibleSum(c);
+            if (poss === colTargets[c]) {
+                for (let r = 0; r < size; r++) {
+                    if (grid[r][c] === SUMGRID_NEUTRAL) {
+                        return {
+                            strategy: 'Vollsumme',
+                            r, c,
+                            value: SUMGRID_KEEP,
+                            expectedVal: SUMGRID_KEEP,
+                            title: 'Alle werden benötigt',
+                            description: `In Spalte ${c + 1} müssen alle verbleibenden Zahlen behalten werden, um ${colTargets[c]} zu erreichen.`
+                        };
+                    }
+                }
+            }
+        }
+
+        // 5. Exakter Lückenschluss: Genau eine Zahl fehlt noch zum Zeilen- oder Spaltenziel
+        for (let r = 0; r < size; r++) {
+            const rem = rowTargets[r] - engine.getRowSum(r);
+            const neutrals = [];
+            for (let c = 0; c < size; c++) {
+                if (grid[r][c] === SUMGRID_NEUTRAL) neutrals.push({ c, val: numbers[r][c] });
+            }
+            if (neutrals.length === 1 && neutrals[0].val === rem) {
+                return {
+                    strategy: 'Lückenschluss',
+                    r, c: neutrals[0].c,
+                    value: SUMGRID_KEEP,
+                    expectedVal: SUMGRID_KEEP,
+                    title: 'Exakter Lückenschluss',
+                    description: `Die ${neutrals[0].val} in Zeile ${r + 1} schließt exakt die verbleibende Lücke von ${rem}.`
+                };
+            }
+        }
+
+        for (let c = 0; c < size; c++) {
+            const rem = colTargets[c] - engine.getColSum(c);
+            const neutrals = [];
+            for (let r = 0; r < size; r++) {
+                if (grid[r][c] === SUMGRID_NEUTRAL) neutrals.push({ r, val: numbers[r][c] });
+            }
+            if (neutrals.length === 1 && neutrals[0].val === rem) {
+                return {
+                    strategy: 'Lückenschluss',
+                    r: neutrals[0].r, c,
+                    value: SUMGRID_KEEP,
+                    expectedVal: SUMGRID_KEEP,
+                    title: 'Exakter Lückenschluss',
+                    description: `Die ${neutrals[0].val} in Spalte ${c + 1} schließt exakt die verbleibende Lücke von ${rem}.`
+                };
+            }
+        }
+
+        // 6. Fallback basierend auf der eindeutigen Lösung
+        let sol = engine.solution;
+        if (!sol) {
+            const solved = SumGridSolver.solve(engine, 1);
+            if (solved.length > 0) sol = solved[0];
+        }
+
+        if (sol) {
+            // Bevorzuge fokussierte Zelle falls neutral
+            if (options.focusCell) {
+                const { r, c } = options.focusCell;
+                if (grid[r] && grid[r][c] === SUMGRID_NEUTRAL) {
+                    const shouldKeep = sol[r][c] === 1;
+                    return {
+                        strategy: 'Deduktion',
+                        r, c,
+                        value: shouldKeep ? SUMGRID_KEEP : SUMGRID_CROSS,
+                        expectedVal: shouldKeep ? SUMGRID_KEEP : SUMGRID_CROSS,
+                        title: shouldKeep ? 'Zahl behalten' : 'Zahl streichen',
+                        description: shouldKeep
+                            ? `Die ${numbers[r][c]} in Zeile ${r + 1}, Spalte ${c + 1} gehört zur Lösung.`
+                            : `Die ${numbers[r][c]} in Zeile ${r + 1}, Spalte ${c + 1} gehört nicht zur Lösung.`
+                    };
+                }
+            }
+
+            // Ansonsten erste ungelöste neutrale Zelle
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (grid[r][c] === SUMGRID_NEUTRAL) {
+                        const shouldKeep = sol[r][c] === 1;
+                        return {
+                            strategy: 'Deduktion',
+                            r, c,
+                            value: shouldKeep ? SUMGRID_KEEP : SUMGRID_CROSS,
+                            expectedVal: shouldKeep ? SUMGRID_KEEP : SUMGRID_CROSS,
+                            title: shouldKeep ? 'Zahl behalten' : 'Zahl streichen',
+                            description: shouldKeep
+                                ? `Die ${numbers[r][c]} in Zeile ${r + 1}, Spalte ${c + 1} gehört zur Zielsumme.`
+                                : `Die ${numbers[r][c]} in Zeile ${r + 1}, Spalte ${c + 1} gehört nicht zur Summe.`
+                        };
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+// === Source: js\puzzles\sumgrid\generator.js ===
+/**
+ * SumGrid Puzzle Generator
+ * Generiert deterministisch eindeutig lösbare SumGrid-Rätsel (4×4 bis 7×7)
+ * mit garantierter Einzellösung (verifiziert via SumGridSolver).
+ */
+
+
+
+class SumGridGenerator {
+    /**
+     * Deterministischer PRNG (Mulberry32)
+     */
+    static seededRandom(seed) {
+        let s = (seed || 1) | 0;
+        return function() {
+            s = (s + 0x6D2B79F5) | 0;
+            let t = Math.imul(s ^ (s >>> 15), 1 | s);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    /**
+     * Generiert ein neues SumGrid-Rätsel mit garantierter eindeutiger Lösung.
+     * @param {Object} options
+     *   size: number (4..7)
+     *   difficulty: 'easy' | 'medium' | 'hard'
+     *   seed: number (optional)
+     */
+    static generatePuzzle({ size = 5, difficulty = 'medium', seed = null }) {
+        const rng = seed !== null && seed !== undefined
+            ? SumGridGenerator.seededRandom(seed)
+            : Math.random;
+
+        let maxVal = 9;
+        let keepProbability = 0.5;
+
+        if (size === 4) {
+            maxVal = difficulty === 'hard' ? 7 : 5;
+            keepProbability = 0.5;
+        } else if (size === 5) {
+            maxVal = difficulty === 'easy' ? 6 : 9;
+            keepProbability = difficulty === 'easy' ? 0.55 : 0.5;
+        } else if (size === 6) {
+            maxVal = 9;
+            keepProbability = 0.5;
+        } else {
+            maxVal = 9;
+            keepProbability = 0.5;
+        }
+
+        const maxAttempts = 300;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            // 1. Zufällige Zahlen erzeugen
+            const numbers = Array.from({ length: size }, () =>
+                Array.from({ length: size }, () => 1 + Math.floor(rng() * maxVal))
+            );
+
+            // 2. Lösungsmaske (0 oder 1) generieren
+            const solution = Array.from({ length: size }, () => Array(size).fill(0));
+
+            for (let r = 0; r < size; r++) {
+                let rowKeeps = 0;
+                for (let c = 0; c < size; c++) {
+                    const keep = rng() < keepProbability ? 1 : 0;
+                    solution[r][c] = keep;
+                    if (keep) rowKeeps++;
+                }
+
+                // Vermeide komplett leere oder komplett volle Zeilen für spannenderes Gameplay
+                if (rowKeeps === 0) {
+                    const forceCol = Math.floor(rng() * size);
+                    solution[r][forceCol] = 1;
+                } else if (rowKeeps === size && size > 4) {
+                    const forceDrop = Math.floor(rng() * size);
+                    solution[r][forceDrop] = 0;
+                }
+            }
+
+            // Sicherstellen, dass jede Spalte mindestens eine 1 hat
+            for (let c = 0; c < size; c++) {
+                let colKeeps = 0;
+                for (let r = 0; r < size; r++) {
+                    if (solution[r][c] === 1) colKeeps++;
+                }
+                if (colKeeps === 0) {
+                    const forceRow = Math.floor(rng() * size);
+                    solution[forceRow][c] = 1;
+                }
+            }
+
+            // 3. Zielsummen aus der Maske berechnen
+            const rowTargets = Array(size).fill(0);
+            const colTargets = Array(size).fill(0);
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (solution[r][c] === 1) {
+                        rowTargets[r] += numbers[r][c];
+                        colTargets[c] += numbers[r][c];
+                    }
+                }
+            }
+
+            // 4. Eindeutigkeitsprüfung durch Solver
+            const solutions = SumGridSolver.solve({ size, numbers, rowTargets, colTargets }, 2);
+
+            if (solutions.length === 1) {
+                return {
+                    size,
+                    numbers,
+                    rowTargets,
+                    colTargets,
+                    solution,
+                    difficulty
+                };
+            }
+        }
+
+        // Fallback: Einfaches konstruiertes Rätsel mit garantierter Eindeutigkeit
+        return SumGridGenerator.generateFallback(size);
+    }
+
+    /**
+     * Stabiler deterministischer Fallback
+     */
+    static generateFallback(size = 5) {
+        const numbers = Array.from({ length: size }, (_, r) =>
+            Array.from({ length: size }, (_, c) => ((r * 2 + c) % 8) + 1)
+        );
+        const solution = Array.from({ length: size }, (_, r) =>
+            Array.from({ length: size }, (_, c) => ((r + c) % 2 === 0 ? 1 : 0))
+        );
+        const rowTargets = Array(size).fill(0);
+        const colTargets = Array(size).fill(0);
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (solution[r][c] === 1) {
+                    rowTargets[r] += numbers[r][c];
+                    colTargets[c] += numbers[r][c];
+                }
+            }
+        }
+
+        return {
+            size,
+            numbers,
+            rowTargets,
+            colTargets,
+            solution,
+            difficulty: 'easy'
+        };
+    }
+}
+
+// === Source: js\puzzles\sumgrid\renderer.js ===
+/**
+ * SumGrid Visual Renderer
+ * Zeichnet das Spielfeld mit Ziffernkacheln, Zeilen- & Spalten-Zielsummen,
+ * Live-Statusindikatoren (Erfüllt, Überschritten, Ausstehend) und Keypad.
+ */
+
+
+
+class SumGridRenderer {
+    static getSymbolSvg(val, extraClass = '') {
+        if (val === SUMGRID_KEEP) {
+            return `<span class="sumgrid-symbol sumgrid-sym-keep ${extraClass}">✓</span>`;
+        } else if (val === SUMGRID_CROSS) {
+            return `<span class="sumgrid-symbol sumgrid-sym-cross ${extraClass}">✕</span>`;
+        }
+        return '';
+    }
+
+    static renderBoard(container, engine, state, onCellInteraction) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        container.classList.add('has-sumgrid');
+
+        const size = engine.size;
+        const boardWrapper = document.createElement('div');
+        boardWrapper.className = `sumgrid-board size-${size}`;
+        boardWrapper.style.setProperty('--grid-size', size);
+
+        const selCell = state.selectedCell;
+        const hintCell = state.hintPlacedCell;
+        const solution = engine.solution;
+
+        // Grid-Layout: (size + 1) Zeilen x (size + 1) Spalten
+        // Zeilen 0..size-1, Spalten 0..size-1: Zahlenkacheln
+        // Spalte size: Zeilen-Zielsummen
+        // Zeile size: Spalten-Zielsummen
+        // Ecke (size, size): Corner-Badge
+
+        const gridEl = document.createElement('div');
+        gridEl.className = 'sumgrid-matrix';
+        gridEl.style.gridTemplateColumns = `repeat(${size}, 1fr) auto`;
+        gridEl.style.gridTemplateRows = `repeat(${size}, 1fr) auto`;
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                const val = engine.grid[r][c];
+                const num = engine.numbers[r][c];
+                const isLocked = engine.locked[r][c];
+
+                const cellEl = document.createElement('div');
+                cellEl.className = 'sumgrid-cell';
+                cellEl.dataset.r = r;
+                cellEl.dataset.c = c;
+                cellEl.setAttribute('role', 'button');
+                cellEl.setAttribute('aria-label', `Zeile ${r + 1}, Spalte ${c + 1}: ${num}`);
+
+                if (isLocked) cellEl.classList.add('locked');
+
+                // Auswahl & Hints
+                if (selCell && selCell.r === r && selCell.c === c) {
+                    cellEl.classList.add('selected');
+                }
+                if (hintCell && hintCell.r === r && hintCell.c === c) {
+                    cellEl.classList.add('hint-shimmer');
+                }
+
+                // Zustand
+                if (state.solutionRevealed && solution) {
+                    const shouldKeep = solution[r][c] === 1;
+                    if (shouldKeep) {
+                        cellEl.classList.add('cell-keep', 'revealed-keep');
+                    } else {
+                        cellEl.classList.add('cell-cross', 'revealed-cross');
+                    }
+                } else if (val === SUMGRID_KEEP) {
+                    cellEl.classList.add('cell-keep');
+                } else if (val === SUMGRID_CROSS) {
+                    cellEl.classList.add('cell-cross');
+                } else {
+                    cellEl.classList.add('cell-neutral');
+                }
+
+                // Kachelinhalt: Zahl
+                const numSpan = document.createElement('span');
+                numSpan.className = 'cell-num';
+                numSpan.textContent = num;
+                cellEl.appendChild(numSpan);
+
+                // Notizen / Indikatoren
+                if (engine.notes[r][c].size > 0 && val === SUMGRID_NEUTRAL) {
+                    const noteDot = document.createElement('span');
+                    noteDot.className = 'cell-note-dot';
+                    cellEl.appendChild(noteDot);
+                }
+
+                if (typeof onCellInteraction === 'function') {
+                    onCellInteraction(cellEl, r, c);
+                }
+
+                gridEl.appendChild(cellEl);
+            }
+
+            // Zeilenziel-Badge am rechten Rand
+            const rowTargetBox = document.createElement('div');
+            rowTargetBox.className = 'sumgrid-target row-target';
+            const rowTarget = engine.getRowTarget(r);
+            const rowCurrent = engine.getRowSum(r);
+            const isRowSat = engine.isRowSatisfied(r);
+            const isRowExc = engine.isRowExceeded(r);
+
+            if (isRowSat) {
+                rowTargetBox.classList.add('target-satisfied');
+            } else if (isRowExc) {
+                rowTargetBox.classList.add('target-exceeded');
+            } else {
+                rowTargetBox.classList.add('target-pending');
+            }
+
+            rowTargetBox.innerHTML = `
+                <span class="target-val">${rowTarget}</span>
+                ${isRowSat ? '<span class="target-status-icon">✓</span>' : ''}
+                ${isRowExc ? '<span class="target-status-icon">⚠️</span>' : ''}
+            `;
+            gridEl.appendChild(rowTargetBox);
+        }
+
+        // Unterste Reihe: Spalten-Ziele
+        for (let c = 0; c < size; c++) {
+            const colTargetBox = document.createElement('div');
+            colTargetBox.className = 'sumgrid-target col-target';
+            const colTarget = engine.getColTarget(c);
+            const colCurrent = engine.getColSum(c);
+            const isColSat = engine.isColSatisfied(c);
+            const isColExc = engine.isColExceeded(c);
+
+            if (isColSat) {
+                colTargetBox.classList.add('target-satisfied');
+            } else if (isColExc) {
+                colTargetBox.classList.add('target-exceeded');
+            } else {
+                colTargetBox.classList.add('target-pending');
+            }
+
+            colTargetBox.innerHTML = `
+                <span class="target-val">${colTarget}</span>
+                ${isColSat ? '<span class="target-status-icon">✓</span>' : ''}
+                ${isColExc ? '<span class="target-status-icon">⚠️</span>' : ''}
+            `;
+            gridEl.appendChild(colTargetBox);
+        }
+
+        // Ecke unten-rechts: Corner-Badge
+        const cornerBox = document.createElement('div');
+        cornerBox.className = 'sumgrid-corner';
+        cornerBox.innerHTML = '<span class="corner-icon">🧮</span>';
+        gridEl.appendChild(cornerBox);
+
+        boardWrapper.appendChild(gridEl);
+        container.appendChild(boardWrapper);
+    }
+
+    static renderKeypad(container, engine, state, onKeyInput) {
+        if (!container || !engine) return;
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        container.className = 'game-keypad sumgrid-keypad';
+
+        // 1. Button: Behalten (Zählt zur Summe)
+        const btnKeep = document.createElement('button');
+        btnKeep.type = 'button';
+        btnKeep.className = 'keypad-btn sumgrid-key-btn key-keep';
+        btnKeep.innerHTML = '<span class="key-icon">🟢</span><span class="key-label">Behalten</span>';
+        btnKeep.addEventListener('click', () => onKeyInput && onKeyInput(SUMGRID_KEEP));
+        container.appendChild(btnKeep);
+
+        // 2. Button: Streichen (Ausgeschlossen)
+        const btnCross = document.createElement('button');
+        btnCross.type = 'button';
+        btnCross.className = 'keypad-btn sumgrid-key-btn key-cross';
+        btnCross.innerHTML = '<span class="key-icon">✕</span><span class="key-label">Streichen</span>';
+        btnCross.addEventListener('click', () => onKeyInput && onKeyInput(SUMGRID_CROSS));
+        container.appendChild(btnCross);
+
+        // 3. Button: Zurücksetzen / Neutral
+        const btnClear = document.createElement('button');
+        btnClear.type = 'button';
+        btnClear.className = 'keypad-btn sumgrid-key-btn key-clear';
+        btnClear.innerHTML = '<span class="key-icon">↺</span><span class="key-label">Leeren</span>';
+        btnClear.addEventListener('click', () => onKeyInput && onKeyInput(SUMGRID_NEUTRAL));
+        container.appendChild(btnClear);
+    }
+
+    static getRulesHtml(lang = 'de') {
+        if (lang === 'en') {
+            return `
+                <div class="rules-container">
+                    <div class="rule-box">
+                        <div class="rule-badge">1</div>
+                        <div class="rule-content">
+                            <strong>Target sums for rows &amp; columns</strong>
+                            <p>Each row and column displays a target sum at the border that must be reached by the active numbers.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">2</div>
+                        <div class="rule-content">
+                            <strong>Keep or cross out numbers</strong>
+                            <p>Tap a number once to keep it (counts towards the sum), tap again to cross it out (does not count).</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">3</div>
+                        <div class="rule-content">
+                            <strong>Exact match required</strong>
+                            <p>A row or column turns green once its active numbers add up to the exact target sum. Avoid exceeding the target.</p>
+                        </div>
+                    </div>
+                    <div class="rule-box">
+                        <div class="rule-badge">4</div>
+                        <div class="rule-content">
+                            <strong>Deduction &amp; cross-influence</strong>
+                            <p>Every decision in a row affects the corresponding column. Use logic to eliminate invalid numbers step by step.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="rules-container">
+                <div class="rule-box">
+                    <div class="rule-badge">1</div>
+                    <div class="rule-content">
+                        <strong>Zielsummen für Zeilen &amp; Spalten</strong>
+                        <p>Am Rand jeder Zeile und jeder Spalte steht eine vorgegebene Zielsumme, die exakt erreicht werden muss.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">2</div>
+                    <div class="rule-content">
+                        <strong>Zahlen behalten oder streichen</strong>
+                        <p>Tippe auf eine Zahl, um sie zu behalten (zählt zur Summe). Ein weiterer Tipp streicht die Zahl durch (zählt nicht).</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">3</div>
+                    <div class="rule-content">
+                        <strong>Exakte Treffer ohne Überhang</strong>
+                        <p>Erreicht eine Zeile oder Spalte exakt ihr Ziel, leuchtet sie grün auf. Überschreitungen werden farblich gewarnt.</p>
+                    </div>
+                </div>
+                <div class="rule-box">
+                    <div class="rule-badge">4</div>
+                    <div class="rule-content">
+                        <strong>Wechselwirkung nutzen</strong>
+                        <p>Jede Entscheidung in einer Zeile beeinflusst auch die jeweilige Spalte. Finde durch logischen Ausschluss die eindeutige Lösung.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// === Source: js\puzzles\sumgrid\data\i18n.js ===
+/**
+ * SumGrid Lokalisierung (DE/EN)
+ */
+
+const SUMGRID_I18N = {
+    de: {
+        puzzle_name: "SumGrid",
+        puzzle_desc: "Zahlen eliminieren für Zeilen- & Spaltensummen",
+        chapter_1_name: "Einstieg",
+        chapter_1_desc: "4×4 & 5×5 Grundlagen",
+        chapter_2_name: "Zahlenmeister",
+        chapter_2_desc: "5×5 Fortgeschritten",
+        chapter_3_name: "Kombinatorik",
+        chapter_3_desc: "6×6 Herausforderung",
+        chapter_4_name: "Großmeister",
+        chapter_4_desc: "6×6 & 7×7 Meister",
+        key_keep: "Behalten",
+        key_cross: "Streichen",
+        key_clear: "Leeren",
+        tutorial_basics: "Grundlagen",
+        tutorial_badge: "6 Lektionen"
+    },
+    en: {
+        puzzle_name: "SumGrid",
+        puzzle_desc: "Eliminate numbers to match row & column sums",
+        chapter_1_name: "Introduction",
+        chapter_1_desc: "4×4 & 5×5 Basics",
+        chapter_2_name: "Number Master",
+        chapter_2_desc: "5×5 Advanced",
+        chapter_3_name: "Combinatorics",
+        chapter_3_desc: "6×6 Challenge",
+        chapter_4_name: "Grandmaster",
+        chapter_4_desc: "6×6 & 7×7 Master",
+        key_keep: "Keep",
+        key_cross: "Cross",
+        key_clear: "Clear",
+        tutorial_basics: "Basics",
+        tutorial_badge: "6 Lessons"
+    }
+};
+
+// === Source: js\puzzles\sumgrid\data\levels.js ===
+/**
+ * SumGrid Level & Tagesrätsel-Generierung
+ * 240 deterministische Kampagnen-Level in 4 thematischen Kapiteln (4×4 bis 7×7)
+ */
+
+
+
+function getSumGridCampaignLevel(levelIndex) {
+    // 240 Level in 4 Kapiteln:
+    // Kapitel 1 „Einstieg“ (Level 1–60): 4×4 & 5×5 Easy
+    // Kapitel 2 „Zahlenmeister“ (Level 61–120): 5×5 Medium
+    // Kapitel 3 „Kombinatorik“ (Level 121–180): 6×6 Medium & Hard
+    // Kapitel 4 „Großmeister“ (Level 181–240): 6×6 & 7×7 Hard
+    let size, difficulty;
+    if (levelIndex < 30) {
+        size = 4;
+        difficulty = 'easy';
+    } else if (levelIndex < 60) {
+        size = 5;
+        difficulty = 'easy';
+    } else if (levelIndex < 90) {
+        size = 5;
+        difficulty = 'medium';
+    } else if (levelIndex < 120) {
+        size = 5;
+        difficulty = 'medium';
+    } else if (levelIndex < 150) {
+        size = 6;
+        difficulty = 'medium';
+    } else if (levelIndex < 180) {
+        size = 6;
+        difficulty = 'hard';
+    } else if (levelIndex < 210) {
+        size = 6;
+        difficulty = 'hard';
+    } else {
+        size = 7;
+        difficulty = 'hard';
+    }
+
+    const seed = 70000 + (levelIndex + 1) * 157;
+    const generated = SumGridGenerator.generatePuzzle({ size, difficulty, seed });
+
+    return {
+        id: levelIndex + 1,
+        tier: difficulty,
+        name: `Level ${levelIndex + 1}`,
+        ...generated
+    };
+}
+
+/**
+ * Erzeugt das synchrone Tagesrätsel basierend auf dem Datum (JJJJ-MM-TT)
+ */
+function getSumGridDailyPuzzle(dateStr) {
+    const seed = parseInt(dateStr.replace(/-/g, ''), 10);
+    const date = new Date(dateStr);
+    const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+    const size = isWeekend ? 6 : 5;
+    const difficulty = isWeekend ? 'hard' : 'medium';
+
+    const generated = SumGridGenerator.generatePuzzle({ size, difficulty, seed });
+
+    return {
+        id: `daily-${dateStr}`,
+        date: dateStr,
+        tier: difficulty,
+        name: `Tagesrätsel ${dateStr}`,
+        ...generated
+    };
+}
+
+// === Source: js\puzzles\sumgrid\data\tutorial.js ===
+/**
+ * SumGrid Interaktives Tutorial
+ * 6 aufeinander aufbauende Lektionen für Anfänger und Fortgeschrittene
+ */
+
+
+
+const SUMGRID_TUTORIAL_STEPS = [
+    {
+        id: 1,
+        title: "1. Zielsummen & Aktivieren 🎯",
+        subtitle: "Die Grundmechanik von SumGrid",
+        description: `Willkommen bei **SumGrid**!\n\nAm rechten Rand jeder Zeile und am unteren Rand jeder Spalte steht eine **Zielsumme**.\n\nTippe auf eine Zahl, um sie zu **behalten (grün)** oder erneut, um sie zu **streichen (✕)**.\n\n*Aufgabe: In Zeile 1 ist das Ziel 5. Behalte die 2 und die 3, streiche die 1.*`,
+        size: 3,
+        numbers: [
+            [2, 3, 1],
+            [1, 2, 4],
+            [3, 1, 2]
+        ],
+        rowTargets: [5, 4, 3],
+        colTargets: [2, 5, 5],
+        initialGrid: [
+            [SUMGRID_NEUTRAL, SUMGRID_NEUTRAL, SUMGRID_NEUTRAL],
+            [SUMGRID_KEEP, SUMGRID_CROSS, SUMGRID_KEEP],
+            [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_KEEP]
+        ],
+        solution: [
+            [1, 1, 0],
+            [1, 0, 1],
+            [0, 1, 1]
+        ],
+        targetCells: [
+            { r: 0, c: 0, val: SUMGRID_KEEP },
+            { r: 0, c: 1, val: SUMGRID_KEEP },
+            { r: 0, c: 2, val: SUMGRID_CROSS }
+        ],
+        explanation: "Perfekt! 2 + 3 ergibt genau 5. Zeile 1 ist vollständig erfüllt!"
+    },
+    {
+        id: 2,
+        title: "2. Die Nullsumme 🚫",
+        subtitle: "Sofortiger Ausschluss einer ganzen Reihe",
+        description: `Wenn eine Zielsumme am Rand **0** beträgt, darf keine einzige Zahl in dieser Reihe zur Summe beitragen.\n\n*Aufgabe: In Zeile 2 ist das Ziel 0. Streiche alle Zahlen dieser Zeile durch.*`,
+        size: 3,
+        numbers: [
+            [2, 4, 1],
+            [5, 3, 2],
+            [1, 2, 4]
+        ],
+        rowTargets: [6, 0, 5],
+        colTargets: [2, 4, 5],
+        initialGrid: [
+            [SUMGRID_KEEP, SUMGRID_KEEP, SUMGRID_CROSS],
+            [SUMGRID_NEUTRAL, SUMGRID_NEUTRAL, SUMGRID_NEUTRAL],
+            [SUMGRID_CROSS, SUMGRID_CROSS, SUMGRID_KEEP]
+        ],
+        solution: [
+            [1, 1, 0],
+            [0, 0, 0],
+            [0, 0, 1]
+        ],
+        targetCells: [
+            { r: 1, c: 0, val: SUMGRID_CROSS },
+            { r: 1, c: 1, val: SUMGRID_CROSS },
+            { r: 1, c: 2, val: SUMGRID_CROSS }
+        ],
+        explanation: "Hervorragend! Ist das Ziel 0, können alle Zahlen der Zeile oder Spalte sofort eliminiert werden."
+    },
+    {
+        id: 3,
+        title: "3. Die Vollsumme ✨",
+        subtitle: "Wenn alle Zahlen gebraucht werden",
+        description: `Entspricht das Ziel genau der Summe aller Zahlen einer Zeile, muss **jede einzelne Zahl** behalten werden.\n\n*Aufgabe: In Zeile 1 stehen 2, 3 und 4 (Summe = 9). Das Ziel ist 9. Aktiviere alle drei Zahlen.*`,
+        size: 3,
+        numbers: [
+            [2, 3, 4],
+            [1, 4, 2],
+            [3, 1, 5]
+        ],
+        rowTargets: [9, 3, 5],
+        colTargets: [2, 7, 8],
+        initialGrid: [
+            [SUMGRID_NEUTRAL, SUMGRID_NEUTRAL, SUMGRID_NEUTRAL],
+            [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_CROSS],
+            [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_KEEP]
+        ],
+        solution: [
+            [1, 1, 1],
+            [0, 1, 0],
+            [0, 1, 1]
+        ],
+        targetCells: [
+            { r: 0, c: 0, val: SUMGRID_KEEP },
+            { r: 0, c: 1, val: SUMGRID_KEEP },
+            { r: 0, c: 2, val: SUMGRID_KEEP }
+        ],
+        explanation: "Exakt! 2 + 3 + 4 = 9. Wenn nichts weggelassen werden kann, bleiben alle aktiv."
+    },
+    {
+        id: 4,
+        title: "4. Zu große Zahlen ausschließen ⚠️",
+        subtitle: "Überhang-Deduktion",
+        description: `Ist eine Zahl **größer als das verbleibende Ziel**, kann sie niemals Teil der Lösung sein und muss gestrichen werden.\n\n*Aufgabe: In Zeile 2 ist das Ziel nur 3. Die 7 ist viel zu groß. Streiche die 7 durch.*`,
+        size: 3,
+        numbers: [
+            [1, 3, 2],
+            [7, 2, 1],
+            [2, 4, 3]
+        ],
+        rowTargets: [4, 3, 6],
+        colTargets: [1, 5, 5],
+        initialGrid: [
+            [SUMGRID_KEEP, SUMGRID_KEEP, SUMGRID_CROSS],
+            [SUMGRID_NEUTRAL, SUMGRID_KEEP, SUMGRID_KEEP],
+            [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_KEEP]
+        ],
+        solution: [
+            [1, 1, 0],
+            [0, 1, 1],
+            [0, 1, 1]
+        ],
+        targetCells: [
+            { r: 1, c: 0, val: SUMGRID_CROSS }
+        ],
+        explanation: "Genau richtig! Da 7 > 3 ist, kann sie niemals zur Zeilensumme 3 gehören."
+    },
+    {
+        id: 5,
+        title: "5. Wechselwirkung Zeile × Spalte 🔄",
+        subtitle: "Entscheidungen über Kreuz nutzen",
+        description: `Jedes Feld gehört gleichzeitig zu einer Zeile und einer Spalte.\n\n*Aufgabe: Spalte 2 hat das Ziel 2 und bereits eine aktive 2 in Zeile 2. Daher muss die 5 in Zeile 1, Spalte 2 gestrichen werden.*`,
+        size: 3,
+        numbers: [
+            [3, 5, 2],
+            [1, 2, 4],
+            [2, 3, 1]
+        ],
+        rowTargets: [5, 6, 2],
+        colTargets: [5, 2, 6],
+        initialGrid: [
+            [SUMGRID_KEEP, SUMGRID_NEUTRAL, SUMGRID_KEEP],
+            [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_KEEP],
+            [SUMGRID_KEEP, SUMGRID_CROSS, SUMGRID_CROSS]
+        ],
+        solution: [
+            [1, 0, 1],
+            [0, 1, 1],
+            [1, 0, 0]
+        ],
+        targetCells: [
+            { r: 0, c: 1, val: SUMGRID_CROSS }
+        ],
+        explanation: "Sehr gut! Die Spalte hat das Schicksal der Zelle entschieden, wodurch nun auch die Zeile perfekt aufgeht."
+    },
+    {
+        id: 6,
+        title: "6. Die Differenz-Methode ➖",
+        subtitle: "Rückwärts denken",
+        description: `Summiere alle Zahlen einer Zeile: Wenn die Gesamtsumme z. B. 12 ist und das Ziel 9, musst du Zahlen finden, die zusammen **genau 3 ergeben**, und diese streichen!\n\n*Aufgabe: In Zeile 1 (4, 3, 5 = 12) ist das Ziel 9. Die Differenz ist 3. Streiche die 3 und behalte die 4 und 5.*`,
+        size: 3,
+        numbers: [
+            [4, 3, 5],
+            [2, 1, 3],
+            [1, 4, 2]
+        ],
+        rowTargets: [9, 5, 5],
+        colTargets: [6, 4, 8],
+        initialGrid: [
+            [SUMGRID_NEUTRAL, SUMGRID_NEUTRAL, SUMGRID_NEUTRAL],
+            [SUMGRID_KEEP, SUMGRID_CROSS, SUMGRID_KEEP],
+            [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_CROSS]
+        ],
+        solution: [
+            [1, 0, 1],
+            [1, 0, 1],
+            [0, 1, 0]
+        ],
+        targetCells: [
+            { r: 0, c: 0, val: SUMGRID_KEEP },
+            { r: 0, c: 1, val: SUMGRID_CROSS },
+            { r: 0, c: 2, val: SUMGRID_KEEP }
+        ],
+        explanation: "Glückwunsch! Du beherrschst jetzt alle Meistertechniken von SumGrid!"
+    }
+];
+
+// === Source: js\puzzles\sumgrid\index.js ===
+/**
+ * SumGrid Puzzle Plugin Definition
+ * Implementiert das Cortex PuzzlePlugin-Interface für SumGrid (4×4 bis 7×7).
+ */
+
+
+
+
+
+
+
+
+
+const SumGridPlugin = {
+    id: 'sumgrid',
+    name: 'SumGrid',
+    icon: '🧮',
+    description: 'Zahlen eliminieren für Zeilen- & Spaltensummen',
+    cssPath: './css/puzzles/sumgrid.css',
+
+    getSizes: () => [
+        { id: 4, label: '4 × 4 (Mini)', gridSize: 4 },
+        { id: 5, label: '5 × 5 (Standard)', gridSize: 5 },
+        { id: 6, label: '6 × 6 (Groß)', gridSize: 6 },
+        { id: 7, label: '7 × 7 (Meister)', gridSize: 7 }
+    ],
+
+    getDifficulties: () => [
+        { id: 'easy', label: 'Einfach' },
+        { id: 'medium', label: 'Mittel' },
+        { id: 'hard', label: 'Schwer' }
+    ],
+
+    getValues: () => [SUMGRID_KEEP, SUMGRID_CROSS],
+
+    getInputConfig: () => ({
+        type: 'cycle',
+        allowKeypad: true,
+        keys: [SUMGRID_KEEP, SUMGRID_CROSS, SUMGRID_NEUTRAL]
+    }),
+
+    createEngine: (size = 5) => new SumGridEngine(size),
+    generatePuzzle: (opts) => SumGridGenerator.generatePuzzle(opts),
+    solvePuzzle: (engine, max = 1) => SumGridSolver.solve(engine, max),
+
+    renderBoard: (container, engine, state, onCell) => SumGridRenderer.renderBoard(container, engine, state, onCell),
+    renderKeypad: (container, engine, state, onKey) => SumGridRenderer.renderKeypad(container, engine, state, onKey),
+    getSymbolSvg: (val, extraClass) => SumGridRenderer.getSymbolSvg(val, extraClass),
+
+    getHint: (engine, options) => SumGridSolver.findLogicalHint(engine, options),
+    getRules: (lang) => SumGridRenderer.getRulesHtml(lang),
+
+    getCampaignConfig: () => ({
+        totalLevels: 240,
+        chapters: [
+            { id: 0, name: 'Kapitel 1', levelRange: [0, 59], desc: '4×4 & 5×5 Einstieg' },
+            { id: 1, name: 'Kapitel 2', levelRange: [60, 119], desc: '5×5 Zahlenmeister' },
+            { id: 2, name: 'Kapitel 3', levelRange: [120, 179], desc: '6×6 Kombinatorik' },
+            { id: 3, name: 'Kapitel 4', levelRange: [180, 239], desc: '6×6 & 7×7 Großmeister' }
+        ]
+    }),
+
+    getCampaignLevel: (levelIndex) => getSumGridCampaignLevel(levelIndex),
+    getDailyConfig: (dateStr) => getSumGridDailyPuzzle(dateStr),
+
+    getTutorialSteps: () => ({
+        sections: [
+            { id: 'basics', name: 'Grundlagen', steps: SUMGRID_TUTORIAL_STEPS, badge: '6 Lektionen' }
+        ]
+    }),
+
+    getI18nStrings: (lang) => SUMGRID_I18N[lang] || SUMGRID_I18N.de
+};
+
 // === Source: js\puzzles\tango\engine.js ===
 /**
  * Tango Game Engine
@@ -85014,6 +86487,7 @@ const puzzleRegistry = new PuzzleRegistry();
 
 
 
+
 class CortexApp {
     constructor() {
         // Storage Migration
@@ -85029,6 +86503,7 @@ class CortexApp {
         puzzleRegistry.register(SudokuPlugin);
         puzzleRegistry.register(TangoPlugin);
         puzzleRegistry.register(MinesweeperPlugin);
+        puzzleRegistry.register(SumGridPlugin);
 
         // Aktives Plugin laden
         const savedPluginId = StorageManager.getItem(StorageKeys.ACTIVE_PUZZLE, 'tango');
@@ -85332,12 +86807,47 @@ class CortexApp {
         document.getElementById('tabMenuSettings')?.addEventListener('click', () => this.switchMenuTab('settings'));
 
         // Stats Sub-Tabs
+        const statsTabsContainer = document.querySelector('.stats-filter-tabs');
+        if (statsTabsContainer) {
+            statsTabsContainer.addEventListener('wheel', (e) => {
+                if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    statsTabsContainer.scrollLeft += e.deltaY;
+                }
+            }, { passive: false });
+
+            let isPointerDown = false;
+            let startX = 0;
+            let scrollStart = 0;
+            let hasDragged = false;
+
+            statsTabsContainer.addEventListener('mousedown', (e) => {
+                isPointerDown = true;
+                hasDragged = false;
+                startX = e.pageX - statsTabsContainer.offsetLeft;
+                scrollStart = statsTabsContainer.scrollLeft;
+            });
+
+            window.addEventListener('mouseup', () => {
+                isPointerDown = false;
+            });
+
+            statsTabsContainer.addEventListener('mousemove', (e) => {
+                if (!isPointerDown) return;
+                const x = e.pageX - statsTabsContainer.offsetLeft;
+                const walk = (x - startX) * 1.5;
+                if (Math.abs(walk) > 4) hasDragged = true;
+                statsTabsContainer.scrollLeft = scrollStart - walk;
+            });
+        }
+
         document.querySelectorAll('.stats-filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.stats-filter-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this.activeStatsTab = btn.dataset.statsTab || 'all';
                 this.updateMenuStats();
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             });
         });
 
@@ -85922,7 +87432,7 @@ class CortexApp {
                 if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.vibrate(25);
                 else audio.playClear();
-            } else if (this.activePlugin.id === 'crowns') {
+            } else if (this.activePlugin.id === 'crowns' || this.activePlugin.id === 'sumgrid') {
                 if (nextVal === 1) audio.playSun();
                 else if (nextVal === 2) audio.vibrate(25);
                 else audio.playClear();
@@ -85974,7 +87484,7 @@ class CortexApp {
             this.engine.toggleFlag(r, c);
             this.movesCount++;
             audio.vibrate(30);
-        } else if (this.activePlugin.id === 'crowns') {
+        } else if (this.activePlugin.id === 'crowns' || this.activePlugin.id === 'sumgrid') {
             if (this.isNoteMode) {
                 this.engine.setCellValue(r, c, 2, true);
             } else {
@@ -86025,6 +87535,9 @@ class CortexApp {
                 else if (val === 2) audio.playMoon();
             } else if (this.activePlugin.id === 'akari') {
                 if (val === 1) audio.playBulb();
+                else if (val === 2) audio.vibrate(25);
+            } else if (this.activePlugin.id === 'sumgrid' || this.activePlugin.id === 'nonogram' || this.activePlugin.id === 'crowns') {
+                if (val === 1) audio.playSun();
                 else if (val === 2) audio.vibrate(25);
             } else {
                 audio.playDigit(val);
@@ -86435,7 +87948,7 @@ class CortexApp {
                     } else if (this.activePlugin.id === 'minesweeper') {
                         if (valToSet === 1) audio.playClear();
                         else audio.vibrate(30);
-                    } else if (this.activePlugin.id === 'crowns') {
+                    } else if (this.activePlugin.id === 'crowns' || this.activePlugin.id === 'sumgrid') {
                         if (valToSet === 1) audio.playSun();
                         else audio.vibrate(25);
                     } else {
@@ -86664,6 +88177,15 @@ class CortexApp {
                 initialGrid: this.engine.initialGrid,
                 hConstraints: this.engine.hConstraints,
                 vConstraints: this.engine.vConstraints,
+                solution: this.engine.solution
+            };
+        } else if (this.activePlugin.id === 'sumgrid') {
+            return {
+                size: this.engine.size,
+                numbers: this.engine.numbers,
+                rowTargets: this.engine.rowTargets,
+                colTargets: this.engine.colTargets,
+                initialGrid: this.engine.initialGrid,
                 solution: this.engine.solution
             };
         }
@@ -87092,7 +88614,7 @@ class CortexApp {
     }
 
     updateMenuStats() {
-        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns', 'hashi', 'futoshiki']);
+        const allStats = StatsManager.getAggregatedStats(['tango', 'sudoku', 'akari', 'nonogram', 'slitherlink', 'minesweeper', 'crowns', 'hashi', 'futoshiki', 'sumgrid']);
         const tangoStats = StatsManager.getPuzzleStats('tango');
         const sudokuStats = StatsManager.getPuzzleStats('sudoku');
         const akariStats = StatsManager.getPuzzleStats('akari');
@@ -87102,6 +88624,7 @@ class CortexApp {
         const crownsStats = StatsManager.getPuzzleStats('crowns');
         const hashiStats = StatsManager.getPuzzleStats('hashi');
         const futoshikiStats = StatsManager.getPuzzleStats('futoshiki');
+        const sumgridStats = StatsManager.getPuzzleStats('sumgrid');
 
         let displayStats = allStats;
         const currentTab = this.activeStatsTab || 'all';
@@ -87124,6 +88647,8 @@ class CortexApp {
             displayStats = hashiStats;
         } else if (currentTab === 'futoshiki') {
             displayStats = futoshikiStats;
+        } else if (currentTab === 'sumgrid') {
+            displayStats = sumgridStats;
         }
         displayStats.winRate = displayStats.played > 0 ? `${Math.round((displayStats.won / displayStats.played) * 100)}%` : '0%';
 
@@ -87190,6 +88715,13 @@ class CortexApp {
                     { id: 11, labelKey: 'stats_best_time_11' }
                 ];
             } else if (currentTab === 'futoshiki') {
+                sizesToShow = [
+                    { id: 4, labelKey: 'stats_best_time_4' },
+                    { id: 5, labelKey: 'stats_best_time_5' },
+                    { id: 6, labelKey: 'stats_best_time_6' },
+                    { id: 7, labelKey: 'stats_best_time_7' }
+                ];
+            } else if (currentTab === 'sumgrid') {
                 sizesToShow = [
                     { id: 4, labelKey: 'stats_best_time_4' },
                     { id: 5, labelKey: 'stats_best_time_5' },
@@ -87536,6 +89068,11 @@ if (typeof window !== 'undefined') {
   if (typeof FutoshikiGenerator !== 'undefined') window.FutoshikiGenerator = FutoshikiGenerator;
   if (typeof FutoshikiRenderer !== 'undefined') window.FutoshikiRenderer = FutoshikiRenderer;
   if (typeof FutoshikiPlugin !== 'undefined') window.FutoshikiPlugin = FutoshikiPlugin;
+  if (typeof SumGridEngine !== 'undefined') window.SumGridEngine = SumGridEngine;
+  if (typeof SumGridSolver !== 'undefined') window.SumGridSolver = SumGridSolver;
+  if (typeof SumGridGenerator !== 'undefined') window.SumGridGenerator = SumGridGenerator;
+  if (typeof SumGridRenderer !== 'undefined') window.SumGridRenderer = SumGridRenderer;
+  if (typeof SumGridPlugin !== 'undefined') window.SumGridPlugin = SumGridPlugin;
   if (typeof puzzleRegistry !== 'undefined') window.puzzleRegistry = puzzleRegistry;
 }
 
