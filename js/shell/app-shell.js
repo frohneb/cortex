@@ -97,6 +97,8 @@ export class CortexApp {
     init() {
         // Globaler Error Handler
         window.addEventListener('error', (e) => {
+            if (!e.error && !e.message) return;
+            if (e.message && e.message.includes('ResizeObserver')) return;
             const container = document.getElementById('debugErrorBanner');
             const msgEl = document.getElementById('debugErrorText');
             if (container && msgEl) {
@@ -106,6 +108,7 @@ export class CortexApp {
             }
         });
         window.addEventListener('unhandledrejection', (e) => {
+            if (!e.reason) return;
             const container = document.getElementById('debugErrorBanner');
             const msgEl = document.getElementById('debugErrorText');
             if (container && msgEl) {
@@ -346,47 +349,12 @@ export class CortexApp {
         document.getElementById('tabMenuSettings')?.addEventListener('click', () => this.switchMenuTab('settings'));
 
         // Stats Sub-Tabs
-        const statsTabsContainer = document.querySelector('.stats-filter-tabs');
-        if (statsTabsContainer) {
-            statsTabsContainer.addEventListener('wheel', (e) => {
-                if (e.deltaY !== 0) {
-                    e.preventDefault();
-                    statsTabsContainer.scrollLeft += e.deltaY;
-                }
-            }, { passive: false });
-
-            let isPointerDown = false;
-            let startX = 0;
-            let scrollStart = 0;
-            let hasDragged = false;
-
-            statsTabsContainer.addEventListener('mousedown', (e) => {
-                isPointerDown = true;
-                hasDragged = false;
-                startX = e.pageX - statsTabsContainer.offsetLeft;
-                scrollStart = statsTabsContainer.scrollLeft;
-            });
-
-            window.addEventListener('mouseup', () => {
-                isPointerDown = false;
-            });
-
-            statsTabsContainer.addEventListener('mousemove', (e) => {
-                if (!isPointerDown) return;
-                const x = e.pageX - statsTabsContainer.offsetLeft;
-                const walk = (x - startX) * 1.5;
-                if (Math.abs(walk) > 4) hasDragged = true;
-                statsTabsContainer.scrollLeft = scrollStart - walk;
-            });
-        }
-
         document.querySelectorAll('.stats-filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.stats-filter-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this.activeStatsTab = btn.dataset.statsTab || 'all';
                 this.updateMenuStats();
-                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             });
         });
 
@@ -806,9 +774,14 @@ export class CortexApp {
     }
 
     applyTheme(theme) {
-        ThemeManager.applyTheme(theme);
-        this.currentTheme = theme;
-        this.updateMenuSettings();
+        try {
+            ThemeManager.applyTheme(theme);
+            this.currentTheme = theme;
+            this.updateMenuSettings();
+            this.renderGrid();
+        } catch (e) {
+            console.error('Error applying theme:', e);
+        }
     }
 
     renderGrid() {
@@ -2064,11 +2037,15 @@ export class CortexApp {
             item.appendChild(radioDiv);
 
             item.addEventListener('click', () => {
-                audio.vibrate(25);
-                audio.playClear();
-                this.toggleModal('customSelectModal', false);
-                if (typeof onSelect === 'function') {
-                    onSelect(opt.value);
+                try {
+                    audio.vibrate(25);
+                    audio.playClear();
+                    this.toggleModal('customSelectModal', false);
+                    if (typeof onSelect === 'function') {
+                        onSelect(opt.value);
+                    }
+                } catch (err) {
+                    console.error('Select option error:', err);
                 }
             });
             listEl.appendChild(item);
@@ -2259,6 +2236,18 @@ export class CortexApp {
                     { id: 5, labelKey: 'stats_best_time_5' },
                     { id: 6, labelKey: 'stats_best_time_6' },
                     { id: 7, labelKey: 'stats_best_time_7' }
+                ];
+            } else if (currentTab === 'nonogram') {
+                sizesToShow = [
+                    { id: 5, labelKey: 'stats_best_time_5' },
+                    { id: 10, labelKey: 'stats_best_time_10' },
+                    { id: 15, labelKey: 'stats_best_time_15' }
+                ];
+            } else if (currentTab === 'slitherlink') {
+                sizesToShow = [
+                    { id: 5, labelKey: 'stats_best_time_5' },
+                    { id: 7, labelKey: 'stats_best_time_7' },
+                    { id: 10, labelKey: 'stats_best_time_10' }
                 ];
             } else if (currentTab === 'sumgrid') {
                 sizesToShow = [

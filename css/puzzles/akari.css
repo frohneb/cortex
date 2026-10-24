@@ -25,8 +25,8 @@ body.theme-cyberpunk .akari-grid {
     box-shadow: 0 0 25px rgba(255, 0, 127, 0.25);
 }
 
-body.theme-minimal .akari-grid {
-    border-color: var(--border-color) !important;
+body.theme-wood .akari-grid {
+    border-color: #78350f !important;
 }
 
 body.theme-amoled .akari-grid {

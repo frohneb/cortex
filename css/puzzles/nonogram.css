@@ -28,8 +28,14 @@ body.theme-cyberpunk .nonogram-board {
     box-shadow: 0 0 25px rgba(255, 0, 127, 0.25);
 }
 
-body.theme-minimal .nonogram-board {
-    border-color: var(--border-color) !important;
+body.theme-amoled .nonogram-board {
+    border-color: rgba(255, 255, 255, 0.25) !important;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.9);
+}
+
+body.theme-wood .nonogram-board {
+    border-color: #78350f !important;
+    box-shadow: 0 10px 30px rgba(20, 10, 5, 0.7);
 }
 
 /* Oben-Links: Leere Ecke */
@@ -45,9 +51,14 @@ body.theme-cyberpunk .nonogram-corner {
     border-bottom: 2px solid #ff007f !important;
 }
 
-body.theme-minimal .nonogram-corner {
-    border-right: 2px solid var(--border-color) !important;
-    border-bottom: 2px solid var(--border-color) !important;
+body.theme-amoled .nonogram-corner {
+    border-right: 2px solid rgba(255, 255, 255, 0.2) !important;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+body.theme-wood .nonogram-corner {
+    border-right: 2px solid #78350f !important;
+    border-bottom: 2px solid #78350f !important;
 }
 
 /* Oben: Spalten-Hinweise */
@@ -64,8 +75,12 @@ body.theme-cyberpunk .nonogram-col-clues {
     border-bottom: 2px solid #ff007f !important;
 }
 
-body.theme-minimal .nonogram-col-clues {
-    border-bottom: 2px solid var(--border-color) !important;
+body.theme-amoled .nonogram-col-clues {
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+body.theme-wood .nonogram-col-clues {
+    border-bottom: 2px solid #78350f !important;
 }
 
 .col-clue-box {
@@ -93,8 +108,12 @@ body.theme-cyberpunk .col-clue-box.major-edge-right {
     border-right: 2px solid #ff007f !important;
 }
 
-body.theme-minimal .col-clue-box.major-edge-right {
-    border-right: 2px solid var(--text-primary) !important;
+body.theme-amoled .col-clue-box.major-edge-right {
+    border-right: 2px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+body.theme-wood .col-clue-box.major-edge-right {
+    border-right: 2px solid #92400e !important;
 }
 
 /* Links: Zeilen-Hinweise */
@@ -111,8 +130,12 @@ body.theme-cyberpunk .nonogram-row-clues {
     border-right: 2px solid #ff007f !important;
 }
 
-body.theme-minimal .nonogram-row-clues {
-    border-right: 2px solid var(--border-color) !important;
+body.theme-amoled .nonogram-row-clues {
+    border-right: 2px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+body.theme-wood .nonogram-row-clues {
+    border-right: 2px solid #78350f !important;
 }
 
 .row-clue-box {
@@ -141,8 +164,12 @@ body.theme-cyberpunk .row-clue-box.major-edge-bottom {
     border-bottom: 2px solid #ff007f !important;
 }
 
-body.theme-minimal .row-clue-box.major-edge-bottom {
-    border-bottom: 2px solid var(--text-primary) !important;
+body.theme-amoled .row-clue-box.major-edge-bottom {
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+body.theme-wood .row-clue-box.major-edge-bottom {
+    border-bottom: 2px solid #92400e !important;
 }
 
 /* Clue-Nummern */
@@ -253,12 +280,20 @@ body.theme-cyberpunk .nonogram-cell.major-edge-bottom {
     border-bottom-color: #ff007f !important;
 }
 
-body.theme-minimal .nonogram-cell.major-edge-right {
-    border-right-color: var(--text-primary) !important;
+body.theme-amoled .nonogram-cell.major-edge-right {
+    border-right-color: rgba(255, 255, 255, 0.25) !important;
 }
 
-body.theme-minimal .nonogram-cell.major-edge-bottom {
-    border-bottom-color: var(--text-primary) !important;
+body.theme-amoled .nonogram-cell.major-edge-bottom {
+    border-bottom-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+body.theme-wood .nonogram-cell.major-edge-right {
+    border-right-color: #92400e !important;
+}
+
+body.theme-wood .nonogram-cell.major-edge-bottom {
+    border-bottom-color: #92400e !important;
 }
 
 /* Gefüllte Kachel (Pixel) */
@@ -274,6 +309,16 @@ body.theme-cyberpunk .nonogram-cell.cell-filled {
 
 body.theme-light .nonogram-cell.cell-filled {
     background-color: #1e293b !important;
+}
+
+body.theme-amoled .nonogram-cell.cell-filled {
+    background-color: #ffffff !important;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+body.theme-wood .nonogram-cell.cell-filled {
+    background-color: #f59e0b !important;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 
 /* Ausgekreuzte Kachel (Cross ✕) */
@@ -316,10 +361,30 @@ body.theme-cyberpunk .nonogram-cell.selected.cell-zoom {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(0, 240, 255, 0.6) !important;
 }
 
-/* Fehler-Zelle */
-.nonogram-cell.conflict {
-    background-color: rgba(239, 68, 68, 0.35) !important;
-    color: #ef4444 !important;
+/* Fehler-Zelle (Conflict / Fehlerhafte Kacheln) - Hohe Spezifität für alle Themes */
+.nonogram-cell.conflict,
+.nonogram-cell.cell-filled.conflict,
+.nonogram-cell.cell-cross.conflict,
+body.theme-dark .nonogram-cell.conflict,
+body.theme-amoled .nonogram-cell.conflict,
+body.theme-light .nonogram-cell.conflict,
+body.theme-wood .nonogram-cell.conflict,
+body.theme-cyberpunk .nonogram-cell.conflict,
+body.theme-dark .nonogram-cell.cell-filled.conflict,
+body.theme-amoled .nonogram-cell.cell-filled.conflict,
+body.theme-light .nonogram-cell.cell-filled.conflict,
+body.theme-wood .nonogram-cell.cell-filled.conflict,
+body.theme-cyberpunk .nonogram-cell.cell-filled.conflict,
+body.theme-dark .nonogram-cell.cell-cross.conflict,
+body.theme-amoled .nonogram-cell.cell-cross.conflict,
+body.theme-light .nonogram-cell.cell-cross.conflict,
+body.theme-wood .nonogram-cell.cell-cross.conflict,
+body.theme-cyberpunk .nonogram-cell.cell-cross.conflict {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    border-color: #b91c1c !important;
+    box-shadow: inset 0 0 0 1.5px #b91c1c, 0 0 10px rgba(239, 68, 68, 0.6) !important;
+    animation: cellShake 0.4s ease;
 }
 
 /* Lösungsaufdeckung */

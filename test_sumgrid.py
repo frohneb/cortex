@@ -147,13 +147,11 @@ class TestSumGridIntegration(unittest.TestCase):
         self.assertNotIn('badge: "Neu"', plugin_file)
         self.assertNotIn("badge: 'neu'", plugin_file.lower())
 
-    def test_stats_horizontal_scrolling_css(self):
-        """Überprüft, dass die Statistik-Tabs horizontales Scrollen ermöglichen"""
+    def test_stats_filter_tabs_wrapping_css(self):
+        """Überprüft, dass die Statistik-Tabs für alle 11 Spiele umbrechen und vollständig sichtbar sind"""
         main_css = (BASE_DIR / "css" / "main.css").read_text(encoding='utf-8')
         self.assertIn('.stats-filter-tabs {', main_css)
-        self.assertIn('overflow-x: auto;', main_css)
-        self.assertIn('white-space: nowrap;', main_css)
-        self.assertIn('flex: 0 0 auto;', main_css)
+        self.assertIn('flex-wrap: wrap;', main_css)
 
     def test_version_across_files(self):
         """Überprüft Konsistenz der Version und Codes"""

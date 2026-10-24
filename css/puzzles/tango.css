@@ -22,8 +22,12 @@ body.theme-cyberpunk .tango-grid {
     border-color: #ff007f !important;
 }
 
-body.theme-minimal .tango-grid {
-    border-color: var(--border-color) !important;
+body.theme-amoled .tango-grid {
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+body.theme-wood .tango-grid {
+    border-color: #78350f !important;
 }
 
 /* Dynamic Proportional Scaling per Grid Size (4x4, 6x6, 8x8, 10x10) */

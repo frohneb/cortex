@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.8.1-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.8.2-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -104,6 +104,19 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.8.2 – 2026-10-24
+* 🎨 **Theme-Stabilität & Farbhärtung (AMOLED & Warmes Holz)**:
+  * **Vollständige CSS-Farbvariablen**: Ergänzung fehlender CSS-Custom-Properties (`--border-color`, `--text-primary`, `--text-secondary`, `--accent-sun-bg`, `--accent-moon-bg`, `--accent-equal`, `--accent-opposite`, `--cell-hover`, `--shadow-color`) für *AMOLED Schwarz* und *Warmes Holz*.
+  * **Resiliente Theme-Umschaltung**: Kapselung der Theme-Aktivierung in `try/catch` mit unmittelbarem Re-Rendering des Spielfelds (`renderGrid()`) sowie Absicherung der benutzerdefinierten Auswahldialoge.
+  * **Beseitigung von Alt-Themes in Puzzledateien**: Aktualisierung veralteter `body.theme-minimal`-Klassen in Nonogramm, Sudoku, Tango, Slitherlink, Minesweeper, Crowns und Akari auf die aktiven Themes `theme-amoled` und `theme-wood`.
+* 🖼️ **Nonogramm Fehler-Visualisierung (Conflict-Styling)**:
+  * **Eindeutige Signalfarbe bei Fehleingaben**: Überarbeitung der Spezifität für fehlerhafte Kacheln (`.nonogram-cell.conflict`, `.nonogram-cell.cell-filled.conflict`, `.nonogram-cell.cell-cross.conflict`) mit kräftigem Signalrot (`#ef4444`, Text `#ffffff`, Rand `#b91c1c`, Rüttelanimation). Beseitigt die bisherige unschöne bräunliche Farbverfälschung in Modern Dark sowie überdeckte Fehlerzustände in Light und Cyberpunk.
+* 📊 **Statistik-Anzeige für alle Spiele optimiert (Mehrzeilige Umbrüche)**:
+  * **Sofortige Sichtbarkeit aller 11 Spiele**: Umstellung der horizontal scrollbaren Leiste auf ein responsives, mehrzeilig umbrechendes Kapsel-Design (`flex-wrap: wrap`). Alle 11 Rätsel-Tabs (*Gesamt*, *Akari*, *Nonogramm*, *Sudoku*, *Tango*, *Slitherlink*, *Minesweeper*, *Crowns*, *Hashi*, *Futoshiki*, *SumGrid*) sind nun ohne horizontales Wischen auf einen Blick erreichbar.
+  * **Vollständige Bestzeiten-Konfiguration**: Aufnahme dedizierter Bestzeiten-Gitter für Nonogramm (5×5, 10×10, 15×15 mit Lokalisierung `stats_best_time_15`) und Slitherlink (5×5, 7×7, 10×10).
+* 🛡️ **Error-Boundary-Filterung**:
+  * Unbedenkliche Browser-Ereignisse ohne Fehlerobjekt sowie `ResizeObserver`-Meldungen werden ignoriert, um Fehlalarme des Diagnose-Banners zuverlässig zu unterbinden.
 
 ### v2.8.1 – 2026-10-24
 * 🧮 **SumGrid Tutorial- & Level-Audit**:

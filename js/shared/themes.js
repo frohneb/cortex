@@ -19,11 +19,16 @@ export class ThemeManager {
     }
 
     static applyTheme(themeName) {
-        const valid = THEMES.some(t => t.id === themeName) ? themeName : 'dark';
-        document.body.className = `theme-${valid}`;
-        StorageManager.setItem(StorageKeys.THEME, valid);
-        // Auch für Legacy Kompatibilität
-        StorageManager.setItem('tango_theme', valid);
-        return valid;
+        try {
+            const valid = THEMES.some(t => t.id === themeName) ? themeName : 'dark';
+            document.body.className = `theme-${valid}`;
+            StorageManager.setItem(StorageKeys.THEME, valid);
+            // Auch für Legacy Kompatibilität
+            StorageManager.setItem('tango_theme', valid);
+            return valid;
+        } catch (e) {
+            console.error('ThemeManager.applyTheme error:', e);
+            return 'dark';
+        }
     }
 }

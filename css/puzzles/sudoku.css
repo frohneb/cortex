@@ -26,8 +26,12 @@ body.theme-cyberpunk .sudoku-grid {
     border-color: #ff007f !important;
 }
 
-body.theme-minimal .sudoku-grid {
-    border-color: var(--border-color) !important;
+body.theme-amoled .sudoku-grid {
+    border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+body.theme-wood .sudoku-grid {
+    border-color: #78350f !important;
 }
 
 /* Alle Sudoku-Zellen: Reine mathematische Kacheln ohne Versatz/Artefakte */
@@ -129,12 +133,20 @@ body.theme-cyberpunk .sudoku-cell.box-edge-bottom {
     border-bottom-color: #ff007f !important;
 }
 
-body.theme-minimal .sudoku-cell.box-edge-right {
-    border-right-color: var(--text-primary) !important;
+body.theme-amoled .sudoku-cell.box-edge-right {
+    border-right-color: rgba(255, 255, 255, 0.3) !important;
 }
 
-body.theme-minimal .sudoku-cell.box-edge-bottom {
-    border-bottom-color: var(--text-primary) !important;
+body.theme-amoled .sudoku-cell.box-edge-bottom {
+    border-bottom-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+body.theme-wood .sudoku-cell.box-edge-right {
+    border-right-color: #92400e !important;
+}
+
+body.theme-wood .sudoku-cell.box-edge-bottom {
+    border-bottom-color: #92400e !important;
 }
 
 /* Schriftgrößen nach Gittergröße */
@@ -211,9 +223,14 @@ body.theme-cyberpunk .sudoku-grid .sudoku-cell.selected.cell-zoom {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 16px rgba(0, 240, 255, 0.6) !important;
 }
 
-body.theme-minimal .sudoku-grid .sudoku-cell.selected.cell-zoom {
-    outline-color: var(--text-primary) !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+body.theme-amoled .sudoku-grid .sudoku-cell.selected.cell-zoom {
+    outline-color: #facc15 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8) !important;
+}
+
+body.theme-wood .sudoku-grid .sudoku-cell.selected.cell-zoom {
+    outline-color: #fbbf24 !important;
+    box-shadow: 0 8px 24px rgba(20, 10, 5, 0.6) !important;
 }
 
 .sudoku-grid .sudoku-cell.conflict {

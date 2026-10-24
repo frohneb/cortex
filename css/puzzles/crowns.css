@@ -25,8 +25,8 @@ body.theme-cyberpunk .crowns-grid {
     border-color: #ff007f !important;
 }
 
-body.theme-minimal .crowns-grid {
-    border-color: var(--border-color) !important;
+body.theme-wood .crowns-grid {
+    border-color: #78350f !important;
 }
 
 /* Dynamic Proportional Scaling per Grid Size */
