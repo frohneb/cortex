@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.8.0-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.8.1-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -104,6 +104,13 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.8.1 – 2026-10-24
+* 🧮 **SumGrid Tutorial- & Level-Audit**:
+  * **Tutorial-Mathematik korrigiert**: Vollständige mathematische Harmonisierung aller 6 interaktiven Tutorial-Schritte. Behebung von Summenabweichungen in Schritt 1, 2, 3, 4 und 6, sodass alle Rand-Zielsummen exakt mit den Lösungen übereinstimmen und vom Solver als eindeutig lösbar (genau 1 Lösung) verifiziert werden.
+  * **Gitterinitialisierung & Abschlussprüfung**: Nach Ausführung der Lektionsaufgaben schließt das Spielfeld nun fehlerfrei und nahtlos über `engine.isCompleted()` ab.
+  * **Kampagnen-Level-Verifikation**: Alle 240 Kampagnen-Level (4×4 bis 7×7) und Tagesrätsel wurden automatisiert auf deterministische Generierung ohne Fallback, Randziel-Konsistenz und strikte Eindeutigkeit validiert.
+  * **Automatisierte Regressionstests**: Erweiterung von `test_sumgrid.py` um mathematische Integritäts- und Eindeutigkeitsprüfungen für Tutorials und Kampagnen-Stichproben.
 
 ### v2.8.0 – 2026-10-24
 * 🧮 **Neues Puzzle-Plugin: SumGrid (Zahlen-Kreuzsummen / Sum Cross)**:

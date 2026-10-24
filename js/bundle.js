@@ -83185,17 +83185,17 @@ const SUMGRID_TUTORIAL_STEPS = [
             [1, 2, 4],
             [3, 1, 2]
         ],
-        rowTargets: [5, 4, 3],
-        colTargets: [2, 5, 5],
+        rowTargets: [5, 6, 5],
+        colTargets: [5, 5, 6],
         initialGrid: [
             [SUMGRID_NEUTRAL, SUMGRID_NEUTRAL, SUMGRID_NEUTRAL],
-            [SUMGRID_KEEP, SUMGRID_CROSS, SUMGRID_KEEP],
-            [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_KEEP]
+            [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_KEEP],
+            [SUMGRID_KEEP, SUMGRID_CROSS, SUMGRID_KEEP]
         ],
         solution: [
             [1, 1, 0],
-            [1, 0, 1],
-            [0, 1, 1]
+            [0, 1, 1],
+            [1, 0, 1]
         ],
         targetCells: [
             { r: 0, c: 0, val: SUMGRID_KEEP },
@@ -83215,8 +83215,8 @@ const SUMGRID_TUTORIAL_STEPS = [
             [5, 3, 2],
             [1, 2, 4]
         ],
-        rowTargets: [6, 0, 5],
-        colTargets: [2, 4, 5],
+        rowTargets: [6, 0, 4],
+        colTargets: [2, 4, 4],
         initialGrid: [
             [SUMGRID_KEEP, SUMGRID_KEEP, SUMGRID_CROSS],
             [SUMGRID_NEUTRAL, SUMGRID_NEUTRAL, SUMGRID_NEUTRAL],
@@ -83245,8 +83245,8 @@ const SUMGRID_TUTORIAL_STEPS = [
             [1, 4, 2],
             [3, 1, 5]
         ],
-        rowTargets: [9, 3, 5],
-        colTargets: [2, 7, 8],
+        rowTargets: [9, 4, 6],
+        colTargets: [2, 8, 9],
         initialGrid: [
             [SUMGRID_NEUTRAL, SUMGRID_NEUTRAL, SUMGRID_NEUTRAL],
             [SUMGRID_CROSS, SUMGRID_KEEP, SUMGRID_CROSS],
@@ -83275,8 +83275,8 @@ const SUMGRID_TUTORIAL_STEPS = [
             [7, 2, 1],
             [2, 4, 3]
         ],
-        rowTargets: [4, 3, 6],
-        colTargets: [1, 5, 5],
+        rowTargets: [4, 3, 7],
+        colTargets: [1, 9, 4],
         initialGrid: [
             [SUMGRID_KEEP, SUMGRID_KEEP, SUMGRID_CROSS],
             [SUMGRID_NEUTRAL, SUMGRID_KEEP, SUMGRID_KEEP],
@@ -83331,7 +83331,7 @@ const SUMGRID_TUTORIAL_STEPS = [
             [2, 1, 3],
             [1, 4, 2]
         ],
-        rowTargets: [9, 5, 5],
+        rowTargets: [9, 5, 4],
         colTargets: [6, 4, 8],
         initialGrid: [
             [SUMGRID_NEUTRAL, SUMGRID_NEUTRAL, SUMGRID_NEUTRAL],
