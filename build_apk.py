@@ -70,10 +70,20 @@ def build_apk():
     print("=== 6. Web-Assets und classes.dex in APK einbetten ===")
     classes_dex = os.path.join(work_dir, "classes.dex")
     
+    # Feste Zeitmarke für deterministische, reproduzierbare APK-Builds
+    DETERMINISTIC_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
+
+    def add_deterministic_file(zip_obj, src_path, arcname):
+        zinfo = zipfile.ZipInfo(arcname, DETERMINISTIC_TIMESTAMP)
+        zinfo.compress_type = zipfile.ZIP_DEFLATED
+        zinfo.external_attr = 0o644 << 16
+        with open(src_path, 'rb') as f:
+            zip_obj.writestr(zinfo, f.read())
+
     # APK als Zip bearbeiten
     with zipfile.ZipFile(base_apk, 'a', zipfile.ZIP_DEFLATED) as apk_zip:
         # classes.dex hinzufügen
-        apk_zip.write(classes_dex, "classes.dex")
+        add_deterministic_file(apk_zip, classes_dex, "classes.dex")
 
         # Assets kopieren
         assets_to_include = [
@@ -103,7 +113,7 @@ def build_apk():
             full_path = os.path.join(BASE_DIR, rel_path)
             if os.path.exists(full_path):
                 archive_name = f"assets/{rel_path}"
-                apk_zip.write(full_path, archive_name)
+                add_deterministic_file(apk_zip, full_path, archive_name)
                 print(f"Added asset: {archive_name}")
 
     print("=== 7. APK Zipalign (zipalign) ===")

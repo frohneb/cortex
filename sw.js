@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cortex-app-v2.8.4';
+const CACHE_NAME = 'cortex-app-v2.8.5';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',

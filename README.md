@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.8.4-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.8.5-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -104,6 +104,12 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.8.5 – 2026-11-01
+* 🔒 **Deterministische Reproducible Builds & APK-Prüfsummen-Konsistenz**:
+  * **Reproducible Build Pipeline (`build_apk.py`)**: Feste Zeitstempel-Normalisierung (`DETERMINISTIC_TIMESTAMP = (2026, 1, 1, 0, 0, 0)`) für kompilierte Bytecode-Artefakte (`classes.dex`) und Web-Assets beim Packen der APK. Garantiert bitgenau identische APK-Binärdateien und verifizierbare SHA-256-Prüfsummen über alle Builds und Entwicklungsumgebungen hinweg.
+  * **Security-Audit-Konsistenz**: Bereinigung historischer Versionsartefakte aus v2.8.3 in `SECURITY.md` (Synchronisation von `versionCode="52"` und `versionName="2.8.5"` im Manifest-Abschnitt sowie Aufnahme der nativen Bridge-Methode `setDailyCompleted`).
+  * **Test-Suite-Bereinigung**: Aktualisierung veralteter Fehlermeldungs-Texte in `test_app_dom.py` auf Version 2.8.5.
 
 ### v2.8.4 – 2026-11-01
 * ⏰ **Erinnerung an das tägliche Rätsel nur bei ungelöstem Status**:

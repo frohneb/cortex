@@ -1,9 +1,9 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 01.11.2026 (Release-Audit v2.8.4)  
+**Audit Datum:** 01.11.2026 (Release-Audit v2.8.5)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
-**Version:** 2.8.4 (versionCode 51)  
-**APK SHA-256:** `3d301372b4c2c5c94c166b483b7a1d763083710765e2a50d4d17903dcafa9461`  
+**Version:** 2.8.5 (versionCode 52)  
+**APK SHA-256:** `b1ab95f2ab69433605dfac957c819e86b3eab5382adbfc15655b3bd0745d1a3b`  
 **Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---
@@ -57,7 +57,7 @@ Das Berechtigungsmodell folgt strikt dem Least-Privilege-Prinzip (Minimalprinzip
 * **`android:allowBackup="false"`**: Verhindert unberechtigtes Auslesen von Spieldaten über ADB-Backups.
 * **`android:usesCleartextTraffic="false"`**: Unverschlüsselter Netzwerkverkehr ist systemseitig deaktiviert.
 * **`android:debuggable="false"`**: Keine Debug-Flags im Produktions-Build.
-* **`versionCode="50"` & `versionName="2.8.3"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
+* **`versionCode="52"` & `versionName="2.8.5"`**: Synchron mit `build.gradle.kts`, `index.html` und `sw.js`.
 
 ---
 
@@ -68,7 +68,7 @@ Die WebView-Instanz in `MainActivity.java` ist vollständig gegen lokale und web
 * `setAllowFileAccessFromFileURLs(false)` & `setAllowUniversalAccessFromFileURLs(false)`
 * `setAllowFileAccess(false)` & `setAllowContentAccess(false)`
 * `setBlockNetworkLoads(true)` & `setBlockNetworkImage(true)`: Blockiert jegliche Netzwerkaufrufe auf nativer WebView-Ebene.
-* **JavaScript-Bridge (`NotificationBridge`)**: Exponiert ausschließlich sichere Methoden für die lokale AlarmManager-Steuerung (`scheduleDailyReminder`, `cancelDailyReminder`, `hasNotificationPermission`). Keine Reflection, keine dynamische Code-Ausführung (`Runtime.exec`).
+* **JavaScript-Bridge (`NotificationBridge`)**: Exponiert ausschließlich sichere Methoden für die lokale AlarmManager-Steuerung (`scheduleDailyReminder`, `cancelDailyReminder`, `hasNotificationPermission`, `setDailyCompleted`). Keine Reflection, keine dynamische Code-Ausführung (`Runtime.exec`).
 * `WebView.setWebContentsDebuggingEnabled(false)`: Kein Remote-Debugging über DevTools im Release-Build.
 
 ---
@@ -110,4 +110,4 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ## 🏆 Gesamtbewertung
 
-Die Anwendung **Cortex – Logikrätsel (v2.8.4, versionCode 51)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero, Futoshiki und SumGrid) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
+Die Anwendung **Cortex – Logikrätsel (v2.8.5, versionCode 52)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero, Futoshiki und SumGrid) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
