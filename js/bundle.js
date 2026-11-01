@@ -990,6 +990,11 @@ const baseTranslations = {
         hint_limit_reached: "Maximale Anzahl an Hinweisen für dieses Level erreicht (3/3).",
         reveal_confirm_title: "Lösung aufdecken?",
         reveal_confirm_desc: "Du hast alle 3 Hinweise verbraucht. Möchtest du das Rätsel aufgeben und die vollständige Lösung aufdecken?\n\n⚠️ Das nächste Level wird dabei nicht freigeschaltet und in der Statistik wird eine Niederlage vermerkt.",
+        reveal_confirm_desc_1hint: "Du hast deinen Hinweis verbraucht. Möchtest du das Rätsel aufgeben und die vollständige Lösung aufdecken?\n\n⚠️ Das nächste Level wird dabei nicht freigeschaltet und in der Statistik wird eine Niederlage vermerkt.",
+        campaign_restart_title: "Kampagne neu starten",
+        campaign_restart_confirm: "Möchtest du die Kampagne von vorn beginnen? Du startest wieder bei Level 1 und hast ab jetzt nur 1 Hinweis pro Level zur Verfügung. Deine Trophäe bleibt erhalten!",
+        campaign_btn_restart: "Kampagne neu starten (1 Hinweis)",
+        trophy_title: "Kampagne gemeistert",
         btn_reveal_solution: "Lösung aufdecken",
         reveal_defeat_title: "Rätsel aufgegeben",
         reveal_defeat_msg: "Die Lösung wurde hinterlegt und Fehler wurden rot markiert. Das nächste Level bleibt gesperrt und in deiner Statistik wurde eine Niederlage verbucht.",
@@ -1188,6 +1193,11 @@ const baseTranslations = {
         hint_limit_reached: "Maximum hints reached for this level (3/3).",
         reveal_confirm_title: "Reveal Solution?",
         reveal_confirm_desc: "You have used all 3 hints. Do you want to forfeit and reveal the full solution?\n\n⚠️ Next level will not unlock and a defeat will be recorded.",
+        reveal_confirm_desc_1hint: "You have used your hint. Do you want to forfeit and reveal the full solution?\n\n⚠️ Next level will not unlock and a defeat will be recorded.",
+        campaign_restart_title: "Restart Campaign",
+        campaign_restart_confirm: "Do you want to restart the campaign? You will start at level 1 with only 1 hint available per level. Your trophy will be kept!",
+        campaign_btn_restart: "Restart Campaign (1 Hint)",
+        trophy_title: "Campaign Mastered",
         btn_reveal_solution: "Reveal Solution",
         reveal_defeat_title: "Puzzle Forfeited",
         reveal_defeat_msg: "The solution is revealed with mistakes highlighted. Next level remains locked.",
@@ -86579,6 +86589,10 @@ class CortexApp {
         if (canvas) animations.init(canvas);
 
         this.bindEvents();
+        const todayStr = new Date().toISOString().slice(0, 10);
+        if (this.isDailyPuzzleCompleted(todayStr) && window.AndroidNotification?.setDailyCompleted) {
+            try { window.AndroidNotification.setDailyCompleted(todayStr); } catch (e) {}
+        }
         this.checkDailyReminder();
         this.checkDailySystemNotification();
         if (this.reminderEnabled && window.AndroidNotification?.scheduleDailyReminder) {
@@ -86696,9 +86710,11 @@ class CortexApp {
 
         const all = puzzleRegistry.getAll().slice().sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
         for (const p of all) {
+            const hasTrophy = this.hasCampaignTrophy(p.id);
             const card = document.createElement('div');
             card.className = `puzzle-select-card ${p.id === this.activePlugin.id ? 'active' : ''}`;
             card.innerHTML = `
+                ${hasTrophy ? `<span class="puzzle-card-trophy" title="${t('trophy_title') || 'Kampagne gemeistert'}">🏆</span>` : ''}
                 <span class="puzzle-icon">${p.icon}</span>
                 <span class="puzzle-name">${p.name}</span>
                 <span class="puzzle-desc">${p.description}</span>
@@ -86883,7 +86899,12 @@ class CortexApp {
                     this.startCampaignLevel(0);
                 }
             } else if (this.currentMode === 'campaign') {
-                this.startCampaignLevel(this.campaignLevelIndex + 1);
+                const totalLevels = this.activePlugin?.getCampaignConfig ? (this.activePlugin.getCampaignConfig().totalLevels || 240) : 240;
+                if (this.campaignLevelIndex + 1 < totalLevels) {
+                    this.startCampaignLevel(this.campaignLevelIndex + 1);
+                } else {
+                    this.restartCampaign();
+                }
             } else if (this.currentMode === 'free') {
                 this.openFreePlayModal();
             } else if (this.currentMode === 'daily') {
@@ -86899,6 +86920,17 @@ class CortexApp {
 
         document.getElementById('btnCloseHint')?.addEventListener('click', () => this.toggleModal('hintModal', false));
         document.getElementById('btnCloseLevelSelect')?.addEventListener('click', () => this.toggleModal('levelSelectModal', false));
+        document.getElementById('btnRestartCampaign')?.addEventListener('click', async () => {
+            const confirmed = await this.showConfirmDialog({
+                title: t('campaign_restart_title') || 'Kampagne neu starten',
+                message: t('campaign_restart_confirm') || 'Möchtest du die Kampagne von vorn beginnen? Du startest wieder bei Level 1 und hast ab jetzt nur 1 Hinweis pro Level zur Verfügung. Deine Trophäe bleibt erhalten!',
+                confirmText: t('campaign_btn_restart') || 'Neu starten',
+                cancelText: t('btn_cancel') || 'Abbrechen'
+            });
+            if (confirmed) {
+                this.restartCampaign();
+            }
+        });
 
         // Sicherheitsabfrage & Lösungsaufdeckung Listener
         document.getElementById('btnCancelReveal')?.addEventListener('click', () => this.toggleModal('confirmRevealModal', false));
@@ -87084,6 +87116,9 @@ class CortexApp {
                 this.toggleModal('menuModal', false);
                 audio.playClear();
                 this.checkDailyReminder();
+                if (window.AndroidNotification?.setDailyCompleted) {
+                    try { window.AndroidNotification.setDailyCompleted(''); } catch (e) {}
+                }
             }
         });
 
@@ -87375,9 +87410,6 @@ class CortexApp {
                         this.timer.stop();
                         audio.playError();
                         audio.vibrate(80);
-                        if (this.currentMode === 'campaign' || this.currentMode === 'free') {
-                            StatsManager.recordGame(this.activePlugin.id, this.engine.size, this.secondsElapsed, false);
-                        }
                         this.renderGrid();
                         this.clearActiveGameState();
                         return;
@@ -87832,8 +87864,12 @@ class CortexApp {
     handleHint() {
         if (!this.isGameActive || this.solutionRevealed) return;
 
-        const MAX_HINTS = 3;
+        const MAX_HINTS = this.getMaxHints();
         if (this.hintsUsed >= MAX_HINTS) {
+            const descEl = document.querySelector('#confirmRevealModal .confirm-message');
+            if (descEl) {
+                descEl.textContent = MAX_HINTS === 1 ? t('reveal_confirm_desc_1hint') : t('reveal_confirm_desc');
+            }
             this.toggleModal('confirmRevealModal', true);
             return;
         }
@@ -88056,6 +88092,16 @@ class CortexApp {
         const victoryMoves = document.getElementById('victoryMoves');
         if (victoryTime) victoryTime.textContent = formatted;
         if (victoryMoves) victoryMoves.textContent = this.movesCount;
+
+        const totalLevels = this.activePlugin?.getCampaignConfig ? (this.activePlugin.getCampaignConfig().totalLevels || 240) : 240;
+        const btnNext = document.getElementById('btnNextLevel');
+        if (btnNext) {
+            if (this.currentMode === 'campaign' && this.campaignLevelIndex >= totalLevels - 1) {
+                btnNext.textContent = t('campaign_btn_restart') || 'Kampagne neu starten';
+            } else {
+                btnNext.textContent = t('victory_next_level') || 'Nächstes Level';
+            }
+        }
 
         const expEl = document.getElementById('victoryExplanation');
         if (expEl) {
@@ -88327,15 +88373,50 @@ class CortexApp {
         return true;
     }
 
-    getCompletedLevels() {
-        const key = StorageKeys.puzzleKey(this.activePlugin.id, 'campaign_completed');
+    getCompletedLevels(pluginId = this.activePlugin?.id) {
+        if (!pluginId) return [];
+        const key = StorageKeys.puzzleKey(pluginId, 'campaign_completed');
         const completed = StorageManager.getJSON(key, null);
         if (completed !== null) return completed;
         // Fallback für Tango
-        if (this.activePlugin.id === 'tango') {
+        if (pluginId === 'tango') {
             return StorageManager.getJSON('tango_campaign_completed', []);
         }
         return [];
+    }
+
+    hasCampaignTrophy(pluginId = this.activePlugin?.id) {
+        if (!pluginId) return false;
+        const key = StorageKeys.puzzleKey(pluginId, 'campaign_trophy');
+        if (StorageManager.getItem(key) === 'true') {
+            return true;
+        }
+        const completed = this.getCompletedLevels(pluginId);
+        if (Array.isArray(completed) && completed.length >= 240) {
+            StorageManager.setItem(key, 'true');
+            return true;
+        }
+        return false;
+    }
+
+    getMaxHints() {
+        const MAX_HINTS = 3;
+        if (this.currentMode === 'campaign' && this.hasCampaignTrophy(this.activePlugin?.id)) {
+            return 1;
+        }
+        return MAX_HINTS;
+    }
+
+    restartCampaign() {
+        const key = StorageKeys.puzzleKey(this.activePlugin.id, 'campaign_completed');
+        StorageManager.setJSON(key, []);
+        if (this.activePlugin.id === 'tango') {
+            StorageManager.setJSON('tango_campaign_completed', []);
+        }
+        StorageManager.setItem(StorageKeys.puzzleKey(this.activePlugin.id, 'campaign_trophy'), 'true');
+        this.toggleModal('levelSelectModal', false);
+        this.toggleModal('victoryModal', false);
+        this.startCampaignLevel(0);
     }
 
     saveCampaignProgress(lvlIndex) {
@@ -88347,6 +88428,10 @@ class CortexApp {
             if (this.activePlugin.id === 'tango') {
                 StorageManager.setJSON('tango_campaign_completed', completed);
             }
+        }
+        const totalLevels = this.activePlugin?.getCampaignConfig ? (this.activePlugin.getCampaignConfig().totalLevels || 240) : 240;
+        if (completed.length >= totalLevels) {
+            StorageManager.setItem(StorageKeys.puzzleKey(this.activePlugin.id, 'campaign_trophy'), 'true');
         }
     }
 
@@ -88363,6 +88448,9 @@ class CortexApp {
             StorageManager.setJSON(StorageKeys.DAILY_HISTORY, history);
             StorageManager.setJSON('tango_daily_history', history);
         }
+        if (window.AndroidNotification?.setDailyCompleted) {
+            try { window.AndroidNotification.setDailyCompleted(today); } catch (e) {}
+        }
         this.checkDailyReminder();
     }
 
@@ -88372,6 +88460,10 @@ class CortexApp {
             this.selectedCampaignChapter = Math.min(3, Math.max(0, Math.floor(this.campaignLevelIndex / 60)));
         }
         this.renderCampaignLevelGrid();
+        const restartContainer = document.getElementById('campaignRestartContainer');
+        if (restartContainer) {
+            restartContainer.style.display = this.hasCampaignTrophy(this.activePlugin.id) ? 'block' : 'none';
+        }
         this.toggleModal('levelSelectModal', true);
     }
 

@@ -1,9 +1,9 @@
 # Sicherheits- & Datenschutzbericht – Cortex Logikrätsel
 
-**Audit Datum:** 24.10.2026 (Release-Audit v2.8.3)  
+**Audit Datum:** 01.11.2026 (Release-Audit v2.8.4)  
 **Auditiert von:** Automatisierter Deep-Scan (`test_security_deep.py`, `test_security.py`) + statische & dynamische Code-Analyse  
-**Version:** 2.8.3 (versionCode 50)  
-**APK SHA-256:** `f8e331e56163658168763dcd6bacc43b6883dcc78fed9e450f4d9c090ebcc29c`  
+**Version:** 2.8.4 (versionCode 51)  
+**APK SHA-256:** `3d301372b4c2c5c94c166b483b7a1d763083710765e2a50d4d17903dcafa9461`  
 **Gesamtbewertung:** 10.0 / 10 – PERFEKT (Exzellent)  
 
 ---
@@ -110,4 +110,4 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ## 🏆 Gesamtbewertung
 
-Die Anwendung **Cortex – Logikrätsel (v2.8.3, versionCode 50)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero, Futoshiki und SumGrid) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.
+Die Anwendung **Cortex – Logikrätsel (v2.8.4, versionCode 51)** erfüllt höchste Maßstäbe für Software-Sicherheit, Code-Qualität und Datenschutz. Durch die modulare Offline-Architektur (inkl. Tango, Sudoku, Akari, Nonogramm, Slitherlink, Minesweeper, Crowns, Hashiwokakero, Futoshiki und SumGrid) existiert keinerlei Angriffsfläche für Datenabflüsse oder Remote-Exploits.

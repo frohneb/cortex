@@ -312,26 +312,26 @@ class TestTangoAppDOM(unittest.TestCase):
         self.assertIn('.tut-btn-icon', css_content, "main.css muss CSS für .tut-btn-icon definieren")
         self.assertIn('.tut-btn-text', css_content, "main.css muss CSS für .tut-btn-text definieren")
 
-    def test_version_number_consistency_v2_8_3(self):
-        """Überprüft, dass Version 2.8.3 (Code 50) in allen Konfigurationsdateien konsistent ist"""
+    def test_version_number_consistency_v2_8_4(self):
+        """Überprüft, dass Version 2.8.4 (Code 51) in allen Konfigurationsdateien konsistent ist"""
         sw_content = (BASE_DIR / "sw.js").read_text(encoding='utf-8')
         html_content = (BASE_DIR / "index.html").read_text(encoding='utf-8')
         gradle_content = (BASE_DIR / "android" / "app" / "build.gradle.kts").read_text(encoding='utf-8')
         manifest_content = (BASE_DIR / "android" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding='utf-8')
 
-        self.assertIn('cortex-app-v2.8.3', sw_content, "sw.js muss Cache cortex-app-v2.8.3 enthalten")
-        self.assertIn('id="appVersionBadge">v2.8.3</span>', html_content, "index.html muss appVersionBadge v2.8.3 anzeigen")
-        self.assertTrue('versionName = "2.8.3"' in gradle_content, "build.gradle.kts muss versionName 2.8.3 enthalten")
-        self.assertTrue('versionCode = 50' in gradle_content, "build.gradle.kts muss versionCode 50 enthalten")
-        self.assertTrue('android:versionName="2.8.3"' in manifest_content, "AndroidManifest.xml muss versionName 2.8.3 enthalten")
-        self.assertTrue('android:versionCode="50"' in manifest_content, "AndroidManifest.xml muss versionCode 50 enthalten")
+        self.assertIn('cortex-app-v2.8.4', sw_content, "sw.js muss Cache cortex-app-v2.8.4 enthalten")
+        self.assertIn('id="appVersionBadge">v2.8.4</span>', html_content, "index.html muss appVersionBadge v2.8.3 anzeigen")
+        self.assertTrue('versionName = "2.8.4"' in gradle_content, "build.gradle.kts muss versionName 2.8.3 enthalten")
+        self.assertTrue('versionCode = 51' in gradle_content, "build.gradle.kts muss versionCode 50 enthalten")
+        self.assertTrue('android:versionName="2.8.4"' in manifest_content, "AndroidManifest.xml muss versionName 2.8.3 enthalten")
+        self.assertTrue('android:versionCode="51"' in manifest_content, "AndroidManifest.xml muss versionCode 50 enthalten")
 
         # Prüfe SECURITY.md & README.md Konsistenz
         security_content = (BASE_DIR / "SECURITY.md").read_text(encoding='utf-8')
         readme_content = (BASE_DIR / "README.md").read_text(encoding='utf-8')
-        self.assertIn('Version-2.8.3', readme_content, "README.md muss Version-2.8.3 Badge enthalten")
-        self.assertIn('**Version:** 2.8.3 (versionCode 50)', security_content, "SECURITY.md muss Version 2.8.3 (versionCode 50) enthalten")
-        self.assertIn('(v2.8.3, versionCode 50)', security_content, "SECURITY.md muss (v2.8.3, versionCode 50) im Fazit enthalten")
+        self.assertIn('Version-2.8.4', readme_content, "README.md muss Version-2.8.4 Badge enthalten")
+        self.assertIn('**Version:** 2.8.4 (versionCode 51)', security_content, "SECURITY.md muss Version 2.8.4 (versionCode 51) enthalten")
+        self.assertIn('(v2.8.4, versionCode 51)', security_content, "SECURITY.md muss (v2.8.4, versionCode 51) im Fazit enthalten")
 
     def test_locked_cells_darker_background_styling(self):
         """Überprüft, dass main.css spezifische dunklere Hintergründe für Start- und gesperrte Zellen definiert"""

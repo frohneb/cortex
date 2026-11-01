@@ -120,7 +120,7 @@ class TestCyberResilienceAndCyberSecurity(unittest.TestCase):
 
     def test_cr_09_pwa_service_worker_offline_cache_resilience(self):
         """CR-09 [Resilienz]: Service Worker Cache stellt vollständige Asset-Verfügbarkeit sicher"""
-        self.assertIn("const CACHE_NAME = 'cortex-app-v2.8.3';", self.sw_content)
+        self.assertIn("const CACHE_NAME = 'cortex-app-v2.8.4';", self.sw_content)
         self.assertIn("'./index.html'", self.sw_content)
         self.assertIn("'./js/bundle.js'", self.sw_content)
         self.assertIn("'./css/main.css'", self.sw_content)
@@ -215,13 +215,13 @@ class TestCyberResilienceAndCyberSecurity(unittest.TestCase):
         self.assertIn('build_apk_temp', gitignore)
 
     def test_cs_09_version_consistency_and_anti_tampering(self):
-        """CS-09 [Sicherheit]: Versions- und Cache-Konsistenz v2.8.3 (Code 50) über alle Manifeste hinweg"""
-        self.assertIn('id="appVersionBadge">v2.8.3</span>', self.html_content)
-        self.assertIn('versionCode = 50', self.gradle_content)
-        self.assertIn('versionName = "2.8.3"', self.gradle_content)
-        self.assertIn('android:versionCode="50"', self.manifest_content)
-        self.assertIn('android:versionName="2.8.3"', self.manifest_content)
-        self.assertIn('Version-2.8.3', (BASE_DIR / "README.md").read_text(encoding='utf-8'))
+        """CS-09 [Sicherheit]: Versions- und Cache-Konsistenz v2.8.4 (Code 51) über alle Manifeste hinweg"""
+        self.assertIn('id="appVersionBadge">v2.8.4</span>', self.html_content)
+        self.assertIn('versionCode = 51', self.gradle_content)
+        self.assertIn('versionName = "2.8.4"', self.gradle_content)
+        self.assertIn('android:versionCode="51"', self.manifest_content)
+        self.assertIn('android:versionName="2.8.4"', self.manifest_content)
+        self.assertIn('Version-2.8.4', (BASE_DIR / "README.md").read_text(encoding='utf-8'))
 
 
 if __name__ == "__main__":

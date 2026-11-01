@@ -27,8 +27,19 @@ public class MainActivity extends Activity {
     public static final String KEY_HOUR = "reminder_hour";
     public static final String KEY_MINUTE = "reminder_minute";
     public static final String KEY_ENABLED = "reminder_enabled";
+    public static final String KEY_LAST_COMPLETED_DATE = "last_completed_date";
 
     public class NotificationBridge {
+        @JavascriptInterface
+        public void setDailyCompleted(final String dateStr) {
+            try {
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                prefs.edit().putString(KEY_LAST_COMPLETED_DATE, dateStr != null ? dateStr : "").apply();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
         @JavascriptInterface
         public void showNotification(final String title, final String message) {
             runOnUiThread(new Runnable() {
@@ -195,8 +206,16 @@ public class MainActivity extends Activity {
             calendar.set(Calendar.SECOND, 0);
             calendar.set(Calendar.MILLISECOND, 0);
 
-            // Liegt die Zeit heute bereits in der Vergangenheit, dann für morgen ansetzen
-            if (calendar.getTimeInMillis() <= System.currentTimeMillis()) {
+            String lastCompleted = prefs.getString(KEY_LAST_COMPLETED_DATE, "");
+            java.text.SimpleDateFormat sdfUtc = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+            sdfUtc.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            String todayUtc = sdfUtc.format(new java.util.Date());
+            java.text.SimpleDateFormat sdfLocal = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault());
+            String todayLocal = sdfLocal.format(new java.util.Date());
+            boolean isCompletedToday = todayUtc.equals(lastCompleted) || todayLocal.equals(lastCompleted);
+
+            // Liegt die Zeit heute bereits in der Vergangenheit oder wurde das Tagesrätsel heute bereits gelöst, dann für morgen ansetzen
+            if (calendar.getTimeInMillis() <= System.currentTimeMillis() || isCompletedToday) {
                 calendar.add(Calendar.DAY_OF_YEAR, 1);
             }
 

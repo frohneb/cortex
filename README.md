@@ -1,6 +1,6 @@
 # Cortex – Modulare Logikrätsel für Android & Web
 
-[![Version](https://img.shields.io/badge/Version-2.8.3-brightgreen.svg)](https://github.com/frohneb/cortex)
+[![Version](https://img.shields.io/badge/Version-2.8.4-brightgreen.svg)](https://github.com/frohneb/cortex)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Offline](https://img.shields.io/badge/Offline-100%25-orange.svg)](#)
 [![Werbefrei](https://img.shields.io/badge/Ads-0%25%20Werbefrei-success.svg)](#)
@@ -104,6 +104,18 @@ Eine moderne, elegante und werbefreie Offline-Plattform für anspruchsvolle Logi
 ---
 
 ## 📜 Changelog
+
+### v2.8.4 – 2026-11-01
+* ⏰ **Erinnerung an das tägliche Rätsel nur bei ungelöstem Status**:
+  * **System-Benachrichtigungen & Banner optimiert**: Erinnerungen und Benachrichtigungen (sowohl das In-App-Banner als auch Web- & native Android-Benachrichtigungen via AlarmManager) werden nur noch ausgelöst, wenn das heutige Tagesrätsel tatsächlich noch ungelöst ist.
+  * **Status-Synchronisation zur nativen Android-Bridge**: Nach dem erfolgreichen Lösen des Tagesrätsels wird der Abschlussstatus sofort über `AndroidNotification.setDailyCompleted()` an die Android-App übermittelt. `NotificationReceiver` und `scheduleExactDailyAlarm` prüfen das Abschlussdatum und unterdrücken überflüssige Alarme für den aktuellen Tag.
+* 🏆 **Kampagnen-Abschluss-Trophäe & Meister-Wiederholung (1 Hinweis)**:
+  * **Trophäe in der Rätselauswahl**: Nach dem Meistern aller 240 Level einer Kampagne erhält das jeweilige Puzzle eine goldene Trophäe (🏆) in der Rätselauswahl (`puzzleSelectionGrid`).
+  * **Kampagne neu starten**: Aus der Levelauswahl oder nach Abschluss von Level 240 kann die Kampagne von vorn begonnen werden. Die verdiente Trophäe bleibt dauerhaft erhalten.
+  * **Meister-Herausforderung**: Beim erneuten Spielen einer bereits gemeisterten Kampagne steht pro Level nur noch **1 Hinweis** zur Verfügung (statt regulär 3).
+* 💣 **Minesweeper-Statistik: Explosionen zählen nicht als ungelöst**:
+  * **Differenzierung zwischen Minentreffer und Rätselaufgabe**: Das Auslösen einer Mine (Explosion) beendet zwar das laufende Spiel, wird jedoch nicht mehr als Niederlage/ungelöst in der Statistik (`StatsManager.recordGame(..., false)`) verbucht.
+  * **Ungelöst nur bei Lösungsaufdeckung**: Als ungelöst gilt ein Minesweeper-Spiel nur dann, wenn der Spieler nach Aufbrauchen aller Hinweise explizit die vollständige Lösung aufdecken lässt.
 
 ### v2.8.3 – 2026-10-24
 * 🖼️ **Nonogramm: 100 % einheitliche Pixelfarbe für alle Themes (Rätsellogik wiederhergestellt)**:

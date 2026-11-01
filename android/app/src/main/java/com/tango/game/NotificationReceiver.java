@@ -39,14 +39,28 @@ public class NotificationReceiver extends BroadcastReceiver {
                .setContentIntent(pendingIntent)
                .setAutoCancel(true);
 
-        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (manager != null) {
-            manager.notify(NOTIFICATION_ID, builder.build());
+        // Prüfen, ob das heutige Tagesrätsel bereits gelöst wurde
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        String lastCompleted = prefs.getString(MainActivity.KEY_LAST_COMPLETED_DATE, "");
+
+        java.text.SimpleDateFormat sdfUtc = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+        sdfUtc.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        String todayUtc = sdfUtc.format(new java.util.Date());
+
+        java.text.SimpleDateFormat sdfLocal = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault());
+        String todayLocal = sdfLocal.format(new java.util.Date());
+
+        boolean isCompletedToday = todayUtc.equals(lastCompleted) || todayLocal.equals(lastCompleted);
+
+        if (!isCompletedToday) {
+            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) {
+                manager.notify(NOTIFICATION_ID, builder.build());
+            }
         }
 
         // Automatisch den nächsten Tag exakt neu terminieren
         try {
-            SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS_NAME, Context.MODE_PRIVATE);
             boolean enabled = prefs.getBoolean(MainActivity.KEY_ENABLED, true);
             if (enabled) {
                 int hour = prefs.getInt(MainActivity.KEY_HOUR, 9);
